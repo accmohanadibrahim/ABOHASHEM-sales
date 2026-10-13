@@ -1152,7 +1152,18 @@ function showSection(id){
   built[id]=true;
   bindPng();
   setTimeout(()=>Object.values(charts).forEach(c=>c&&c.resize&&c.resize()),60);
-  document.getElementById("sidebar").classList.remove("open");
+  setNav(false);
+}
+/* ---- Mobile off-canvas nav ---- */
+function navBackdrop(){
+  let bd=document.querySelector(".nav-backdrop");
+  if(!bd){ bd=document.createElement("div"); bd.className="nav-backdrop"; document.body.appendChild(bd); }
+  return bd;
+}
+function setNav(open){
+  document.getElementById("sidebar").classList.toggle("open",open);
+  navBackdrop().classList.toggle("show",open);
+  document.getElementById("navToggle").setAttribute("aria-expanded",open?"true":"false");
 }
 function refreshActive(){ if(state.section){ SECTIONS[state.section].update(buildContext()); paintInsights(); } }
 
@@ -1355,7 +1366,9 @@ function boot(){
   document.getElementById("btnPrint").onclick=()=>window.print();
   document.getElementById("btnExportAll").onclick=exportAll;
   document.getElementById("btnReset").onclick=resetFilters;
-  document.getElementById("navToggle").onclick=()=>document.getElementById("sidebar").classList.toggle("open");
+  document.getElementById("navToggle").onclick=()=>setNav(!document.getElementById("sidebar").classList.contains("open"));
+  navBackdrop().onclick=()=>setNav(false);
+  document.addEventListener("keydown",e=>{ if(e.key==="Escape") setNav(false); });
   document.getElementById("drillClose").onclick=closeDrill;
   document.getElementById("drillPrint").onclick=printStatement;
   document.getElementById("drillModal").addEventListener("click",e=>{if(e.target.id==="drillModal")closeDrill();});
