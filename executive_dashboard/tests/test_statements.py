@@ -2,7 +2,7 @@
 Financial-statements parser tests (src/statements.py).
 
 Lock the balance-sheet / P&L figures read from data/raw/ to the source workbook,
-the exclusion of the unbalanced Feb-2026 column, and the self-check that the
+that the dropped Feb-2026 column never appears, and the self-check that the
 recomputed indirect cash flow equals the actual change in cash + deposits.
 Skipped automatically when openpyxl is unavailable (stock CI image).
 """
@@ -29,7 +29,10 @@ def test_only_balanced_columns_are_used(fs):
     assert fs["meta"]["balance_sheet_dates"] == ["2025-07-31", "2025-08-31", "2025-12-31"]
     for bs in fs["balance_sheets"].values():
         assert abs(bs["balance_diff"]) < statements.BALANCE_TOL
-    assert any(f["id"] == "bs_unbalanced_2026-02-28" for f in fs["quality_flags"])
+    # Feb-2026 is dropped by management decision: absent everywhere, no flag.
+    assert "2026-02-28" not in fs["balance_sheets"]
+    assert "2026-02-28" not in fs["other_current_assets"]
+    assert not any(f["id"].startswith("bs_unbalanced") for f in fs["quality_flags"])
 
 
 def test_december_balance_sheet_reference_figures(fs):

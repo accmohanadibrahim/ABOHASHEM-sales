@@ -4,7 +4,7 @@ Financial statements (balance sheet + monthly P&L) for the finance screens.
 Sources (copied unchanged into ``data/raw/``):
   * ``financial_statements_pop.xlsx``  — B.S. / I.S. / other-current-assets /
     CASH FLOW / RATIOS workbook. Balance-sheet columns 31/7/2025, 31/8/2025,
-    31/12/2025 and an incomplete 28/2/2026.
+    31/12/2025 and an incomplete 28/2/2026 (dropped by management decision).
   * ``income_statement_detail_2025H2.xlsx`` — detailed monthly income statement
     Jul → Dec 2025 (one sheet per month, expense lines itemised).
 
@@ -13,7 +13,7 @@ Rules (same anti-fabrication contract as the rest of the dashboard):
   * A balance-sheet column is used only if assets == liabilities + equity
     (±1 EGP). Unbalanced columns are excluded and reported as a quality flag.
   * The workbook's own CASH FLOW / OPS / RATIOS sheets are NOT consumed: they
-    are derived from the unbalanced Feb-2026 column. Cash flow and ratios are
+    were derived from the incomplete Feb-2026 column. Cash flow and ratios are
     recomputed here from balanced balance sheets + the monthly P&L, and every
     formula is published in ``kpi_dictionary``.
 
@@ -40,6 +40,10 @@ OUT_JSON = REPO_ROOT / "data" / "processed" / "financial_statements.json"
 OUT_JS = APP_DIR / "statements_data.js"
 
 BALANCE_TOL = 1.0            # EGP — assets vs liabilities+equity
+# Columns dropped entirely by management decision (2026-10-13): the 28/2/2026
+# column in the workbook is incomplete and will not be completed, so it is
+# ignored in every sheet rather than reported as an unbalanced column.
+DROPPED_DATES = {"2026-02-28"}
 RECON_TOL_PCT = 0.02         # invoice sales vs statement net sales
 ITEM_SUM_TOL = 1.0           # itemised expenses vs section total
 
@@ -109,7 +113,7 @@ def parse_balance_sheets(wb) -> tuple[dict, list]:
         if str(row[0].value or "").strip().startswith("DATE"):
             for c in row[3:]:
                 k = _date_key(c.value)
-                if k:
+                if k and k not in DROPPED_DATES:
                     date_cols[c.column] = k
             break
     sheets = {d: {} for d in date_cols.values()}
@@ -173,7 +177,7 @@ def parse_other_current_assets(wb) -> dict:
     for r in (2, 3):
         for c in ws[r]:
             d = OCA_BLOCK_DATES.get(str(c.value or "").strip()) or OCA_BLOCK_DATES.get(str(c.value or ""))
-            if d and d not in starts.values():
+            if d and d not in DROPPED_DATES and d not in starts.values():
                 starts[c.column] = d
     out = {}
     for start, d in starts.items():
@@ -595,16 +599,16 @@ def build() -> dict:
              for n, kind, key in (("قرض المبادرة", "طويل الأجل بفائدة مدعومة", "initiative_loan"),
                                   ("قرض السيارة", "طويل الأجل", "car_loan"),
                                   ("قروض الشركاء", "قصير الأجل", "shareholder_loans"))]
-    loans_feb = [i for i in oca.get("2026-02-28", []) if i["category"] in ("قروض", "قروض قصيرة")]
     return {
         "meta": {"generated": date.today().isoformat(), "as_of": as_of,
                  "balance_sheet_dates": sorted(bs), "income_months": list(months),
                  "sources": [F_POP.name, F_IS_DETAIL.name],
-                 "excluded_columns_note": "عمود 28/2/2026 مستبعد لعدم توازنه"},
+                 "excluded_columns_note": "عمود 28/2/2026 محذوف بقرار الإدارة (غير مكتمل)",
+                 "dropped_dates": sorted(DROPPED_DATES)},
         "balance_sheets": bs, "bs_labels": BS_LABELS_AR,
         "income": months, "income_pop_sheet": pop_is,
         "cash_flows": cfs, "working_capital": wc,
-        "other_current_assets": oca, "loans": loans, "loans_feb_2026_detail": loans_feb,
+        "other_current_assets": oca, "loans": loans,
         "sales_reconciliation": recon, "quality_flags": flags,
         "alerts": alerts(bs, months, wc, cfs), "alert_thresholds": ALERTS,
         "budget": load_budget(), "kpi_dictionary": KPI_DICTIONARY,

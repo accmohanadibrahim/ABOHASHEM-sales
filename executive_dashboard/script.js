@@ -990,10 +990,7 @@ function fsOcaRows(){const it=FS.other_current_assets[FS.meta.as_of]||[];
   return it.filter(x=>x.amount).map(x=>({...x,name:esc(x.name),category:esc(x.category),amountF:x.amount<0?`<span class="down">${egp(x.amount)}</span>`:egp(x.amount)}));}
 
 function fsLoanRows(){const ds=FS.meta.balance_sheet_dates;
-  const rows=FS.loans.map(l=>{const r={name:l.name,kind:l.kind};ds.forEach(d=>{r[d]=egp(l.balances[d]);});r.feb="—";return r;});
-  (FS.loans_feb_2026_detail||[]).forEach(x=>{const r=rows.find(r=>x.name.replace("السياؤة","السيارة").includes(r.name.replace("قرض ","").trim()));
-    if(r)r.feb=egp(x.amount);else rows.push(Object.assign({name:x.name,kind:x.category,feb:egp(x.amount)},Object.fromEntries(ds.map(d=>[d,"—"]))));});
-  return rows;}
+  return FS.loans.map(l=>{const r={name:l.name,kind:l.kind};ds.forEach(d=>{r[d]=egp(l.balances[d]);});return r;});}
 
 /* ---- scenario: COGS ±% on the latest month ------------------------------- */
 function fsScenario(){const t=FS.income[fsLastM()];
@@ -1100,8 +1097,7 @@ const FIN_SECTIONS = {
       dt("t_fs_cf",[{title:"البند",data:"line"},...FS.cash_flows.map((c,i)=>({title:fsDate(c.from)+" → "+fsDate(c.to),data:"p"+i}))],
         fsCFRows(),{ordering:false,paging:false});
       const ds=FS.meta.balance_sheet_dates;
-      dt("t_fs_loans",[{title:"القرض",data:"name"},{title:"النوع",data:"kind"},...ds.map(x=>({title:fsDate(x),data:x})),
-        {title:"28/02/2026",data:"feb"}],fsLoanRows(),{ordering:false,paging:false});
+      dt("t_fs_loans",[{title:"القرض",data:"name"},{title:"النوع",data:"kind"},...ds.map(x=>({title:fsDate(x),data:x}))],fsLoanRows(),{ordering:false,paging:false});
       dt("t_fs_oca",[{title:"الفئة",data:"category"},{title:"البند / الشخص",data:"name"},{title:"الرصيد",data:"amountF"}],
         fsOcaRows(),{order:[[0,"asc"]]}); }},
 
