@@ -84,7 +84,8 @@ BS_LABELS_AR = {
     "car_loan": "قرض السيارة", "shareholder_loans": "قروض الشركاء (أ. خالد والحاج أسامة)",
     "total_lt_liabilities": "إجمالي الالتزامات طويلة الأجل", "total_liabilities": "إجمالي الالتزامات",
     "paid_in_capital": "رأس المال المدفوع", "partners_current": "جاري الشركاء",
-    "retained_earnings": "أرباح مرحلة", "net_profit_bs": "صافي ربح الفترة (يوليو–ديسمبر 2025)",
+    "retained_earnings": "أرباح مرحلة (تشمل صافي ربح يناير–يونيو 2025)",
+    "net_profit_bs": "صافي ربح الفترة (يوليو–ديسمبر 2025)",
     "total_equity": "إجمالي حقوق الملكية", "total_liabilities_equity": "إجمالي الالتزامات وحقوق الملكية",
 }
 INTEREST_DEBT = ("st_bank_debt", "current_ltd", "initiative_loan", "car_loan", "shareholder_loans")
@@ -471,6 +472,22 @@ def quality_flags(bs, months, pop_is, oca, recon) -> list:
             "action": "تحديد بنود الفرق الباقي بين الميزانية والقوائم الشهرية",
             "gap": round(gap, 2), "explained": round(explained, 2), "unexplained": round(unexplained, 2),
         })
+        # Jan-Jun 2025 profit sits inside retained earnings (management, 2026-10-13),
+        # and Jul-Dec in the net-profit line, so retained earnings should not move
+        # between 31/7 and 31/12 unless something else was posted to them.
+        b7 = bs.get("2025-07-31")
+        if b7:
+            re_move = b12["retained_earnings"] - b7["retained_earnings"]
+            if abs(re_move) > BALANCE_TOL:
+                flags.append({
+                    "id": "retained_earnings_movement", "severity": "medium",
+                    "title": f"الأرباح المرحلة تغيّرت بين 31/7 و31/12/2025 بمقدار {re_move:,.0f}",
+                    "detail": (f"الأرباح المرحلة (وتشمل صافي ربح يناير–يونيو 2025): {b7['retained_earnings']:,.0f} "
+                               f"في 31/7 و{b12['retained_earnings']:,.0f} في 31/12. بما أن ربح يوليو–ديسمبر في بند "
+                               "صافي الربح، لا يُتوقع أن يتغيّر هذا البند إلا بقيد مستقل (توزيعات أو تسويات سنوات سابقة)."),
+                    "action": "توضيح القيد الذي غيّر الأرباح المرحلة",
+                    "movement": round(re_move, 2),
+                })
     jul_pop, jul = pop_is.get("2025-07", {}), months.get("2025-07", {})
     if jul_pop and jul and abs(jul_pop.get("admin", 0) - jul.get("admin", 0)) > 1:
         flags.append({

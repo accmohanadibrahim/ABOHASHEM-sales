@@ -81,3 +81,9 @@ def test_h2_net_profit_reconciliation(fs):
     assert f["gap"] == pytest.approx(420_839, abs=1)
     assert f["explained"] == pytest.approx(75_000, abs=1)
     assert f["unexplained"] == pytest.approx(345_839, abs=1)
+
+
+def test_retained_earnings_movement_flag(fs):
+    """Jan-Jun 2025 profit is inside retained earnings, so any 31/7 -> 31/12 move is flagged."""
+    f = next(f for f in fs["quality_flags"] if f["id"] == "retained_earnings_movement")
+    assert f["movement"] == pytest.approx(-443_367, abs=1)
