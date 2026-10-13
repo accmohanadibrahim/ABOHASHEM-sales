@@ -84,7 +84,7 @@ BS_LABELS_AR = {
     "car_loan": "قرض السيارة", "shareholder_loans": "قروض الشركاء (أ. خالد والحاج أسامة)",
     "total_lt_liabilities": "إجمالي الالتزامات طويلة الأجل", "total_liabilities": "إجمالي الالتزامات",
     "paid_in_capital": "رأس المال المدفوع", "partners_current": "جاري الشركاء",
-    "retained_earnings": "أرباح مرحلة", "net_profit_bs": "صافي الربح (كما بالميزانية)",
+    "retained_earnings": "أرباح مرحلة", "net_profit_bs": "صافي ربح الفترة (يوليو–ديسمبر 2025)",
     "total_equity": "إجمالي حقوق الملكية", "total_liabilities_equity": "إجمالي الالتزامات وحقوق الملكية",
 }
 INTEREST_DEBT = ("st_bank_debt", "current_ltd", "initiative_loan", "car_loan", "shareholder_loans")
@@ -444,23 +444,32 @@ def quality_flags(bs, months, pop_is, oca, recon) -> list:
     dec = months.get("2025-12", {})
     if dec_pop.get("depreciation"):
         flags.append({
-            "id": "dep_booked_december", "severity": "medium",
-            "title": "إهلاك السنة كاملًا مُحمَّل على ديسمبر",
+            "id": "dep_booked_december", "severity": "low",
+            "title": "إهلاك 2025 السنوي مُحمَّل على ديسمبر (مؤكَّد)",
             "detail": (f"ورقة I.S. تحمّل ديسمبر إهلاكًا قدره {dec_pop['depreciation']:,.0f} فتنقلب النتيجة "
                        f"إلى {dec_pop.get('net_profit', 0):,.0f}، بينما صافي ربح ديسمبر التشغيلي قبل الإهلاك "
                        f"{dec.get('net_profit_pre_dep', 0):,.0f}. يعرض الداشبورد الرقمين، ويوزّع الإهلاك "
                        "شهريًا كتقدير موسوم للمقارنة."),
-            "action": "تأكيد أن الإهلاك سنوي، وتحميله شهريًا من 2026",
+            "action": "تحميل الإهلاك شهريًا بدءًا من 2026",
         })
     b12 = bs.get("2025-12-31")
     if b12:
-        h2 = sum(t["net_profit_after_dep"] for m, t in months.items() if m >= "2025-07")
+        # Confirmed by management (2026-10-13): the B.S. net profit at 31/12/2025
+        # covers Jul-Dec 2025 only; annual depreciation is booked in December.
+        h2 = sum(t["net_profit_after_dep"] for m, t in months.items() if "2025-07" <= m <= "2025-12")
+        gap = b12["net_profit_bs"] - h2
+        jp, jm = pop_is.get("2025-07", {}), months.get("2025-07", {})
+        explained = (jm.get("admin", 0) - jp.get("admin", 0)) if jp and jm else 0.0
+        unexplained = gap - explained
         flags.append({
             "id": "bs_net_profit_mismatch", "severity": "medium",
-            "title": "«صافي الربح» في الميزانية لا يطابق قوائم الدخل الشهرية",
-            "detail": (f"الميزانية 31/12/2025: {b12['net_profit_bs']:,.0f}. مجموع صافي الربح بعد الإهلاك "
-                       f"يوليو–ديسمبر من القوائم الشهرية: {h2:,.0f}. الفترة التي يغطيها رقم الميزانية غير مذكورة."),
-            "action": "توضيح الفترة التي يغطيها صافي الربح في الميزانية",
+            "title": f"صافي ربح يوليو–ديسمبر 2025: الميزانية أعلى من القوائم الشهرية بـ {gap:,.0f}",
+            "detail": (f"الميزانية 31/12/2025 (صافي ربح يوليو–ديسمبر): {b12['net_profit_bs']:,.0f}. "
+                       f"مجموع صافي الربح بعد الإهلاك من القوائم الشهرية يوليو–ديسمبر: {h2:,.0f}. "
+                       f"الفرق {gap:,.0f}، منه {explained:,.0f} مفسَّر بفرق مصروفات يوليو الإدارية بين الملفين، "
+                       f"والباقي {unexplained:,.0f} غير مفسَّر."),
+            "action": "تحديد بنود الفرق الباقي بين الميزانية والقوائم الشهرية",
+            "gap": round(gap, 2), "explained": round(explained, 2), "unexplained": round(unexplained, 2),
         })
     jul_pop, jul = pop_is.get("2025-07", {}), months.get("2025-07", {})
     if jul_pop and jul and abs(jul_pop.get("admin", 0) - jul.get("admin", 0)) > 1:

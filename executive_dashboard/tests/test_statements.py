@@ -73,3 +73,11 @@ def test_working_capital_days(fs):
 def test_every_kpi_has_formula_and_source(fs):
     for k in fs["kpi_dictionary"]:
         assert k["formula"] and k["source"] and k["period"]
+
+
+def test_h2_net_profit_reconciliation(fs):
+    """B.S. net profit at 31/12/2025 covers Jul-Dec 2025 (confirmed by management)."""
+    f = next(f for f in fs["quality_flags"] if f["id"] == "bs_net_profit_mismatch")
+    assert f["gap"] == pytest.approx(420_839, abs=1)
+    assert f["explained"] == pytest.approx(75_000, abs=1)
+    assert f["unexplained"] == pytest.approx(345_839, abs=1)
