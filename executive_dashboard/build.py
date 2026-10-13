@@ -363,6 +363,15 @@ def main() -> int:
     except Exception as e:  # pragma: no cover
         print(f"  ! PDF skipped: {e}")
 
+    # Financial statements (balance sheet + monthly P&L) for the «الإدارة المالية»
+    # screens — stdlib+openpyxl, independent of the invoice pipeline above.
+    try:
+        from src import statements
+        statements.write(statements.build())
+        print("  ✓ statements_data.js (financial statements)")
+    except Exception as e:  # pragma: no cover
+        print(f"  ! statements skipped: {e}")
+
     render_index()
 
     # --- validation report ------------------------------------------------

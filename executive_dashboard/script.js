@@ -559,7 +559,7 @@ function chReconGauge(id){const b=ecBase();const s=D.data_quality;
 /* ========================================================================== */
 const DT_LANG={search:"بحث:",lengthMenu:"عرض _MENU_",info:"_START_–_END_ من _TOTAL_",
   paginate:{first:"الأول",last:"الأخير",next:"التالي",previous:"السابق"},zeroRecords:"لا نتائج",
-  infoEmpty:"لا سجلات",infoFiltered:"(من _MAX_)"};
+  infoEmpty:"لا سجلات",infoFiltered:"(من _MAX_)",emptyTable:"لا توجد بيانات"};
 function dt(id,columns,data,opts){
   if(tables[id]){tables[id].destroy();$("#"+id).empty();}
   tables[id]=$("#"+id).DataTable(Object.assign({
@@ -584,6 +584,7 @@ const SECTIONS = {
     dom:()=>`<div class="section-head"><div><h2>لوحة المعلومات التنفيذية</h2>
         <p>ملخص أداء <span id="ovPeriod"></span> — المبيعات والتحصيل والمديونية</p></div></div>
       <div id="kpiHost"></div>
+      <div id="fsStrip"></div>
       <div class="grid g-2">
         ${card({id:"c_monthly",title:"اتجاه المبيعات الشهري",sub:"السلسلة الكاملة",insightKey:"monthly_trend"})}
         ${card({id:"c_daily",title:"المبيعات والتحصيل اليومي",sub:""})}
@@ -593,6 +594,7 @@ const SECTIONS = {
         ${card({id:"c_top10",title:"أعلى ١٠ عملاء",insightKey:"top_customers"})}
       </div>`,
     update:(X)=>{ document.getElementById("kpiHost").innerHTML=kpiGrid(X.kpis);
+      const fsS=document.getElementById("fsStrip"); if(fsS&&FS) fsS.innerHTML=`<div class="nav-group-label" style="margin-top:14px">من القوائم المالية — ${fsMon(fsLastM())} (تبويب «الإدارة المالية» للتفاصيل)</div>`+fsKpis();
       const ov=document.getElementById("ovPeriod"); if(ov) ov.textContent=curMonthLabel();
       chMonthly("c_monthly",X);chDaily("c_daily",X);chAgingBar("c_aging",X);chGauge("c_gauge",X.kpis.collection_rate);
       chDonut("c_brand",[...groupSum(X.lines,"brand","line_total")].sort((a,b)=>b[1]-a[1]));
@@ -819,6 +821,323 @@ const SECTIONS = {
 };
 
 /* ========================================================================== */
+/*  الإدارة المالية — شاشات القوائم المالية (يُدمج في script.js عند البناء)     */
+/*  المصدر: window.DASH_FS من statements_data.js (src/statements.py).           */
+/*  إضافة فقط: لا يغيّر أي قسم قائم؛ تختفي الشاشات بهدوء إن غاب الملف.          */
+/* ========================================================================== */
+const FS = window.DASH_FS || null;
+const esc = s => String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const FS_MONTH_AR = {"01":"يناير","02":"فبراير","03":"مارس","04":"أبريل","05":"مايو","06":"يونيو",
+  "07":"يوليو","08":"أغسطس","09":"سبتمبر","10":"أكتوبر","11":"نوفمبر","12":"ديسمبر"};
+const fsMon = ym => (FS_MONTH_AR[ym.slice(5,7)]||ym)+" "+ym.slice(0,4);
+const fsDate = d => d.slice(8,10)+"/"+d.slice(5,7)+"/"+d.slice(0,4);
+const fsMonths = () => FS ? FS.meta.income_months : [];
+const fsLastM = () => fsMonths()[fsMonths().length-1];
+const fsBS = () => FS.balance_sheets[FS.meta.as_of];
+const fsCF = () => FS.cash_flows[FS.cash_flows.length-1];
+const sevCls = s => s==="high"?"p-high":s==="medium"?"p-med":"p-low";
+const sevAr = s => s==="high"?"عالية":s==="medium"?"متوسطة":"منخفضة";
+const signCls = v => v>=0?"up":"down";
+const dPct = (a,b) => b ? (a-b)/Math.abs(b) : 0;
+const fsEmpty = () => `<div class="card"><div class="card-head"><h3>القوائم المالية غير محمّلة</h3></div>
+  <p class="sub">شغّل <code>python3 -m src.statements</code> لتوليد statements_data.js من data/raw/.</p></div>`;
+const periodTag = t => `<span class="tag-approx" style="background:rgba(59,130,246,.15);color:#93c5fd">${t}</span>`;
+
+/* ---- KPI strip reused on the overview and the finance summary ------------ */
+function fsKpis(){
+  if(!FS) return "";
+  const lm=fsLastM(), ms=fsMonths(), pm=ms[ms.length-2], t=FS.income[lm], p=FS.income[pm];
+  const b=fsBS(), cf=fsCF(), wc=FS.working_capital||{};
+  const gmD=(t.gross_margin-p.gross_margin)*100;
+  let i=0; const d=()=>0.04*(i++);
+  return `<div class="kpi-grid" style="margin-top:14px">
+    ${kpiCard("sales",egpK(t.net_sales),"صافي المبيعات ("+fsMon(lm)+")","#3b82f6",
+      (dPct(t.net_sales,p.net_sales)>=0?"▲ ":"▼ ")+pct(Math.abs(dPct(t.net_sales,p.net_sales)))+" مقابل "+fsMon(pm),
+      signCls(t.net_sales-p.net_sales),d())}
+    ${kpiCard("pct",pct(t.gross_margin),"هامش مجمل الربح","#10b981",
+      (gmD>=0?"▲ ":"▼ ")+Math.abs(gmD).toFixed(1)+" نقطة مقابل "+fsMon(pm),signCls(gmD),d())}
+    ${kpiCard("money",egpK(t.ebitda),"EBITDA","#8b5cf6","هامش "+pct(t.ebitda_margin),"",d())}
+    ${kpiCard("money",egpK(t.net_profit_pre_dep),"صافي الربح قبل الإهلاك","#06b6d4",
+      "بعد إهلاك السنة المحمّل على ديسمبر: "+egpK(t.net_profit_after_dep),t.net_profit_after_dep<0?"down":"na",d())}
+    ${kpiCard("clock",egpK(cf.cfo),"التدفق النقدي التشغيلي","#f59e0b",
+      fsDate(cf.from)+" → "+fsDate(cf.to)+" (محسوب من الميزانيتين)","na",d())}
+    ${kpiCard("warn",egpK(b.net_debt),"صافي الدين","#ef4444",
+      "قروض "+egpK(b.interest_bearing_debt)+" − نقدية وودائع "+egpK(b.cash_and_deposits),"na",d())}
+    ${kpiCard("clock",(wc.ccc!=null?wc.ccc.toFixed(0):"—")+" يوم","دورة التحويل النقدي","#f97316",
+      wc.dso!=null?`تحصيل ${wc.dso.toFixed(0)} + تخزين ${wc.dio.toFixed(0)} − سداد ${wc.dpo.toFixed(0)}`:"","na",d())}
+    ${kpiCard("doc",fsBudgetStatus(),"الفعلي مقابل الموازنة","#c4b5fd","قالب: data/budget/budget_2026.csv","na",d())}
+  </div>`;
+}
+function fsBudgetStatus(){
+  const bud=FS&&FS.budget||{}; const ks=Object.keys(bud);
+  return ks.length? ks.length+" شهر محمّل" : "غير محمّلة";
+}
+
+/* ---- charts ---------------------------------------------------------------- */
+function chFsPL(id){const b=ecBase();const ms=fsMonths();const I=FS.income;
+  ec(id,{...b,tooltip:{...b.tooltip,trigger:"axis",valueFormatter:egp},
+    legend:{...b.legend,data:["صافي المبيعات","مجمل الربح","EBITDA","صافي الربح قبل الإهلاك","هامش المجمل"]},
+    xAxis:axis(b,{type:"category",data:ms.map(fsMon)}),
+    yAxis:[axis(b,{type:"value",axisLabel:{color:b._muted,formatter:egpK}}),
+      axis(b,{type:"value",min:0,max:0.6,splitLine:{show:false},axisLabel:{color:b._muted,formatter:v=>Math.round(v*100)+"%"}})],
+    series:[
+      {name:"صافي المبيعات",type:"bar",data:ms.map(m=>Math.round(I[m].net_sales)),itemStyle:{color:PAL[0],borderRadius:[4,4,0,0]}},
+      {name:"مجمل الربح",type:"bar",data:ms.map(m=>Math.round(I[m].gross_profit)),itemStyle:{color:PAL[2],borderRadius:[4,4,0,0]}},
+      {name:"EBITDA",type:"bar",data:ms.map(m=>Math.round(I[m].ebitda)),itemStyle:{color:PAL[1],borderRadius:[4,4,0,0]}},
+      {name:"صافي الربح قبل الإهلاك",type:"line",data:ms.map(m=>Math.round(I[m].net_profit_pre_dep)),lineStyle:{width:3},itemStyle:{color:PAL[3]}},
+      {name:"هامش المجمل",type:"line",yAxisIndex:1,data:ms.map(m=>I[m].gross_margin),lineStyle:{type:"dashed"},itemStyle:{color:PAL[5]},
+        tooltip:{valueFormatter:v=>pct(v)}}]});}
+
+function chFsVertical(id){const b=ecBase();const ms=fsMonths();const I=FS.income;
+  const s=(k)=>ms.map(m=>I[m].net_sales?I[m][k]/I[m].net_sales:0);
+  const ser=[["تكلفة المبيعات","cogs",PAL[4]],["إدارية وعمومية","admin",PAL[3]],["بيعية وتسويقية","selling",PAL[6]],
+    ["تمويلية/فروق عملة","finance",PAL[7]],["صافي الربح قبل الإهلاك","net_profit_pre_dep",PAL[2]]];
+  ec(id,{...b,tooltip:{...b.tooltip,trigger:"axis",valueFormatter:v=>pct(v)},
+    xAxis:axis(b,{type:"category",data:ms.map(fsMon)}),
+    yAxis:axis(b,{type:"value",max:1,axisLabel:{color:b._muted,formatter:v=>Math.round(v*100)+"%"}}),
+    series:ser.map(([n,k,c])=>({name:n,type:"bar",stack:"v",data:s(k),itemStyle:{color:c}}))});}
+
+function chFsStructure(id,side){const b=ecBase();const ds=FS.meta.balance_sheet_dates;const B=FS.balance_sheets;
+  const parts=side==="assets"
+    ?[["النقدية والودائع",x=>x.cash_and_deposits],["العملاء",x=>x.receivables],["المخزون",x=>x.inventory],
+      ["أصول متداولة أخرى",x=>x.other_current_assets+x.prepaid],["صافي الأصول الثابتة",x=>x.net_fixed_assets],
+      ["استثمارات",x=>x.investments_subsidiaries]]
+    :[["خصوم متداولة",x=>x.total_current_liabilities],["قرض المبادرة",x=>x.initiative_loan],["قرض السيارة",x=>x.car_loan],
+      ["قروض الشركاء",x=>x.shareholder_loans],["حقوق الملكية",x=>x.total_equity]];
+  ec(id,{...b,tooltip:{...b.tooltip,trigger:"axis",valueFormatter:egp},
+    xAxis:axis(b,{type:"category",data:ds.map(fsDate)}),
+    yAxis:axis(b,{type:"value",axisLabel:{color:b._muted,formatter:egpK}}),
+    series:parts.map(([n,f],i)=>({name:n,type:"bar",stack:"s",data:ds.map(d=>Math.round(f(B[d]))),itemStyle:{color:PAL[i]}}))});}
+
+function chFsCashBridge(id){const b=ecBase();const cf=fsCF();
+  const steps=[["صافي الربح",cf.net_income],["الإهلاك",cf.depreciation],["العملاء",cf.change_receivables],
+    ["المخزون",cf.change_inventory],["أصول متداولة أخرى",cf.change_other_current_assets],["الموردون",cf.change_payables],
+    ["المستحقات",cf.change_accrued],["الاستثمار الرأسمالي",-cf.capex],["القروض",cf.debt_change],
+    ["جاري الشركاء/مسحوبات",cf.equity_other_movements]];
+  let acc=0;const base=[],val=[];
+  steps.forEach(([,v])=>{base.push(v>=0?acc:acc+v);val.push(v);acc+=v;});
+  ec(id,{...b,tooltip:{...b.tooltip,trigger:"axis",formatter:ps=>{const p=ps.find(x=>x.seriesIndex===1);return p?`${p.name}: ${egp(val[p.dataIndex])}`:""}},
+    xAxis:axis(b,{type:"category",data:[...steps.map(s=>s[0]),"التغير في النقدية"],axisLabel:{color:b._muted,rotate:25,interval:0,fontSize:10}}),
+    yAxis:axis(b,{type:"value",axisLabel:{color:b._muted,formatter:egpK}}),
+    series:[{type:"bar",stack:"w",silent:true,itemStyle:{color:"transparent"},data:[...base.map(Math.round),0]},
+      {type:"bar",stack:"w",data:[...val.map(v=>({value:Math.round(Math.abs(v)),itemStyle:{color:v>=0?PAL[2]:PAL[4],borderRadius:[4,4,0,0]}})),
+        {value:Math.round(Math.abs(acc)),itemStyle:{color:PAL[1],borderRadius:[4,4,0,0]}}]}]});
+  val.push(acc);}
+
+function chFsCCC(id){const b=ecBase();const w=FS.working_capital;if(!w)return;
+  ec(id,{...b,tooltip:{...b.tooltip,trigger:"axis",valueFormatter:v=>Math.round(v)+" يوم"},
+    xAxis:axis(b,{type:"category",data:["أيام التحصيل","أيام التخزين","أيام السداد","دورة التحويل النقدي"]}),
+    yAxis:axis(b,{type:"value",axisLabel:{color:b._muted,formatter:v=>v+" يوم"}}),
+    series:[{type:"bar",label:{show:true,position:"top",color:b._ink,formatter:p=>Math.round(p.value)},
+      data:[{value:w.dso,itemStyle:{color:PAL[0]}},{value:w.dio,itemStyle:{color:PAL[3]}},
+        {value:-w.dpo,itemStyle:{color:PAL[2]}},{value:w.ccc,itemStyle:{color:PAL[1]}}]}]});}
+
+function chFsRecon(id){const b=ecBase();const R=FS.sales_reconciliation;
+  ec(id,{...b,tooltip:{...b.tooltip,trigger:"axis",valueFormatter:egp},
+    xAxis:axis(b,{type:"category",data:R.map(r=>fsMon(r.month))}),
+    yAxis:axis(b,{type:"value",axisLabel:{color:b._muted,formatter:egpK}}),
+    series:[{name:"صافي المبيعات بالقوائم",type:"bar",data:R.map(r=>Math.round(r.statement_net_sales)),itemStyle:{color:PAL[0]}},
+      {name:"مبيعات الفواتير",type:"bar",data:R.map(r=>Math.round(r.invoice_sales||0)),itemStyle:{color:PAL[1]}}]});}
+
+function chFsExpenseDonut(id,month,section){const b=ecBase();
+  const it=(FS.income[month].expense_items[section]||[]).filter(x=>x.amount>0).sort((a,c)=>c.amount-a.amount);
+  const top=it.slice(0,8), rest=it.slice(8).reduce((a,x)=>a+x.amount,0);
+  const data=top.map(x=>({name:x.name,value:Math.round(x.amount)}));if(rest)data.push({name:"أخرى",value:Math.round(rest)});
+  ec(id,{...b,tooltip:{...b.tooltip,trigger:"item",valueFormatter:egp},legend:{show:false},
+    series:[{type:"pie",radius:["45%","72%"],itemStyle:{borderRadius:6,borderColor:"transparent",borderWidth:2},
+      label:{color:b._muted,fontSize:11,formatter:"{b}\n{d}%"},data}]});}
+
+/* ---- tables ---------------------------------------------------------------- */
+function fsPLRows(){const ms=fsMonths();const I=FS.income;
+  const lines=[["صافي المبيعات","net_sales"],["تكلفة المبيعات","cogs"],["مجمل الربح","gross_profit"],["هامش مجمل الربح","gross_margin",1],
+    ["مصروفات إدارية وعمومية","admin"],["مصروفات بيعية وتسويقية","selling"],["EBITDA","ebitda"],["هامش EBITDA","ebitda_margin",1],
+    ["مصاريف تمويلية / فروق عملة","finance"],["صافي الربح قبل الإهلاك","net_profit_pre_dep"],
+    ["الإهلاك المحمّل فعليًا","depreciation_booked"],["صافي الربح بعد الإهلاك (كما بالقوائم)","net_profit_after_dep"],
+    ["الإهلاك الموزّع شهريًا (تقدير)","depreciation_allocated_est"],["صافي الربح بعد إهلاك موزّع (تقدير)","net_profit_dep_allocated_est"]];
+  return lines.map(([l,k,isPct])=>{const r={line:l};let tot=0;
+    ms.forEach(m=>{const v=I[m][k];r[m]=isPct?(v==null?"—":pct(v)):egp(v);tot+=v||0;});
+    r.total=isPct?(k==="gross_margin"?pct(ms.reduce((a,m)=>a+I[m].gross_profit,0)/ms.reduce((a,m)=>a+I[m].net_sales,0))
+      :pct(ms.reduce((a,m)=>a+I[m].ebitda,0)/ms.reduce((a,m)=>a+I[m].net_sales,0))):egp(tot);
+    return r;});}
+
+function fsBSRows(){const ds=FS.meta.balance_sheet_dates;const B=FS.balance_sheets;const L=FS.bs_labels;
+  const keys=["cash","time_deposits","receivables","inventory","prepaid","other_current_assets","total_current_assets",
+    "net_fixed_assets","investments_subsidiaries","total_assets","payables","accrued_expenses","total_current_liabilities",
+    "initiative_loan","car_loan","shareholder_loans","total_lt_liabilities","total_liabilities","paid_in_capital",
+    "partners_current","retained_earnings","net_profit_bs","total_equity","total_liabilities_equity"];
+  const a=ds[ds.length-2], z=ds[ds.length-1];
+  return keys.filter(k=>ds.some(d=>B[d][k])).map(k=>{const r={line:L[k]||k,bold:/^total/.test(k)};
+    ds.forEach(d=>{r[d]=egp(B[d][k]);});
+    r.pct=pct(B[z][k]/B[z].total_assets);
+    const ch=B[z][k]-B[a][k];r.change=`<span class="${signCls(ch)}">${egp(ch)}</span>`;return r;});}
+
+function fsRatioRows(){const ds=FS.meta.balance_sheet_dates;const B=FS.balance_sheets;
+  const R=[["نسبة التداول","current_ratio","x"],["النسبة السريعة","quick_ratio","x"],["نسبة النقدية","cash_ratio","x"],
+    ["الالتزامات ÷ حقوق الملكية","liabilities_to_equity","x"],["القروض ÷ حقوق الملكية","debt_to_equity","x"],
+    ["حقوق الملكية ÷ الأصول","equity_ratio","%"],["رأس المال العامل","working_capital","egp"],["صافي الدين","net_debt","egp"]];
+  return R.map(([l,k,f])=>{const r={line:l};ds.forEach(d=>{const v=B[d][k];r[d]=v==null?"—":f==="%"?pct(v):f==="egp"?egp(v):v.toFixed(2);});return r;});}
+
+function fsCFRows(){const C=FS.cash_flows;
+  const L=[["صافي الربح (بعد الإهلاك)","net_income"],["+ الإهلاك","depreciation"],["(زيادة)/نقص العملاء","change_receivables"],
+    ["(زيادة)/نقص المخزون","change_inventory"],["(زيادة)/نقص أصول متداولة أخرى","change_other_current_assets"],
+    ["زيادة/(نقص) الموردين","change_payables"],["زيادة/(نقص) المستحقات","change_accrued"],["= التدفق النقدي التشغيلي","cfo"],
+    ["الاستثمار الرأسمالي","capex"],["= التدفق النقدي الاستثماري","cfi"],["التغير في القروض","debt_change"],
+    ["حركة جاري الشركاء / مسحوبات (تسوية حقوق الملكية)","equity_other_movements"],["= التدفق النقدي التمويلي","cff"],
+    ["صافي التغير المحسوب","net_change"],["التغير الفعلي في النقدية والودائع","actual_change_cash_deposits"],["فرق المطابقة","check_diff"]];
+  return L.map(([l,k])=>{const r={line:l};C.forEach((c,i)=>{r["p"+i]=egp(c[k]);});return r;});}
+
+function fsOcaRows(){const it=FS.other_current_assets[FS.meta.as_of]||[];
+  return it.filter(x=>x.amount).map(x=>({...x,name:esc(x.name),category:esc(x.category),amountF:x.amount<0?`<span class="down">${egp(x.amount)}</span>`:egp(x.amount)}));}
+
+function fsLoanRows(){const ds=FS.meta.balance_sheet_dates;
+  const rows=FS.loans.map(l=>{const r={name:l.name,kind:l.kind};ds.forEach(d=>{r[d]=egp(l.balances[d]);});r.feb="—";return r;});
+  (FS.loans_feb_2026_detail||[]).forEach(x=>{const r=rows.find(r=>x.name.replace("السياؤة","السيارة").includes(r.name.replace("قرض ","").trim()));
+    if(r)r.feb=egp(x.amount);else rows.push(Object.assign({name:x.name,kind:x.category,feb:egp(x.amount)},Object.fromEntries(ds.map(d=>[d,"—"]))));});
+  return rows;}
+
+/* ---- scenario: COGS ±% on the latest month ------------------------------- */
+function fsScenario(){const t=FS.income[fsLastM()];
+  const el=document.getElementById("fs_scn");if(!el)return;
+  const pc=+document.getElementById("fs_scn_cogs").value/100, pp=+document.getElementById("fs_scn_price").value/100;
+  const sales=t.net_sales*(1+pp), cogs=t.cogs*(1+pc), gp=sales-cogs, eb=gp-t.admin-t.selling;
+  document.getElementById("fs_scn_lbl").textContent=`تكلفة ${pc>=0?"+":""}${(pc*100).toFixed(0)}% · سعر ${pp>=0?"+":""}${(pp*100).toFixed(0)}%`;
+  el.innerHTML=`<div class="kpi-grid">
+    ${kpiCard("pct",pct(gp/sales),"هامش المجمل بعد السيناريو","#10b981","الفعلي "+pct(t.gross_margin),signCls(gp/sales-t.gross_margin),0)}
+    ${kpiCard("money",egpK(eb),"EBITDA بعد السيناريو","#8b5cf6","الفعلي "+egpK(t.ebitda),signCls(eb-t.ebitda),0)}
+    ${kpiCard("money",egpK(eb-t.ebitda),"الأثر الشهري على EBITDA","#f59e0b","× 12 = "+egpK((eb-t.ebitda)*12)+" سنويًا","na",0)}
+  </div>`;}
+
+/* ---- sections ------------------------------------------------------------- */
+const FIN_SECTIONS = {
+  fin_exec:{ label:"الملخص المالي التنفيذي",
+    dom:()=>!FS?fsEmpty():`<div class="section-head"><div><h2>الملخص المالي التنفيذي ${periodTag("القوائم المالية 7–12/2025")}</h2>
+      <p>المبيعات والربحية والسيولة والانحرافات في شاشة واحدة — من الميزانية وقوائم الدخل الشهرية</p></div></div>
+      <div id="fs_kpis"></div>
+      <div class="grid g-2" style="margin-top:14px">
+        ${card({id:"fs_pl",title:"المبيعات ومجمل الربح وEBITDA شهريًا",sub:"الخط المتقطع: هامش مجمل الربح (المحور الأيسر)",tall:true})}
+        ${card({id:"fs_bridge",title:"من صافي الربح إلى التغير في النقدية",sub:fsCF()?fsDate(fsCF().from)+" → "+fsDate(fsCF().to):""})}
+      </div>
+      ${tableCard({id:"t_fs_alerts",title:"التنبيهات التي تتطلب قرارًا",sub:"المشكلة · القيمة · المسؤول · الإجراء — العتبات في src/statements.py (ALERTS)"})}
+      ${tableCard({id:"t_fs_budget",title:"الفعلي مقابل الموازنة",sub:"لا توجد موازنة محمّلة بعد — املأ data/budget/budget_2026.csv (شهر، بند، قيمة) ثم أعد البناء"})}`,
+    update:()=>{ if(!FS)return; document.getElementById("fs_kpis").innerHTML=fsKpis();
+      chFsPL("fs_pl");chFsCashBridge("fs_bridge");
+      dt("t_fs_alerts",[{title:"الشهر",data:"month"},{title:"المشكلة",data:"problem"},
+        {title:"الأولوية",data:"severity",render:s=>`<span class="prio ${sevCls(s)}">${sevAr(s)}</span>`},
+        {title:"المسؤول",data:"owner"},{title:"الإجراء المطلوب",data:"action"}],FS.alerts,{order:[[0,"desc"]]});
+      const bud=FS.budget||{};const ms=Object.keys(bud).sort();
+      const rows=ms.flatMap(m=>Object.entries(bud[m]).map(([line,b])=>{const a=(FS.income[m]||{})[line];
+        return {month:m,line,budget:egp(b),actual:a==null?"— (لا قائمة دخل لهذا الشهر بعد)":egp(a),
+          var:a==null?"—":egp(a-b),varp:a==null||!b?"—":pct((a-b)/b)};}));
+      dt("t_fs_budget",[{title:"الشهر",data:"month"},{title:"البند",data:"line"},{title:"الموازنة",data:"budget"},
+        {title:"الفعلي",data:"actual"},{title:"الانحراف",data:"var"},{title:"الانحراف %",data:"varp"}],rows); }},
+
+  fin_position:{ label:"المركز المالي",
+    dom:()=>!FS?fsEmpty():`<div class="section-head"><div><h2>المركز المالي ${periodTag("في "+fsDate(FS.meta.as_of))}</h2>
+      <p>الميزانية مقارنة بـ ${FS.meta.balance_sheet_dates.map(fsDate).join(" · ")} — عمود 28/2/2026 مستبعد لعدم توازنه</p></div></div>
+      <div id="fs_pos_kpis"></div>
+      <div class="grid g-2" style="margin-top:14px">
+        ${card({id:"fs_assets",title:"هيكل الأصول"})}
+        ${card({id:"fs_funding",title:"هيكل التمويل"})}
+      </div>
+      ${tableCard({id:"t_fs_bs",title:"الميزانية المقارنة",sub:"النسبة من إجمالي الأصول لآخر تاريخ · التغير بين آخر تاريخين"})}
+      ${tableCard({id:"t_fs_ratios",title:"نسب السيولة والرافعة المالية"})}`,
+    update:()=>{ if(!FS)return; const b=fsBS();let i=0;const d=()=>0.04*(i++);
+      document.getElementById("fs_pos_kpis").innerHTML=`<div class="kpi-grid">
+        ${kpiCard("money",egpK(b.total_assets),"إجمالي الأصول","#3b82f6","","",d())}
+        ${kpiCard("money",egpK(b.total_equity),"حقوق الملكية","#10b981",pct(b.equity_ratio)+" من الأصول","na",d())}
+        ${kpiCard("money",egpK(b.working_capital),"رأس المال العامل","#8b5cf6","نسبة التداول "+b.current_ratio,"na",d())}
+        ${kpiCard("warn",egpK(b.net_debt),"صافي الدين","#ef4444","قروض "+egpK(b.interest_bearing_debt),"na",d())}
+        ${kpiCard("money",egpK(b.cash_and_deposits),"النقدية والودائع","#06b6d4","منها ودائع "+egpK(b.time_deposits),"na",d())}
+        ${kpiCard("warn",egpK(b.partners_current),"جاري الشركاء","#f97316","رصيد مدين يخفض حقوق الملكية","down",d())}
+      </div>`;
+      chFsStructure("fs_assets","assets");chFsStructure("fs_funding","funding");
+      const ds=FS.meta.balance_sheet_dates;
+      dt("t_fs_bs",[{title:"البند",data:"line",render:(v,_,r)=>r.bold?`<b>${v}</b>`:v},
+        ...ds.map(x=>({title:fsDate(x),data:x})),{title:"% من الأصول",data:"pct"},{title:"التغير",data:"change"}],
+        fsBSRows(),{ordering:false,pageLength:50,paging:false});
+      dt("t_fs_ratios",[{title:"النسبة",data:"line"},...ds.map(x=>({title:fsDate(x),data:x}))],fsRatioRows(),{ordering:false,paging:false}); }},
+
+  fin_income:{ label:"قائمة الدخل",
+    dom:()=>!FS?fsEmpty():`<div class="section-head"><div><h2>قائمة الدخل الشهرية ${periodTag(fsMon(fsMonths()[0])+" – "+fsMon(fsLastM()))}</h2>
+      <p>من قائمة الدخل التفصيلية · الإهلاك السنوي مسجّل في ديسمبر ويُعرض موزّعًا كتقدير للمقارنة</p></div></div>
+      ${tableCard({id:"t_fs_pl",title:"قائمة الدخل (شهري + إجمالي الفترة)"})}
+      <div class="grid g-2">
+        ${card({id:"fs_vert",title:"التحليل الرأسي (% من المبيعات)"})}
+        <div class="card"><div class="card-head"><div><h3>سيناريو التكلفة والسعر</h3>
+          <span class="sub">على أرقام ${fsMon(fsLastM())} — <b id="fs_scn_lbl"></b></span></div></div>
+          <label class="sub">تكلفة المبيعات % <input type="range" id="fs_scn_cogs" min="-15" max="15" value="5" step="1" style="width:100%"></label>
+          <label class="sub">سعر البيع % <input type="range" id="fs_scn_price" min="-15" max="15" value="0" step="1" style="width:100%"></label>
+          <div id="fs_scn" style="margin-top:10px"></div></div>
+        ${card({id:"fs_admin_mix",title:"بنود المصروفات الإدارية — "+fsMon(fsLastM())})}
+        ${card({id:"fs_sell_mix",title:"بنود المصروفات البيعية — "+fsMon(fsLastM())})}
+      </div>`,
+    update:()=>{ if(!FS)return; const ms=fsMonths();
+      dt("t_fs_pl",[{title:"البند",data:"line"},...ms.map(m=>({title:fsMon(m),data:m})),{title:"إجمالي الفترة",data:"total"}],
+        fsPLRows(),{ordering:false,paging:false});
+      chFsVertical("fs_vert");chFsExpenseDonut("fs_admin_mix",fsLastM(),"admin");chFsExpenseDonut("fs_sell_mix",fsLastM(),"selling");
+      ["fs_scn_cogs","fs_scn_price"].forEach(id=>{const e=document.getElementById(id);if(e)e.oninput=fsScenario;});fsScenario(); }},
+
+  fin_wc:{ label:"السيولة ورأس المال العامل",
+    dom:()=>!FS?fsEmpty():`<div class="section-head"><div><h2>السيولة ورأس المال العامل ${periodTag("في "+fsDate(FS.meta.as_of))}</h2>
+      <p>أيام التحصيل والتخزين والسداد · التدفق النقدي المعاد حسابه من الميزانيتين · القروض · العُهد والسُّلف</p></div></div>
+      <div id="fs_wc_kpis"></div>
+      <div class="grid g-2" style="margin-top:14px">
+        ${card({id:"fs_ccc",title:"دورة التحويل النقدي",sub:FS.working_capital?"على أساس "+FS.working_capital.window_months.map(fsMon).join("، "):""})}
+        ${card({id:"fs_bridge2",title:"جسر التدفق النقدي",sub:fsCF()?fsDate(fsCF().from)+" → "+fsDate(fsCF().to):""})}
+      </div>
+      ${tableCard({id:"t_fs_cf",title:"قائمة التدفق النقدي (الطريقة غير المباشرة — محسوبة)",sub:"لا يُعتمد شيت CASH FLOW في الملف لأنه مبني على عمود فبراير غير المتوازن"})}
+      ${tableCard({id:"t_fs_loans",title:"القروض",sub:"أرصدة الميزانية + تفصيل فبراير 2026 من ورقة الأصول المتداولة الأخرى"})}
+      ${tableCard({id:"t_fs_oca",title:"تفصيل الأصول المتداولة الأخرى — "+fsDate(FS.meta.as_of),sub:"سُلف · عُهد · محافظ إلكترونية — الأرصدة السالبة بالأحمر"})}`,
+    update:()=>{ if(!FS)return; const w=FS.working_capital||{};const b=fsBS();let i=0;const d=()=>0.04*(i++);
+      document.getElementById("fs_wc_kpis").innerHTML=`<div class="kpi-grid">
+        ${kpiCard("clock",(w.dso||0).toFixed(0)+" يوم","أيام التحصيل","#3b82f6","عملاء "+egpK(b.receivables),"na",d())}
+        ${kpiCard("box",(w.dio||0).toFixed(0)+" يوم","أيام التخزين","#f59e0b","مخزون "+egpK(b.inventory),"na",d())}
+        ${kpiCard("clock",(w.dpo||0).toFixed(0)+" يوم","أيام السداد للموردين","#10b981","موردون "+egpK(b.payables),"na",d())}
+        ${kpiCard("clock",(w.ccc||0).toFixed(0)+" يوم","دورة التحويل النقدي","#8b5cf6","","",d())}
+        ${kpiCard("pct",b.quick_ratio+"x","النسبة السريعة","#06b6d4","التداول "+b.current_ratio+"x","na",d())}
+      </div>`;
+      chFsCCC("fs_ccc");chFsCashBridge("fs_bridge2");
+      dt("t_fs_cf",[{title:"البند",data:"line"},...FS.cash_flows.map((c,i)=>({title:fsDate(c.from)+" → "+fsDate(c.to),data:"p"+i}))],
+        fsCFRows(),{ordering:false,paging:false});
+      const ds=FS.meta.balance_sheet_dates;
+      dt("t_fs_loans",[{title:"القرض",data:"name"},{title:"النوع",data:"kind"},...ds.map(x=>({title:fsDate(x),data:x})),
+        {title:"28/02/2026",data:"feb"}],fsLoanRows(),{ordering:false,paging:false});
+      dt("t_fs_oca",[{title:"الفئة",data:"category"},{title:"البند / الشخص",data:"name"},{title:"الرصيد",data:"amountF"}],
+        fsOcaRows(),{order:[[0,"asc"]]}); }},
+
+  fin_quality:{ label:"المطابقة وجودة القوائم",
+    dom:()=>!FS?fsEmpty():`<div class="section-head"><div><h2>المطابقة وجودة القوائم المالية</h2>
+      <p>كل ملاحظة على الملف تظهر هنا ولا تُخفى · مطابقة المبيعات مع الفواتير · قاموس المؤشرات</p></div></div>
+      <div id="fs_flags" class="grid g-2"></div>
+      <div class="grid g-2" style="margin-top:14px">
+        ${card({id:"fs_recon",title:"صافي المبيعات بالقوائم مقابل مبيعات الفواتير"})}
+        <div class="card"><div class="card-head"><h3>بيانات مطلوبة من الإدارة</h3></div><ul class="sub" style="line-height:2">
+          <li>موازنة 2026 الشهرية → الفعلي مقابل الموازنة</li>
+          <li>قوائم دخل يناير 2026 وما بعده → الملخص التنفيذي لعام 2026</li>
+          <li>استكمال ميزانية 28/2/2026 أو حذفها</li>
+          <li>أرصدة البنوك والخزينة أسبوعيًا → توقع نقدي 13 أسبوعًا</li>
+          <li>جدول سداد قرضي المبادرة والسيارة وقروض الشركاء</li>
+          <li>سجل الإنتاج (داخل/خارج/عظام/فاقد) → تكلفة الكيلو المنتج والعائد</li></ul></div>
+      </div>
+      ${tableCard({id:"t_fs_recon",title:"مطابقة المبيعات شهرًا بشهر",sub:"الحد المسموح ±2%"})}
+      ${tableCard({id:"t_fs_dict",title:"قاموس المؤشرات",sub:"المعادلة والمصدر والفترة لكل مؤشر في الشاشات المالية"})}`,
+    update:()=>{ if(!FS)return;
+      document.getElementById("fs_flags").innerHTML=FS.quality_flags.map(f=>`<div class="insight ${sevCls(f.severity)}">
+        <div class="insight-head"><h4>${esc(f.title)}</h4><span class="prio ${sevCls(f.severity)}">أولوية ${sevAr(f.severity)}</span></div>
+        <div class="insight-grid"><div class="row" style="grid-column:1/-1"><span>${esc(f.detail)}</span></div>
+        <div class="row" style="grid-column:1/-1"><span class="k">الإجراء:</span><span>${esc(f.action)}</span></div></div></div>`).join("");
+      chFsRecon("fs_recon");
+      dt("t_fs_recon",[{title:"الشهر",data:"month",render:fsMon},{title:"القوائم",data:"statement_net_sales",render:egp},
+        {title:"الفواتير",data:"invoice_sales",render:v=>v==null?"—":egp(v)},{title:"الفرق",data:"diff",render:v=>v==null?"—":egp(v)},
+        {title:"الفرق %",data:"diff_pct",render:v=>v==null?"—":pct(v)},
+        {title:"الحالة",data:"ok",render:v=>v==null?"—":v?'<span class="up">مطابق</span>':'<span class="down">يحتاج تفسير</span>'}],
+        FS.sales_reconciliation,{ordering:false,paging:false});
+      dt("t_fs_dict",[{title:"المؤشر",data:"kpi"},{title:"المعادلة",data:"formula"},{title:"المصدر",data:"source"},{title:"الفترة",data:"period"}],
+        FS.kpi_dictionary,{ordering:false,paging:false}); }},
+};
+Object.assign(SECTIONS, FIN_SECTIONS);
+
+/* ========================================================================== */
 /*  Rendering / navigation                                                     */
 /* ========================================================================== */
 const built = {};
@@ -1032,7 +1351,8 @@ function boot(){
   const span=dm.length?`${monthName(dm[0]).split(" ")[0]}–${monthName(dm[dm.length-1]).split(" ")[0]}`:"";
   document.getElementById("dataNote").innerHTML=
     `المصدر: فواتير 2026 (${span}) · لقطة مديونية ${D.meta.as_of}.<br>`+
-    `قيود: لا تكلفة (لا هامش)، لا موازنة، الأعمار تقديرية.`;
+    `قيود: لا تكلفة (لا هامش)، لا موازنة، الأعمار تقديرية.`+
+    (FS?`<br>القوائم المالية: ميزانية ${fsDate(FS.meta.as_of)} وقوائم دخل ${fsMon(fsMonths()[0])}–${fsMon(fsLastM())} — الهامش والربحية في «الإدارة المالية».`:"");
   fillFilters();wireSearch();
   document.querySelectorAll(".nav-item").forEach(n=>n.addEventListener("click",()=>showSection(n.dataset.section)));
   document.getElementById("btnTheme").onclick=toggleTheme;
