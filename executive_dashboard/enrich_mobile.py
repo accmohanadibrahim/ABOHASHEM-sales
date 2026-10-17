@@ -86,6 +86,10 @@ def edits(methods: str, ops: dict, val: dict):
         ("export-ops", "    this.advExport(out,col,num);\n", "",
          "    this.opsExport(out,col,num);\n"),
         ("methods", "", "  buildRepo(){\n", methods),
+        # «المستحق»: the overdue measured at the first of the snapshot's month, by
+        # rep then their customers, sits above the existing invoice and customer lists.
+        ("overdue-byrep", "      kpiEl,\n\n", "      /* These bars total the INVOICE rows only.",
+         "      ...(this.opsOdByRep?this.opsOdByRep(D,T,api,cohort):[]),\n\n"),
         # ECharts lays out SVG text with text-anchor assuming left-to-right; inherited
         # direction:rtl flips start/end, so legend text ran over its icons and y-axis
         # labels over the bars. Arabic inside each <text> still shapes and orders correctly.

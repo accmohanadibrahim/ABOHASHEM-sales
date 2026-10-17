@@ -79,6 +79,17 @@ def test_costpass_drops_months_the_snapshot_lacks(built):
     assert "النصف الأول من الشهر" in out
 
 
+def test_overdue_by_rep_is_wired(built):
+    """«المستحق» gains the by-rep view measured at the first of the snapshot month, plus its two exports."""
+    _original, out, _ins = built
+    assert out.count("...(this.opsOdByRep?this.opsOdByRep(D,T,api,cohort):[]),") == 1
+    i = out.index("  overdueBody(X, T, api){")
+    assert i < out.index("this.opsOdByRep(D,T,api,cohort)") < out.index('"الفواتير المستحقة"', i)
+    for tid in ("od_rep_0109", "od_rep_cust_0109"):
+        assert f'id:"{tid}"' in out, tid
+    assert 'M=asOf.slice(0,8)+"01"' in out and "if(!R.overdue_invoices||!(M<asOf)) return null;" in out
+
+
 def test_committed_output_is_current(built):
     _original, out, _ins = built
     if not rm.OUT_HTML.exists():

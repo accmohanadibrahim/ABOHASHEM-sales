@@ -774,6 +774,113 @@
     return out;
   }
 
+  /* ============ «المستحق» حسب المندوب ← عملائه (يُدرج أعلى overdueBody) ============
+     لا رصيد مؤرَّخ قبل تاريخ اللقطة، فيُقاس التأخر عند أول شهرها M (1/9 في لقطة 3/9)
+     على نفس الأرصدة: الفاتورة متأخرة عند M متى استحقت (تاريخها + مهلة السداد) قبله،
+     ومبلغها المفتوح هو نفسه من توزيع FIFO على رصيد اللقطة. الجزء بلا فاتورة = متأخر
+     العميل في الأرصدة − فواتيره المتأخرة؛ يسبق أول فاتورة في المصدر فيبقى متأخرًا عند M.
+     المندوب = المسؤول عن العميل في أرصدة اللقطة. لقطة بلا overdue_invoices لا تُعرض هنا. */
+  opsOdRep(D,cohort){
+    const R=D.receivables||{}, asOf=(D.meta||{}).as_of||"", M=asOf.slice(0,8)+"01";
+    if(!R.overdue_invoices||!(M<asOf)) return null;
+    const r2=x=>Math.round(x*100)/100, inC=r=>!cohort||cohort.has(String(r.customer_code));
+    const inv=R.overdue_invoices.filter(inC), all=new Map(), due=new Map(), moved={n:0,amt:0,from:null,to:null};
+    for(const o of inv){ const k=String(o.customer_code), a=o.amount_open||0;
+      all.set(k,(all.get(k)||0)+a);
+      if(o.due_date<M){ let c=due.get(k); if(!c) due.set(k,c={amt:0,n:0,oldest:null,days:0});
+        c.amt+=a; c.n++; if(!c.oldest||o.invoice_date<c.oldest) c.oldest=o.invoice_date;
+        c.days=Math.max(c.days,this.opsDays(o.due_date,M)); }
+      else { moved.n++; moved.amt+=a;
+        if(!moved.from||o.invoice_date<moved.from) moved.from=o.invoice_date;
+        if(!moved.to||o.invoice_date>moved.to) moved.to=o.invoice_date; } }
+    const cust=(R.rows||[]).filter(inC).map(r=>{ const k=String(r.customer_code), d=due.get(k)||{amt:0,n:0,oldest:null,days:0};
+      const undated=r2((r.overdue||0)-(all.get(k)||0)), od=r2(Math.max(0,undated)+d.amt), out=r.outstanding||0;
+      return {code:k,name:r.customer_name,rep:r.rep||"غير محدد",outstanding:out,current:r2(out-od),overdue:od,
+        undated:Math.max(0,undated),n_inv:d.n,oldest:d.oldest,days:d.n?d.days:null,last:r.last_invoice_date||null}; })
+      .sort((a,b)=>b.overdue-a.overdue||b.outstanding-a.outstanding);
+    const reps=new Map(), get=n=>{ let o=reps.get(n); if(!o) reps.set(n,o={rep:n,n:0,outstanding:0,current:0,overdue:0,
+      undated:0,n_od:0,n_und:0,days:null,credit:0,n_credit:0}); return o; };
+    for(const c of cust){ const o=get(c.rep); o.n++; o.outstanding+=c.outstanding; o.current+=c.current; o.overdue+=c.overdue;
+      o.undated+=c.undated; if(c.overdue>=0.01) o.n_od++; if(c.undated>=0.01) o.n_und++;
+      if(c.days!=null) o.days=Math.max(o.days||0,c.days); }
+    for(const c of (R.credit_rows||[]).filter(inC)){ const o=get(c.rep||"غير محدد"); o.credit+=c.credit_balance||0; o.n_credit++; }
+    const repRows=[...reps.values()].map(o=>({...o,outstanding:r2(o.outstanding),current:r2(o.current),overdue:r2(o.overdue),
+      undated:r2(o.undated),credit:r2(o.credit),share:o.outstanding?o.overdue/o.outstanding:0}))
+      .sort((a,b)=>b.overdue-a.overdue||b.outstanding-a.outstanding);
+    const sum=k=>r2(repRows.reduce((s,r)=>s+r[k],0));
+    const tot={n:cust.length,outstanding:sum("outstanding"),current:sum("current"),overdue:sum("overdue"),undated:sum("undated"),
+      credit:sum("credit"),n_od:cust.filter(c=>c.overdue>=0.01).length,n_und:cust.filter(c=>c.undated>=0.01).length,
+      n_inv:cust.reduce((s,c)=>s+c.n_inv,0),days:cust.reduce((m,c)=>c.days==null?m:Math.max(m,c.days),0)};
+    moved.amt=r2(moved.amt);
+    return {M,asOf,cust,reps:repRows,tot,moved};
+  }
+  opsOdByRep(D,T,api,cohort){
+    const V=this.advMemo(api,"opsOdRep",(X2,D2)=>this.opsOdRep(D2,cohort));
+    if(!V||!V.cust.length) return [];
+    const st=this.state, f=st.filters||{}, t=V.tot, M=V.M, terms=T.termsOf(D), has=n=>V.reps.some(r=>r.rep===n);
+    const rep=has(st.odRep)?st.odRep:has(f.rep)?f.rep:V.reps[0].rep, R0=V.reps.find(r=>r.rep===rep);
+    const at=" حتى "+this.ltr(M), pc=x=>T.pct(x);
+    const kpis=[
+      ["الرصيد (لقطة "+this.ltr(V.asOf)+")",T.egpK(t.outstanding),T.int(t.n)+" عميل مدين · "+T.int(V.reps.length)+" مندوب","#3b82f6"],
+      ["المتأخر"+at,T.egpK(t.overdue),pc(t.outstanding?t.overdue/t.outstanding:0)+" من الرصيد","#ef4444"],
+      ["الجاري عند "+this.ltr(M),T.egpK(t.current),"لم يحل استحقاقه بعد","#10b981"],
+      ["عملاء متأخرون",T.int(t.n_od),"من "+T.int(t.n)+" مدين","#f59e0b"],
+      ["منه بلا فاتورة",T.egpK(t.undated),T.int(t.n_und)+" عميل — أقدم من أول فاتورة","#64748b"],
+      ["أقصى تأخر على فاتورة",T.int(t.days)+" يومًا","عند "+this.ltr(M),"#8b5cf6"]];
+    const kpiEl=React.createElement("div",{key:"odrk","data-od-rep":"kpis",style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}},
+      kpis.map((d,i)=>React.createElement("div",{key:i,style:{padding:"11px 11px 9px",borderRadius:14,
+          background:"var(--abh-rgba-17-24-39-85,rgba(17,24,39,.85))",border:"1px solid var(--abh-rgba-255-255-255-08,rgba(255,255,255,.08))",
+          borderInlineStart:"3px solid "+d[3],display:"flex",flexDirection:"column",gap:3}},
+        React.createElement("span",{style:{fontSize:15,fontWeight:800,color:"var(--abh-f1f5f9,#f1f5f9)",fontFamily:"'JetBrains Mono',monospace"}},d[1]),
+        React.createElement("span",{style:{fontSize:10.5,color:"var(--abh-94a3b8,#94a3b8)",lineHeight:1.5}},d[0]),
+        React.createElement("span",{style:{fontSize:9.5,color:"#64748b"}},d[2]))));
+    const mv=V.moved;
+    /* Dates as no-wrap elements: a plain isolated string still breaks mid-date
+       inside a paragraph of Arabic. */
+    const d=(x,k)=>this.dateEl(x,k);
+    const note=["المستحق حسب المندوب حتى ",d(M,"m1"),": الأرصدة من لقطة ",d(V.asOf,"a1"),
+      " وهي آخر رصيد متاح (لا يوجد رصيد مؤرَّخ ",d(M,"m2"),")، والتأخر مقاس عند ",d(M,"m3"),
+      ": كل فاتورة استحقت قبله، أي مؤرَّخة قبل ",d(this.opsAddDays(M,-terms),"c1")," (مهلة "+terms+" يومًا)."]
+      .concat(mv.n?[" "+T.int(mv.n)+" فواتير ("+T.egp(mv.amt)+") مؤرَّخة من ",d(mv.from,"f1")," إلى ",d(mv.to,"t1"),
+        " تُحسب هنا جارية، وهي متأخرة عند ",d(V.asOf,"a2"),"."]:[])
+      .concat([" الجزء بلا فاتورة رصيد سابق لأول فاتورة في المصدر، فهو متأخر في التاريخين. المندوب = المسؤول عن العميل في الأرصدة."
+        +" الأقسام أسفل هذا الجزء مقاسة عند ",d(V.asOf,"a3"),"."]);
+    const tops=V.cust.filter(c=>c.overdue>=0.01).slice(0,5);
+    const und=V.cust.filter(c=>c.undated>=0.01);
+    const top=V.reps[0];
+    const mine=V.cust.filter(c=>c.rep===rep);
+    return [
+      this.advNote("odrn",note),
+      kpiEl,
+      this.card("المتأخر"+at+" حسب المندوب",this.opsBars("odrb",V.reps.map((r,i)=>({name:r.rep+" · "+T.int(r.n_od)+" عميل",value:r.overdue,
+          color:i===0?"#ef4444":i<3?"#f59e0b":"#3b82f6"})),T.egpK),
+        {k:"odr1",sub:"الإجمالي "+T.egp(t.overdue)+" · مرتّب بالمتأخر"}),
+      this.card("المندوبون — الرصيد والمتأخر"+at,this.fsTable("odrt",["المندوب","العملاء","الرصيد","الجاري","المتأخر","نسبة المتأخر",
+          "منه بلا فاتورة","عملاء متأخرون","أقصى تأخر","أرصدة دائنة"],
+        V.reps.map(r=>[r.rep,T.int(r.n),this.fsC(r.outstanding),this.fsC(r.current),this.fsC(r.overdue),pc(r.share),
+          this.fsC(r.undated),T.int(r.n_od),r.days==null?"—":T.int(r.days)+" يوم",r.n_credit?this.fsC(r.credit):"—"])
+          .concat([{cells:["الإجمالي",T.int(t.n),this.fsC(t.outstanding),this.fsC(t.current),this.fsC(t.overdue),
+            pc(t.outstanding?t.overdue/t.outstanding:0),this.fsC(t.undated),T.int(t.n_od),T.int(t.days)+" يوم",this.fsC(t.credit)],bold:true}])),
+        {k:"odr2",sub:"الأرصدة الدائنة معروضة للعلم ولا تُطرح من المتأخر"}),
+      this.card("عملاء المندوب — المتأخر"+at,[this.fsPick("odrp",V.reps.map(r=>[r.rep,r.rep+" ("+r.n+")"]),rep,"odRep"),
+        this.pagedList("odrc|"+rep,mine,[
+          ["العميل",r=>r.name],
+          ["المتأخر",r=>T.num(r.overdue)],
+          ["الجاري",r=>T.num(r.current)],
+          ["التفاصيل",r=>r.overdue<0.01?"لا متأخر · الرصيد "+T.num(r.outstanding)
+            :(r.n_inv?"فواتير "+T.int(r.n_inv)+" · أقصى "+T.int(r.days)+" يومًا":"")
+             +(r.undated>=0.01?(r.n_inv?" · ":"")+"بلا فاتورة "+T.num(r.undated):"")]],
+          r=>this.setState({stmt:r.code}))],
+        {k:"odr3",sub:R0?T.int(R0.n)+" عميل · الرصيد "+T.egp(R0.outstanding)+" · المتأخر "+T.egp(R0.overdue)
+          +" — مرتّبون بالمتأخر · اضغط لكشف الحساب":""}),
+      this.opsDecision("odrd",[
+        top&&top.overdue>=0.01?{t:"البدء بـ "+top.rep+": متأخره"+at+" "+T.egpK(top.overdue)+" ("+pc(t.overdue?top.overdue/t.overdue:0)
+          +" من متأخر الشركة) على "+T.int(top.n_od)+" عميلًا.",tag:"v"}:null,
+        tops.length?{t:"أولوية تحصيل هذا الأسبوع: "+tops.map(c=>c.name+" "+T.egpK(c.overdue)+" ("+c.rep+")").join("، ")+".",tag:"v"}:null,
+        und.length?{t:T.int(und.length)+" عميلًا عليهم "+T.egpK(t.undated)+" بلا فاتورة في المصدر — طلب كشف حساب من المحاسب قبل المطالبة.",tag:"v"}:null,
+        mv.n?{t:T.int(mv.n)+" فواتير ("+T.egpK(mv.amt)+") تجاوزت استحقاقها بين "+this.ltr(M)+" و"+this.ltr(V.asOf)+" — تُضاف لمتابعة الأسبوع.",tag:"v"}:null])];
+  }
+
   opsSectionBody(s,X,T,api){
     const m={ops_inventory:"opsInventoryBody",ops_purchases:"opsPurchasesBody",ops_costpass:"opsCostPassBody",ops_wc:"opsWcBody",
       dec_rfm:"opsRfmBody",dec_reps:"opsRepsBody",dec_leakage:"opsLeakBody",dec_returns:"opsRetBody",dec_whatif:"opsWhatIfBody",
@@ -809,6 +916,18 @@
         col("المندوب","name"), col("الفرق",null,r=>num(r.value)), col("البنود",null,r=>num(r.n))]},
       {id:"dq_multi_names", label:"تنظيف — أكواد عملاء بأكثر من اسم", rows:Cl.multi, columns:[
         col("الكود","customer_code"), col("الاسم الموحَّد","canonical"), col("الأسماء","variants")]});
+    const Od=this.advMemo(api,"opsOdRep",(X2,D)=>this.opsOdRep(D,this.agingCohort(D,st.filters||{})));
+    if(Od) out.push(
+      {id:"od_rep_0109", label:"المستحق حتى "+Od.M+" — حسب المندوب", rows:Od.reps, columns:[
+        col("المندوب","rep"), col("العملاء",null,r=>num(r.n)), col("الرصيد",null,r=>num(r.outstanding)), col("الجاري",null,r=>num(r.current)),
+        col("المتأخر",null,r=>num(r.overdue)), col("نسبة المتأخر",null,r=>num(r.share)), col("منه بلا فاتورة",null,r=>num(r.undated)),
+        col("عملاء متأخرون",null,r=>num(r.n_od)), col("أقصى تأخر (يوم)",null,r=>r.days==null?"":num(r.days)),
+        col("أرصدة دائنة",null,r=>num(r.credit))]},
+      {id:"od_rep_cust_0109", label:"المستحق حتى "+Od.M+" — العملاء", rows:Od.cust, columns:[
+        col("المندوب","rep"), col("كود العميل","code"), col("العميل","name"), col("الرصيد",null,r=>num(r.outstanding)),
+        col("الجاري",null,r=>num(r.current)), col("المتأخر",null,r=>num(r.overdue)), col("منه بلا فاتورة",null,r=>num(r.undated)),
+        col("فواتير متأخرة",null,r=>num(r.n_inv)), col("أقدم فاتورة متأخرة",null,r=>r.oldest||""),
+        col("أيام التأخر",null,r=>r.days==null?"":num(r.days)), col("آخر فاتورة",null,r=>r.last||"")]});
     if(!O) return;
     const Iv=this.advMemo(api,"opsInv",(X2,D)=>this.opsInventory(D));
     const Pu=this.advMemo(api,"opsPur",()=>this.opsPurchases());
