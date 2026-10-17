@@ -60,6 +60,8 @@ def main():
     for j in JS:
         scripts.append(f"<script>{safe_js((V/j).read_text(encoding='utf-8'))}</script>")
     scripts.append(f"<script>{safe_js((APP/'data.js').read_text(encoding='utf-8'))}</script>")
+    if (APP / "statements_data.js").exists():   # finance screens (src/statements.py)
+        scripts.append(f"<script>{safe_js((APP/'statements_data.js').read_text(encoding='utf-8'))}</script>")
     scripts.append(f"<script>{safe_js((APP/'script.js').read_text(encoding='utf-8'))}</script>")
 
     out = (
