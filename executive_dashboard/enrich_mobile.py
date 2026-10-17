@@ -86,6 +86,12 @@ def edits(methods: str, ops: dict, val: dict):
         ("export-ops", "    this.advExport(out,col,num);\n", "",
          "    this.opsExport(out,col,num);\n"),
         ("methods", "", "  buildRepo(){\n", methods),
+        # ECharts lays out SVG text with text-anchor assuming left-to-right; inherited
+        # direction:rtl flips start/end, so legend text ran over its icons and y-axis
+        # labels over the bars. Arabic inside each <text> still shapes and orders correctly.
+        ("css-chart-ltr", "</style>\n", "</head>",
+         "<style>\n/* Every ECharts chart (the container carries _echarts_instance_): SVG text laid out left-to-right. */\n"
+         "[_echarts_instance_] svg{direction:ltr}\n</style>\n"),
     ]
 
 

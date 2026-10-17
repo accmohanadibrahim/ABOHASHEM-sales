@@ -65,6 +65,20 @@ def test_sections_and_exports_are_wired(built):
     assert out.count("القرار المقترح") >= 1 and out.count("this.opsDecision(") >= len(SECTIONS)
 
 
+def test_chart_svg_text_is_laid_out_ltr(built):
+    """ECharts places SVG text assuming LTR; the page is RTL, so charts get direction:ltr."""
+    _original, out, _ins = built
+    assert out.count("[_echarts_instance_] svg{direction:ltr}") == 1
+
+
+def test_costpass_drops_months_the_snapshot_lacks(built):
+    """The 16/7 snapshot stops at 15/7: no August column, and half of July is labelled as such."""
+    _original, out, _ins = built
+    assert "rows.hasAug=has.has(\"2026-08\")" in out
+    assert "Cp.hasAug?[col(\"سعر البيع أغسطس\"" in out
+    assert "النصف الأول من الشهر" in out
+
+
 def test_committed_output_is_current(built):
     _original, out, _ins = built
     if not rm.OUT_HTML.exists():

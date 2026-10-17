@@ -137,6 +137,10 @@ a:hover{color:#8b5cf6}
   @page { margin: 12mm; }
 }
 </style>
+<style>
+/* Every ECharts chart (the container carries _echarts_instance_): SVG text laid out left-to-right. */
+[_echarts_instance_] svg{direction:ltr}
+</style>
 </head>
 <body>
 <div id="root"></div>
@@ -38076,12 +38080,18 @@ class App extends React.Component {
     const idx=(codes,mon)=>{ let a=0,c=0;
       codes.forEach(code=>{ const b0=pm(code,"2026-06"), b1=pm(code,mon); if(b0&&b1){ a+=b1.p*b0.q; c+=b0.p*b0.q; } });
       return c?a/c-1:null; };
-    return O.inventory.recipes.map(r=>{
+    // Which sales months this snapshot actually covers: the 16/7 snapshot stops at 15/7, so it has no
+    // August and only half of July. A month it does not cover is dropped, never shown as an empty column.
+    const lines=(D&&D.lines)||[], has=new Set(lines.map(l=>l.month));
+    const last=lines.reduce((m,l)=>l.invoice_date>m?l.invoice_date:m,"");
+    const rows=O.inventory.recipes.map(r=>{
       let rev=0,gp=0; r.sales_codes.forEach(c=>{ const g=gmBy.get(c); if(g){ rev+=g.revenue_costed||0; gp+=g.gross_profit||0; } });
       const k=rev?1-gp/rev:null, c=(r.kg_jul-r.kg_jun)/r.kg_jun;
       return {...r,cost_chg:c,p_jul:idx(r.sales_codes,"2026-07"),p_aug:idx(r.sales_codes,"2026-08"),cost_share:k,
         room:k==null?null:k*c,names:r.sales_codes.map(cd=>{ const g=gmBy.get(cd); return g?g.item_name:cd; })};
     });
+    rows.hasAug=has.has("2026-08"); rows.julPartial=has.has("2026-07")&&last<"2026-07-31"; rows.last=last;
+    return rows;
   }
   opsCostPassBody(X,T,api){
     if(!window.DASH_OPS) return [this.opsMissing("oc0")];
@@ -38089,20 +38099,29 @@ class App extends React.Component {
     out.push(this.opsLegend("ocl"));
     out.push(this.advNote("ocn","تكلفة الكيلو من ورقة «سعر الكجم من الوصفات»: خامات مباشرة فقط لتسع وصفات (بلا تعبئة ولا أجور). "
       +"تغيّر سعر البيع = مؤشر لاسبيرز لأسعار بيع أحجام العائلة نفسها في الفواتير، بأوزان كميات يونيو 2026 (بنود مدفوعة فقط)."));
+    // Plain-text date in a Unicode LTR isolate: it is concatenated into strings (note, series name), not JSX.
+    const dt=d=>"\u2066"+d.slice(8,10)+"/"+d.slice(5,7)+"/"+d.slice(0,4)+"\u2069";
+    const aug=V.hasAug, julL="البيع يوليو"+(V.julPartial?" (حتى "+dt(V.last)+")":"");
+    if(!aug||V.julPartial) out.push(this.advNote("ocsn","اللقطة النشطة فيها فواتير حتى "+dt(V.last)+": "
+      +(V.julPartial?"سعر يوليو محسوب من النصف الأول من الشهر فقط، ":"")
+      +(aug?"":"ولا فواتير أغسطس فيها، فعمود أغسطس غير معروض. ")+"لقطة 3/9 تغطي يوليو وأغسطس كاملين.","warn"));
+    const ser=[{name:"تكلفة الكجم",type:"bar",data:V.map(r=>r.cost_chg),itemStyle:{color:T.PAL[3]}},
+      // Short Arabic-only legend name: ECharts mis-measures RTL text mixed with an isolated date.
+      {name:V.julPartial?"البيع نصف يوليو":"البيع يوليو",type:"bar",data:V.map(r=>r.p_jul),itemStyle:{color:T.PAL[0]}}];
+    if(aug) ser.push({name:"البيع أغسطس",type:"bar",data:V.map(r=>r.p_aug),itemStyle:{color:T.PAL[2]}});
     out.push(this.card("تكلفة الخامات للكيلو مقابل سعر البيع — يوليو عن يونيو",
       React.createElement(EChart,{key:"c",h:C.H.base,title:"تمرير التكلفة",option:{...b,
         tooltip:{...b.tooltip,trigger:"axis",valueFormatter:v=>v==null?"—":(v*100).toFixed(1)+"%"},
-        legend:{...b.legend,data:["تكلفة الكجم","البيع يوليو","البيع أغسطس"]},grid:{...b.grid,top:40},
+        legend:{...b.legend,data:ser.map(s=>s.name)},grid:{...b.grid,top:40},
         xAxis:this.fsAx(b,{type:"category",data:V.map(r=>r.product),axisLabel:{color:b._muted,fontSize:9.5,rotate:30,interval:0}}),
         yAxis:this.fsAx(b,{type:"value",axisLabel:{color:b._muted,fontSize:10,formatter:v=>Math.round(v*100)+"%"}}),
-        series:[{name:"تكلفة الكجم",type:"bar",data:V.map(r=>r.cost_chg),itemStyle:{color:T.PAL[3]}},
-          {name:"البيع يوليو",type:"bar",data:V.map(r=>r.p_jul),itemStyle:{color:T.PAL[0]}},
-          {name:"البيع أغسطس",type:"bar",data:V.map(r=>r.p_aug),itemStyle:{color:T.PAL[2]}}]}}),
+        series:ser}}),
       {k:"oc1"}));
-    out.push(this.card("الجدول التفصيلي",this.fsTable("oct",["المنتج","كجم يونيو","كجم يوليو","تغير التكلفة","سعر البيع يوليو","سعر البيع أغسطس",
-      "حصة التكلفة من السعر","السعر اللازم لحفظ ربح الوحدة"],V.map(r=>[r.product,r.kg_jun.toFixed(2),r.kg_jul.toFixed(2),
-        this.fsC(r.cost_chg,"pct"),r.p_jul==null?"—":this.fsC(r.p_jul,"pct"),r.p_aug==null?"—":this.fsC(r.p_aug,"pct"),
-        r.cost_share==null?"—":T.pct(r.cost_share),r.room==null?"—":this.fsC(r.room,"pct")])),
+    const pc=v=>v==null?"—":this.fsC(v,"pct");
+    out.push(this.card("الجدول التفصيلي",this.fsTable("oct",["المنتج","كجم يونيو","كجم يوليو","تغير التكلفة","سعر "+julL]
+      .concat(aug?["سعر البيع أغسطس"]:[],["حصة التكلفة من السعر","السعر اللازم لحفظ ربح الوحدة"]),
+      V.map(r=>[r.product,r.kg_jun.toFixed(2),r.kg_jul.toFixed(2),this.fsC(r.cost_chg,"pct"),pc(r.p_jul)]
+        .concat(aug?[pc(r.p_aug)]:[],[r.cost_share==null?"—":T.pct(r.cost_share),r.room==null?"—":this.fsC(r.room,"pct")]))),
       {k:"oc2",approx:true,sub:"«حصة التكلفة» = 1 − هامش المجمل من جدول الربحية لأصناف العائلة"}));
     out.push(this.advNote("ocn2","«السعر اللازم لحفظ ربح الوحدة» = حصة التكلفة × تغيّر تكلفة الخامات، بافتراض أن كل تكلفة الوحدة تتحرك "
       +"بنسبة الخامات. هو حد أعلى للحركة اللازمة: الخامات ليست كل التكلفة. قيمة سالبة = مساحة لخفض السعر دون خسارة ربح الوحدة.","warn"));
@@ -38643,8 +38662,10 @@ class App extends React.Component {
         col("المورد","name"), col("دائن",null,r=>num(r.credit)), col("مدين",null,r=>num(r.debit)), col("الصافي",null,r=>num(r.net))]},
       {id:"ops_costpass", label:"تشغيل — تمرير التكلفة", rows:Cp, columns:[
         col("المنتج","product"), col("كجم يونيو",null,r=>num(r.kg_jun)), col("كجم يوليو",null,r=>num(r.kg_jul)),
-        col("تغير التكلفة",null,r=>num(r.cost_chg)), col("سعر البيع يوليو",null,r=>num(r.p_jul)), col("سعر البيع أغسطس",null,r=>num(r.p_aug)),
-        col("حصة التكلفة",null,r=>num(r.cost_share)), col("التغير اللازم",null,r=>num(r.room)), col("أكواد العائلة",null,r=>r.sales_codes.join("، "))]},
+        col("تغير التكلفة",null,r=>num(r.cost_chg)),
+        col(Cp.julPartial?"سعر البيع يوليو (حتى "+Cp.last+")":"سعر البيع يوليو",null,r=>num(r.p_jul))]
+        .concat(Cp.hasAug?[col("سعر البيع أغسطس",null,r=>num(r.p_aug))]:[],[
+        col("حصة التكلفة",null,r=>num(r.cost_share)), col("التغير اللازم",null,r=>num(r.room)), col("أكواد العائلة",null,r=>r.sales_codes.join("، "))])},
       {id:"ops_returns_items", label:"تشغيل — المرتجعات بالصنف (يوليو–أغسطس)", rows:Rt.items, columns:[
         col("الصنف","name"), col("الكود","code"), col("القيمة",null,r=>num(r.value)), col("الكمية",null,r=>num(r.qty)),
         col("النسبة من المبيعات",null,r=>num(r.rate))]},
