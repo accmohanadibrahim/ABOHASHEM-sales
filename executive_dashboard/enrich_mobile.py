@@ -90,6 +90,11 @@ def edits(methods: str, ops: dict, val: dict):
         # rep then their customers, sits above the existing invoice and customer lists.
         ("overdue-byrep", "      kpiEl,\n\n", "      /* These bars total the INVOICE rows only.",
          "      ...(this.opsOdByRep?this.opsOdByRep(D,T,api,cohort):[]),\n\n"),
+        # «التقارير»: the chip row sat directly in a height-limited column and was
+        # squeezed to a nameless sliver; repNav replaces it with named, coloured
+        # groups and table tiles. The original call stays as the fallback branch.
+        ("reports-nav", "      ", 'this.pickRow("rt",tables.map(t=>[t.id,t.label]),cur.id,',
+         "this.repNav?this.repNav(tables,cur):"),
         # ECharts lays out SVG text with text-anchor assuming left-to-right; inherited
         # direction:rtl flips start/end, so legend text ran over its icons and y-axis
         # labels over the bars. Arabic inside each <text> still shapes and orders correctly.

@@ -90,6 +90,13 @@ def test_overdue_by_rep_is_wired(built):
     assert 'M=asOf.slice(0,8)+"01"' in out and "if(!R.overdue_invoices||!(M<asOf)) return null;" in out
 
 
+def test_reports_use_the_named_table_navigator(built):
+    """«التقارير» renders grouped, named table tiles; the original chip row stays as the fallback branch."""
+    _original, out, _ins = built
+    assert out.count('this.repNav?this.repNav(tables,cur):this.pickRow("rt",') == 1
+    assert "  repNav(tables,cur){" in out and "  repGroups(){" in out
+
+
 def test_committed_output_is_current(built):
     _original, out, _ins = built
     if not rm.OUT_HTML.exists():

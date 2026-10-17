@@ -35938,7 +35938,7 @@ class App extends React.Component {
         "كل جدول هنا هو نفسه الذي يخرج إلى Excel وCSV من زر الاستخراج — "+
         "الأعمدة والصفوف واحدة، وكل الصفوف معروضة صفحةً صفحة. "+
         "اضغط أي صف لعرض كل أعمدته."),
-      this.pickRow("rt",tables.map(t=>[t.id,t.label]),cur.id,
+      this.repNav?this.repNav(tables,cur):this.pickRow("rt",tables.map(t=>[t.id,t.label]),cur.id,
         id=>this.setState({repTable:id,repQ:"",pages:{}})),
       this.card(cur.label,
         React.createElement("div",{style:{display:"flex",flexDirection:"column",
@@ -38704,6 +38704,67 @@ class App extends React.Component {
         tops.length?{t:"أولوية تحصيل هذا الأسبوع: "+tops.map(c=>c.name+" "+T.egpK(c.overdue)+" ("+c.rep+")").join("، ")+".",tag:"v"}:null,
         und.length?{t:T.int(und.length)+" عميلًا عليهم "+T.egpK(t.undated)+" بلا فاتورة في المصدر — طلب كشف حساب من المحاسب قبل المطالبة.",tag:"v"}:null,
         mv.n?{t:T.int(mv.n)+" فواتير ("+T.egpK(mv.amt)+") تجاوزت استحقاقها بين "+this.ltr(M)+" و"+this.ltr(V.asOf)+" — تُضاف لمتابعة الأسبوع.",tag:"v"}:null])];
+  }
+
+  /* ================= «التقارير»: التنقل بين الجداول ==================
+     صف الشرائح الأصلي يُوضع مباشرة في عمود محدود الارتفاع فينضغط إلى خط رفيع بلا
+     أسماء، و83 جدولًا في صف أفقي واحد يصعب تصفحها. هنا: مجموعات ملوّنة بأسمائها،
+     ثم بطاقة كبيرة لكل جدول في المجموعة باسمه وعدد صفوفه، و«السابق/التالي» عبر الكل.
+     المجموعة النشطة هي مجموعة الجدول الحالي، فلا حالة جديدة غير repTable. */
+  repGroups(){
+    return [
+      ["ar","المديونية والتحصيل","#ef4444",id=>/^(receivables|overdue_|aging$|ar$|collections$|s_coll|s_recv|s_credit|s_rep_exc|od_rep)/.test(id)],
+      ["sales","المبيعات والفواتير","#3b82f6",id=>/^(invoices|lines|monthly|r_monthly|items|brands|customers|returns|bonus|s_)/.test(id)],
+      ["profit","الربحية والمصروفات","#10b981",id=>/^(m_|x_)/.test(id)],
+      ["fs","القوائم المالية","#8b5cf6",id=>/^fs_/.test(id)],
+      ["adv","تحليلات متقدمة","#06b6d4",id=>/^adv_/.test(id)],
+      ["dec","قرارات","#f59e0b",id=>/^dec_/.test(id)],
+      ["ops","تشغيل","#f97316",id=>/^ops_/.test(id)],
+      ["dq","جودة وتنظيف","#64748b",id=>/^dq_/.test(id)],
+      ["other","أخرى","#ec4899",()=>true]];
+  }
+  repNav(tables,cur){
+    const G=this.repGroups(), gOf=id=>G.find(g=>g[3](id));
+    const groups=G.map(g=>({key:g[0],name:g[1],color:g[2],tables:tables.filter(t=>gOf(t.id)===g)})).filter(g=>g.tables.length);
+    const order=[].concat(...groups.map(g=>g.tables)), i=order.indexOf(cur), act=groups.find(g=>g.tables.includes(cur))||groups[0];
+    const pick=t=>this.setState({repTable:t.id,repQ:"",pages:{}});
+    const short=lab=>String(lab).replace(/^(القوائم|قرارات|تشغيل|تنظيف) — /,"");
+    const btn=(k,label,t,dis)=>React.createElement("button",{key:k,type:"button",dir:"rtl",disabled:dis,onClick:()=>t&&pick(t),
+      style:{flex:"none",minWidth:84,padding:"10px 12px",borderRadius:12,fontSize:12.5,fontWeight:700,fontFamily:"inherit",
+        cursor:dis?"default":"pointer",opacity:dis?.4:1,color:"#fff",background:act.color,border:"none",
+        display:"flex",alignItems:"center",gap:6}},
+      /* Separate spans in an RTL flex row: ‹ › are bidi-mirrored glyphs, → ← are not. */
+      label.map((x,j)=>React.createElement("span",{key:j},x)));
+    return React.createElement("div",{key:"rt","data-rep-nav":"",style:{flex:"none",display:"flex",flexDirection:"column",gap:10}},
+      React.createElement("div",{key:"gl",style:{fontSize:11,fontWeight:700,color:"var(--abh-94a3b8,var(--abh-94a3b8,#94a3b8))"}},
+        "المجموعات — "+tables.length+" جدولًا"),
+      React.createElement("div",{key:"g",style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:7}},
+        groups.map(g=>{ const on=g===act;
+          return React.createElement("button",{key:g.key,type:"button","data-rep-group":g.key,onClick:()=>on||pick(g.tables[0]),
+            style:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3,minHeight:58,
+              padding:"8px 6px",borderRadius:13,cursor:"pointer",fontFamily:"inherit",textAlign:"center",
+              background:on?g.color:g.color+"1f",border:"1.5px solid "+(on?g.color:g.color+"66"),
+              color:on?"#fff":"var(--abh-e2e8f0,var(--abh-e2e8f0,#e2e8f0))",boxShadow:on?"0 4px 14px "+g.color+"55":"none"}},
+            React.createElement("span",{style:{fontSize:12,fontWeight:800,lineHeight:1.4}},g.name),
+            React.createElement("span",{style:{fontSize:10,opacity:on?.9:.75}},g.tables.length+" جدول")); })),
+      React.createElement("div",{key:"tl",style:{fontSize:11,fontWeight:700,color:act.color,marginTop:2}},
+        "جداول «"+act.name+"»"),
+      React.createElement("div",{key:"t",style:{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:7}},
+        act.tables.map(t=>{ const on=t===cur;
+          return React.createElement("button",{key:t.id,type:"button","data-rep-table":t.id,onClick:()=>on||pick(t),
+            style:{display:"flex",flexDirection:"column",alignItems:"flex-start",gap:4,minHeight:62,padding:"10px 11px",
+              borderRadius:13,cursor:"pointer",fontFamily:"inherit",textAlign:"start",
+              background:on?act.color+"33":"var(--abh-rgba-255-255-255-03,var(--abh-rgba-255-255-255-03,rgba(255,255,255,.03)))",
+              border:(on?"2px":"1px")+" solid "+(on?act.color:"var(--abh-rgba-255-255-255-10,var(--abh-rgba-255-255-255-10,rgba(255,255,255,.10)))"),
+              borderInlineStart:"4px solid "+act.color}},
+            React.createElement("span",{style:{fontSize:12.5,fontWeight:on?800:600,lineHeight:1.5,
+              color:"var(--abh-f1f5f9,var(--abh-f1f5f9,#f1f5f9))",overflowWrap:"anywhere"}},(on?"✓ ":"")+short(t.label)),
+            React.createElement("span",{style:{fontSize:10,color:"var(--abh-94a3b8,var(--abh-94a3b8,#94a3b8))"}},t.rows.length+" صف")); })),
+      React.createElement("div",{key:"pn",style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}},
+        btn("p",["→","السابق"],order[i-1],i<=0),
+        React.createElement("span",{key:"c",style:{fontSize:11,color:"var(--abh-94a3b8,var(--abh-94a3b8,#94a3b8))",textAlign:"center"}},
+          "الجدول "+(i+1)+" من "+order.length),
+        btn("n",["التالي","←"],order[i+1],i>=order.length-1)));
   }
 
   opsSectionBody(s,X,T,api){
