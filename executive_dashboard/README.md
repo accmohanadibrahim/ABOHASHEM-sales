@@ -203,7 +203,11 @@ python3 -m pytest tests/test_ops_ingest.py tests/test_enrich_mobile.py
 python3 build_all.py             # merge → enhance → ops_ingest → enrich بالترتيب
 python3 build_all.py --check     # يعيد البناء ويفشل إن اختلف أي ملف ناتج عن المحفوظ
 python3 build_all.py --skip-ingest   # بلا pdftotext/LibreOffice: يستخدم ops_data.json المحفوظ
+python3 build_all.py --month 2026-10 --strict   # يفحص ملفات الشهر أولًا ويتوقف إن نقص ملف مطلوب
+python3 -m src.monthly 2026-10    # قائمة استلام ملفات الشهر وحدها
 ```
+
+**قائمة استلام ملفات الشهر:** كل شهر مجلد `data/monthly/YYYY-MM/` بأسماء ثابتة (الجدول في `data/monthly/README.md`)، وكل بناء يبدأ بطباعة قائمة آخر شهر ويسمّي كل ملف ناقص بالاسم. الأشهر حتى سبتمبر 2026 ملفاتها باقية في `data/raw/ops` بأسمائها والقائمة تقبلها هناك. الجرد المسعّر يأتي من نموذج المتوسط المرجَّح الموحد في مستودع Abohashem (`python3 model/wac.py YYYY-MM` ← `monthly/YYYY-MM/stock_count_priced.xlsx`).
 
 إعادة البناء من المصادر نفسها تعطي الملفات نفسها حرفًا بحرف: `ops_ingest` يُبقي تاريخ `meta.generated` المحفوظ ما دام لم يتغير شيء غيره. خط سطح المكتب (`build.py` ← `data.js`) خارج هذا الأمر عمدًا: `data.js` لقطة 16/7 مجمّدة و`build.py` لا يعيد بناءها حرفًا بحرف (ويحتاج `polars<2`).
 
