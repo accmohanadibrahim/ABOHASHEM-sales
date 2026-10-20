@@ -21,8 +21,6 @@ import re
 import sys
 from pathlib import Path
 
-import openpyxl
-
 from .ops_ingest import BRANDS, TYPES, clean_text, link, load_items, norm_name, signature
 
 APP_DIR = Path(__file__).resolve().parents[1]
@@ -38,6 +36,8 @@ def _cells(row) -> list:
 
 
 def parse(path: Path = SRC) -> tuple[list, list]:
+    import openpyxl  # local import: keeps the module importable without it (as in statements.py)
+
     ws = openpyxl.load_workbook(path, data_only=True, read_only=True)[SHEET]
     rows, unresolved = [], []
     brand, ptype = None, None
