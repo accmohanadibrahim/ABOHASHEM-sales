@@ -3,7 +3,8 @@
 Each month has a folder data/monthly/YYYY-MM/ holding these files under these names,
 so a month's update is "drop the files, run the build". The months already in the
 dashboard were delivered before this layout; their files stay where they are in
-data/raw/ops (named kind_YYYY-MM), and the checklist accepts them there too.
+data/raw/ops and data/raw/income (named kind_YYYY-MM), and the checklist accepts them
+there too.
 
     python3 -m src.monthly 2026-10            the checklist for one month (exit 1 if a
                                               required file is missing)
@@ -22,6 +23,12 @@ from .config import REPO_ROOT
 MONTHLY = REPO_ROOT / "data" / "monthly"
 LEGACY = REPO_ROOT / "data" / "raw" / "ops"
 
+
+def legacy_dirs() -> tuple:
+    """data/raw/ops and its sibling data/raw/income (the 2026 income statements)."""
+    return (LEGACY, LEGACY.parent / "income")
+
+
 # fixed name → (required, what it is, who delivers it, legacy file pattern in data/raw/ops)
 MANIFEST = OrderedDict([
     ("sales_invoices.pdf", (True, "فواتير المبيعات للشهر ببنودها (من 1 إلى آخر الشهر)", "الإدارة", None)),
@@ -37,7 +44,7 @@ MANIFEST = OrderedDict([
                   "Abohashem", None)),
     ("wac_model.xlsx", (False, "مصنّف احتساب المتوسط التفصيلى (إن صدر)", "Abohashem", "wac_model_{m}.xlsx")),
     ("stock_count.xlsx", (False, "الجرد الفعلى قبل التسعير", "الإدارة", "stock_count_{m}.xlsx")),
-    ("income_statement.pdf", (False, "قائمة الدخل التفصيلية للشهر", "المحاسب", None)),
+    ("income_statement.pdf", (False, "قائمة الدخل التفصيلية للشهر", "المحاسب", "income_statement_{m}.pdf")),
 ])
 
 
@@ -48,7 +55,7 @@ def find(name: str, month: str) -> Path | None:
         return p
     pattern = MANIFEST[name][3]
     if pattern:
-        hits = sorted(LEGACY.glob(pattern.format(m=month)))
+        hits = sorted(h for d in legacy_dirs() if d.exists() for h in d.glob(pattern.format(m=month)))
         if hits:
             return hits[-1]
     return None
@@ -70,7 +77,7 @@ def missing(month: str) -> list[dict]:
 def months() -> list[str]:
     """Every month with at least one file, in either layout."""
     found = {d.name for d in MONTHLY.glob("????-??") if d.is_dir() and any(d.iterdir())}
-    for f in LEGACY.iterdir() if LEGACY.exists() else []:
+    for f in (f for d in legacy_dirs() if d.exists() for f in d.iterdir()):
         m = re.search(r"_(\d{4}-\d{2})(?:-\d{2})?\.\w+$", f.name)
         if m:
             found.add(m.group(1))

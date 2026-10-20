@@ -139,3 +139,25 @@ def test_header_and_excel_carry_data_dates_and_version(page, ops):
     assert ids.get("build_info") == 7
     for key in ("ops_valuations", "ops_raw_sep", "ops_fg_sep", "ops_purch_rows", "ops_costpass"):
         assert ids.get(key), key
+
+
+def test_income_statements_2026(page):
+    """«قائمة الدخل الشهرية»: the 2025 table as before, then 2026 from income_2026.json — the filed
+    quarter split into three months that add back to it, April–July as filed."""
+    is26 = json.loads((APP_DIR.parent / "data" / "processed" / "income_2026.json").read_text(encoding="utf-8"))
+    text = go(page, "fs_income")
+    assert text.index("قائمة الدخل (شهري + إجمالي الفترة)") < text.index("قائمة الدخل 2026")
+    r = page.evaluate("""() => { const A = window.__abhApp, R = A.fs26Rows();
+      return {cols: R.cols.map(c => [c.month, c.f, c.est]), rows: R.rows.map(x => [x.label, x.vals, x.total])}; }""")
+    rows = {lab: (vals, tot) for lab, vals, tot in r["rows"]}
+    q = is26["periods"][0]
+    sales, sales_tot = rows["صافي المبيعات"]
+    assert [c[0] for c in r["cols"]][:3] == q["months"] and all(c[2] for c in r["cols"][:3])
+    assert sum(sales[:3]) == pytest.approx(q["net_sales"], abs=0.01)
+    assert sum(rows["صافي الربح (كما بالقائمة)"][0][:3]) == pytest.approx(q["net_profit"], abs=0.01)
+    for i, p in enumerate(is26["periods"][1:], start=3):
+        assert sales[i] == pytest.approx(p["net_sales"]) and rows["صافي الربح (كما بالقائمة)"][0][i] == pytest.approx(p["net_profit"])
+    assert sales_tot == pytest.approx(sum(p["net_sales"] for p in is26["periods"]))
+    assert rows["مصروفات تشغيلية"][0][:4] == [None] * 4 and "ضمن الإدارية" in text
+    assert "قوائم دخل 2026: يناير–يوليو 2026" in page.inner_text("body")   # the section's source line, above the scroll area
+    assert page.evaluate("() => document.documentElement.scrollWidth") <= 390

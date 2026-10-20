@@ -6,6 +6,8 @@ file gives back the production file byte for byte, so every existing section,
 figure and export is untouched. The committed dev file must be what the script
 builds today, and the script must never write the production file.
 """
+import json
+import re
 import sys
 from pathlib import Path
 
@@ -17,7 +19,8 @@ sys.path.insert(0, str(APP_DIR))
 import bi_mobile as bm  # noqa: E402
 
 TABLES = ("bi_freshness", "bi_bridge_pnl", "bi_bridge_items", "bi_breakeven", "bi_dio", "bi_dead_stock",
-          "bi_unpriced", "bi_alert_register", "bi_alert_rules", "bi_kpi_catalog", "bi_readiness")
+          "bi_unpriced", "bi_std_cost", "bi_std_variance_month", "bi_std_margin_sku", "bi_alert_register", "bi_alert_rules",
+          "bi_kpi_catalog", "bi_readiness")
 
 
 @pytest.fixture(scope="module")
@@ -39,7 +42,7 @@ def test_bi_only_inserts(built):
 
 def test_every_anchor_is_unique(built):
     original, _out, _ins = built
-    for name, before, after, _text in bm.edits(""):
+    for name, before, after, _text in bm.edits("", {}):
         assert original.count(before + after) == 1, name
 
 
@@ -69,11 +72,14 @@ def test_kill_switch_and_fault_isolation(built):
     assert out.index("try{ return this[m](X,T,api); }", i) < out.index("  biNeed(", i)
 
 
-def test_no_data_is_added(built):
-    """The stage embeds no new window.DASH_* data: it reads what the full file already has."""
+def test_only_the_standard_costs_are_added(built):
+    """The one new dataset is the standard costs (DASH_STD), exactly the committed JSON; the rest is read from the full file."""
     original, out, _ins = built
-    for var in ("DASH_DATA", "DASH_MARGIN", "DASH_FS", "DASH_OPS", "DASH_VAL", "DASH_BUILD"):
+    for var in ("DASH_DATA", "DASH_MARGIN", "DASH_FS", "DASH_OPS", "DASH_VAL", "DASH_BUILD", "DASH_IS26"):
         assert out.count(f"window.{var} =") == original.count(f"window.{var} ="), var
+    if bm.STD_JSON.exists():
+        m = re.search(r"window\.DASH_STD = (\{.*?\});</script>", out, re.S)
+        assert m and json.loads(m.group(1).replace("<\\/", "</")) == json.loads(bm.STD_JSON.read_text(encoding="utf-8"))
 
 
 def test_committed_output_is_current(built):

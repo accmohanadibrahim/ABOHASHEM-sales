@@ -39,19 +39,21 @@ OUT_HTML = MOB / "Abu_Hashem_Mobile_full.html"
 METHODS = MOB / "patch" / "enrich_methods.js"
 OPS_JSON = APP.parent / "data" / "processed" / "ops_data.json"
 VAL_JSON = APP.parent / "data" / "processed" / "valuation_scenarios.json"
+IS26_JSON = APP.parent / "data" / "processed" / "income_2026.json"
 
 
 def js(o) -> str:
     return json.dumps(o, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
 
 
-def build_info(ops: dict, val: dict, methods: str) -> dict:
+def build_info(ops: dict, val: dict, methods: str, is26: dict | None = None) -> dict:
     """Data dates and a version for the header and the Excel export.
 
     The version fingerprints this stage's inputs, and the date is the one the
     ingest keeps while the operations data is unchanged, so rebuilding the same
     inputs gives the same file byte for byte."""
-    h = hashlib.sha256("\0".join([methods, js(ops), js(val)]).encode("utf-8")).hexdigest()[:10]
+    parts = [methods, js(ops), js(val)] + ([js(is26)] if is26 else [])
+    h = hashlib.sha256("\0".join(parts).encode("utf-8")).hexdigest()[:10]
     vals = (ops.get("inventory") or {}).get("valuations") or []
     return {"version": h, "built": (ops.get("meta") or {}).get("generated"),
             "inventory_as_of": vals[-1]["date"] if vals else None,
@@ -59,10 +61,11 @@ def build_info(ops: dict, val: dict, methods: str) -> dict:
             "suppliers_as_of": (ops.get("suppliers") or {}).get("as_of")}
 
 
-def data_script(ops: dict, val: dict, methods: str = "") -> str:
+def data_script(ops: dict, val: dict, methods: str = "", is26: dict | None = None) -> str:
     return ("<script>/* بيانات التشغيل ونتائج التقييم — enrich_mobile.py */\n"
             f"window.DASH_OPS = {js(ops)};\nwindow.DASH_VAL = {js(val)};\n"
-            f"window.DASH_BUILD = {js(build_info(ops, val, methods))};</script>\n")
+            + (f"window.DASH_IS26 = {js(is26)};\n" if is26 else "")
+            + f"window.DASH_BUILD = {js(build_info(ops, val, methods, is26))};</script>\n")
 
 
 def dmy(d: str) -> str:
@@ -84,12 +87,18 @@ def nav_notes(ops: dict) -> tuple:
             "سعر كيلو الوصفات يونيو ← " + last_kg + " مقابل أسعار البيع في الفواتير")
 
 
-def edits(methods: str, ops: dict, val: dict):
+def is26_months(is26: dict | None) -> str:
+    """«1–7/2026» for the nav sub-line, from the statements actually embedded."""
+    ms = [m for p in (is26 or {}).get("periods", []) for m in p["months"]]
+    return f"{int(ms[0][5:7])}–{int(ms[-1][5:7])}/{ms[-1][:4]}" if ms else ""
+
+
+def edits(methods: str, ops: dict, val: dict, is26: dict | None = None):
     """(name, before, after, text): `text` goes between `before` and `after`,
     which must occur together exactly once in the enhanced file."""
     inv_p, pur_p, cost_p = nav_notes(ops)
     return [
-        ("data", "", '<script type="application/json" id="snap-index">', data_script(ops, val, methods)),
+        ("data", "", '<script type="application/json" id="snap-index">', data_script(ops, val, methods, is26)),
         ("registry-ops", '      p:"قواعد معلنة الحدود على المديونية والمبيعات والأسعار والفواتير"});\n', "    return out;\n",
          "\n"
          "    /* قرارات وتشغيل — بيانات التشغيل (DASH_OPS) والفواتير والقوائم ونموذج التقييم. */\n"
@@ -126,6 +135,13 @@ def edits(methods: str, ops: dict, val: dict):
         ("export-ops", "    this.advExport(out,col,num);\n", "",
          "    this.opsExport(out,col,num);\n"),
         ("methods", "", "  buildRepo(){\n", methods),
+        # «قائمة الدخل الشهرية»: the 2026 statements after the 2025 table, which stays as it was.
+        ("income-2026", '{k:"fi1",sub:"الإهلاك السنوي مسجّل في ديسمبر ويُعرض موزّعًا كتقدير للمقارنة"}),\n', "",
+         "      ...(this.fs26Cards?this.fs26Cards(F,T):[]),\n"),
+        ("fs-header-2026", '"هذا القسم من القوائم المالية (window.DASH_FS) · قوائم دخل "+span+', '" · لا تنطبق عليه فلاتر الفواتير"',
+         '(window.DASH_IS26?" · قوائم دخل 2026: "+this.fs26Span():"")+'),
+        ("nav-note-2026", '"ميزانيات 31/7 و31/8 و31/12/2025 · قوائم دخل 7–12/2025', ' · من اللوحة التنفيذية",',
+         (" و" + is26_months(is26)) if is26_months(is26) else ""),
         # «المستحق»: the overdue measured at the first of the snapshot's month, by
         # rep then their customers, sits above the existing invoice and customer lists.
         ("overdue-byrep", "      kpiEl,\n\n", "      /* These bars total the INVOICE rows only.",
@@ -147,10 +163,10 @@ def edits(methods: str, ops: dict, val: dict):
     ]
 
 
-def merge(original: str, methods: str, ops: dict, val: dict):
+def merge(original: str, methods: str, ops: dict, val: dict, is26: dict | None = None):
     """Return (full_html, insertions) where insertions are (offset_in_output, text)."""
     found = []
-    for name, before, after, text in edits(methods, ops, val):
+    for name, before, after, text in edits(methods, ops, val, is26):
         needle = before + after
         n = original.count(needle)
         assert n == 1, f"anchor {name!r} found {n} times (expected exactly 1)"
@@ -172,7 +188,8 @@ def build():
     methods = themed_methods(METHODS.read_text(encoding="utf-8"))
     ops = json.loads(OPS_JSON.read_text(encoding="utf-8"))
     val = json.loads(VAL_JSON.read_text(encoding="utf-8"))
-    return original, merge(original, methods, ops, val)
+    is26 = json.loads(IS26_JSON.read_text(encoding="utf-8")) if IS26_JSON.exists() else None
+    return original, merge(original, methods, ops, val, is26)
 
 
 def main():

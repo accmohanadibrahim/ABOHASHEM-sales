@@ -21,7 +21,7 @@ APP_DIR = Path(__file__).resolve().parents[1]
 FULL_HTML = APP_DIR / "mobile" / "Abu_Hashem_Mobile_full.html"
 BI_HTML = APP_DIR / "mobile" / "Abu_Hashem_Mobile_bi.html"
 OPS_JSON = APP_DIR.parent / "data" / "processed" / "ops_data.json"
-BI_KEYS = ("bi_exec", "bi_bridge", "bi_stock", "bi_alerts", "bi_kpis")
+BI_KEYS = ("bi_exec", "bi_bridge", "bi_stock", "bi_std", "bi_alerts", "bi_kpis")
 
 
 def _open(pg, path, query=""):
@@ -198,3 +198,23 @@ def test_a_failing_section_does_not_break_the_app(browser):
     assert "تعذّر عرض هذا القسم (test fault)" in go(pg, "bi_stock")
     assert len(go(pg, "overview").strip()) > 40 and pg.errors == []
     pg.close()
+
+
+def test_standard_cost_variance(page):
+    """Monthly: variance = (statement COGS ratio − standard ratio) × net sales; months without a
+    statement show «يحتاج بيانات». Per SKU only the standard margin at the invoiced price is shown."""
+    text = go(page, "bi_std")
+    z = page.evaluate("() => window.__abhApp.biStd(window.__abhApp.state.api.D)")
+    assert z["linked"] >= 10 and z["months"]
+    for m in z["months"]:
+        assert 0 < m["cov"] <= 1 and m["stdCogs"] > 0, m["month"]
+        if m["actR"] is None:
+            assert m["var"] is None
+        else:
+            assert m["var"] == pytest.approx((m["actR"] - m["stdR"]) * m["ns"]), m["month"]
+    for s in z["sku"]:
+        if s["price"] is not None:
+            assert s["std_margin"] == pytest.approx((s["price"] - s["std"]) / s["price"])
+    assert "لا تكلفة فعلية مستقلة لكل صنف" in text and "صفوف في الملف لم تُربط بصنف مبيعات" in text
+    if any(m["actR"] is None for m in z["months"]):
+        assert "يحتاج بيانات" in text

@@ -23,6 +23,7 @@ DASH_BUILD and the sales snapshots). Added:
 
 Usage: python3 bi_mobile.py      (run enrich_mobile.py first)
 """
+import json
 from pathlib import Path
 
 from enhance_mobile import themed_methods
@@ -33,13 +34,21 @@ SRC_HTML = MOB / "Abu_Hashem_Mobile_full.html"
 OUT_HTML = MOB / "Abu_Hashem_Mobile_bi.html"
 METHODS = MOB / "patch" / "bi_methods.js"
 
-SECTIONS = ("bi_exec", "bi_bridge", "bi_stock", "bi_alerts", "bi_kpis")
+STD_JSON = APP.parent / "data" / "processed" / "standard_cost.json"
+
+SECTIONS = ("bi_exec", "bi_bridge", "bi_stock", "bi_std", "bi_alerts", "bi_kpis")
 
 
-def edits(methods: str):
+def js(o) -> str:
+    return json.dumps(o, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+
+
+def edits(methods: str, std: dict | None = None):
     """(name, before, after, text): `text` goes between `before` and `after`,
     which must occur together exactly once in the full file."""
     return [
+        ("data-bi", "", '<script type="application/json" id="snap-index">',
+         f"<script>/* التكلفة المعيارية — bi_mobile.py */\nwindow.DASH_STD = {js(std)};</script>\n" if std else ""),
         ("registry-bi", '      p:"كل قاعدة وعدد ما أثّرت عليه · مطابقة الإجماليات بالمصدر · ما لم يُربط"});\n', "    return out;\n",
          "\n"
          "    /* ذكاء الأعمال — ملف التطوير فقط (bi_mobile.py). ?nobi في الرابط يخفي المجموعة. */\n"
@@ -51,13 +60,16 @@ def edits(methods: str):
          '        p:"جسر صافي الربح بين شهرين من القوائم · أثر السعر والتكلفة والمزيج بالصنف · نقطة التعادل"});\n'
          '      push(G2,"dash","bi_stock",{label:"دوران المخزون والراكد",h2:"المخزون — الدوران والراكد والمطابقة",\n'
          '        p:"أيام المخزون حيث توجد قائمة دخل · الخامات الراكدة والبطيئة · مطابقة التقييم · تكلفة الكيلو"});\n'
+         '      if(window.DASH_STD)\n'
+         '        push(G2,"dash","bi_std",{label:"التكلفة المعيارية",h2:"التكلفة المعيارية مقابل الفعلية",\n'
+         '          p:"معيار العبوة من «سعر انتاج تام» · الانحراف عن قائمة الدخل شهريًا · كل صنف في يونيو 2026"});\n'
          '      push(G2,"dash","bi_alerts",{label:"سجل التنبيهات",h2:"سجل التنبيهات الموحد",\n'
          '        p:"القيمة والحد والانحراف والسبب والإجراء والمسؤول والحالة لكل تنبيه"});\n'
          '      push(G2,"dash","bi_kpis",{label:"قاموس المؤشرات",h2:"قاموس المؤشرات وجاهزية البيانات",\n'
          '        p:"المصدر والمعادلة والتاريخ والفحص لكل مؤشر · ما ينقص لكل وحدة لم تُبن"});\n'
          "    }\n"),
         ("nav-note-bi", '      "قرارات وتشغيل":"المخزون · المشتريات · رأس المال العامل · شرائح العملاء · المندوبون · المحاكي · التقييم",\n', "",
-         '      "ذكاء الأعمال":"الملخص · جسر الربح · دوران المخزون · سجل التنبيهات · قاموس المؤشرات",\n'),
+         '      "ذكاء الأعمال":"الملخص · جسر الربح · دوران المخزون · التكلفة المعيارية · سجل التنبيهات · قاموس المؤشرات",\n'),
         ("section-bi", '    if(s.slice(0,4)==="ops_"||s.slice(0,4)==="dec_"||s==="dq_clean") return this.opsSectionBody(s,X,T,api)||[];\n', "",
          '    if(s.slice(0,3)==="bi_") return this.biSectionBody(s,X,T,api)||[];\n'),
         ("export-bi", "    this.opsExport(out,col,num);\n", "",
@@ -68,10 +80,10 @@ def edits(methods: str):
     ]
 
 
-def merge(original: str, methods: str):
+def merge(original: str, methods: str, std: dict | None = None):
     """Return (bi_html, insertions) where insertions are (offset_in_output, text)."""
     found = []
-    for name, before, after, text in edits(methods):
+    for name, before, after, text in edits(methods, std):
         needle = before + after
         n = original.count(needle)
         assert n == 1, f"anchor {name!r} found {n} times (expected exactly 1)"
@@ -91,7 +103,8 @@ def merge(original: str, methods: str):
 def build():
     original = SRC_HTML.read_text(encoding="utf-8")
     methods = themed_methods(METHODS.read_text(encoding="utf-8"))
-    return original, merge(original, methods)
+    std = json.loads(STD_JSON.read_text(encoding="utf-8")) if STD_JSON.exists() else None
+    return original, merge(original, methods, std)
 
 
 def main():

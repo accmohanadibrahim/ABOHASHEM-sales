@@ -5,6 +5,8 @@
       → merge_into_mobile.py   → mobile/Abu_Hashem_Mobile_merged.html
       → enhance_mobile.py      → mobile/Abu_Hashem_Mobile_enhanced.html
       → python3 -m src.ops_ingest → ../data/processed/ops_data.json
+      → python3 -m src.income_2026 → ../data/processed/income_2026.json   (2026 income statement PDFs)
+      → python3 -m src.standard_cost → ../data/processed/standard_cost.json («سعر انتاج تام»)
       → enrich_mobile.py       → mobile/Abu_Hashem_Mobile_full.html   (production)
       → bi_mobile.py           → mobile/Abu_Hashem_Mobile_bi.html     («ذكاء الأعمال», dev file only)
 
@@ -12,8 +14,8 @@ Usage:
   python3 build_all.py            rebuild every stage
   python3 build_all.py --check    rebuild, then fail if any committed output changed
   python3 build_all.py --skip-ingest
-                                  reuse the committed ops_data.json (no pdftotext,
-                                  openpyxl or LibreOffice needed)
+                                  reuse the committed ops_data.json, income_2026.json and
+                                  standard_cost.json (no pdftotext, openpyxl or LibreOffice needed)
   python3 build_all.py --month 2026-10 --strict
                                   check that month's files first (src/monthly.py) and
                                   stop before building if a required one is missing
@@ -35,11 +37,16 @@ from pathlib import Path
 APP = Path(__file__).resolve().parent
 MOB = APP / "mobile"
 OPS_JSON = APP.parent / "data" / "processed" / "ops_data.json"
+IS26_JSON = APP.parent / "data" / "processed" / "income_2026.json"
+STD_JSON = APP.parent / "data" / "processed" / "standard_cost.json"
+INGEST = {"ingest", "income", "stdcost"}
 
 STAGES = [
     ("merge", [sys.executable, "merge_into_mobile.py"], MOB / "Abu_Hashem_Mobile_merged.html"),
     ("enhance", [sys.executable, "enhance_mobile.py"], MOB / "Abu_Hashem_Mobile_enhanced.html"),
     ("ingest", [sys.executable, "-m", "src.ops_ingest"], OPS_JSON),
+    ("income", [sys.executable, "-m", "src.income_2026"], IS26_JSON),
+    ("stdcost", [sys.executable, "-m", "src.standard_cost"], STD_JSON),
     ("enrich", [sys.executable, "enrich_mobile.py"], MOB / "Abu_Hashem_Mobile_full.html"),
     ("bi", [sys.executable, "bi_mobile.py"], MOB / "Abu_Hashem_Mobile_bi.html"),
 ]
@@ -68,7 +75,7 @@ def main(argv=None) -> int:
 
     changed = []
     for name, cmd, out in STAGES:
-        if name == "ingest" and args.skip_ingest:
+        if name in INGEST and args.skip_ingest:
             print(f"[{name}] skipped — using {out.relative_to(APP.parent)}")
             continue
         before = digest(out)

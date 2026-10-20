@@ -13,7 +13,7 @@
      ========================================================================== */
 
   biSectionBody(s,X,T,api){
-    const m={bi_exec:"biExecBody",bi_bridge:"biBridgeBody",bi_stock:"biStockBody",bi_alerts:"biAlertsBody",
+    const m={bi_exec:"biExecBody",bi_bridge:"biBridgeBody",bi_stock:"biStockBody",bi_std:"biStdBody",bi_alerts:"biAlertsBody",
       bi_kpis:"biKpisBody"}[s];
     if(!m) return null;
     try{ return this[m](X,T,api); }
@@ -288,6 +288,89 @@
     return out;
   }
 
+  /* ======================= التكلفة المعيارية (DASH_STD) ===================== */
+  /* «سعر انتاج تام»: تكلفة معيارية للعبوة = الخلطة + التغليف (تأكيد الإدارة)، مربوطة بكود المبيعات
+     بتوقيع واحد مطابق فقط (src/standard_cost.py).
+       شهريًا: التكلفة المعيارية للمبيعات = Σ كمية الصنف المربوط (مع البونص: يخرج من المخزن) × معياره؛
+       نسبتها = ÷ إيراد هذه الأصناف؛ والنسبة الفعلية = تكلفة المبيعات ÷ صافي المبيعات في قائمة الشهر.
+       الانحراف التقديري = (الفعلية − المعيارية) × صافي المبيعات — يفترض أن الأصناف المربوطة تمثل الباقي.
+     لا تكلفة فعلية مستقلة للصنف: «الفعلية» في ربحية الأصناف (نموذج التكلفة) = المعيار × الكمية بالبناء،
+     فمقارنتها بالمعيار دائرية ولا تُعرض انحرافًا. لكل صنف يُعرض الهامش المعياري بسعر البيع الفعلي في الفواتير،
+     ويُذكر أي صنف يختلف فيه معيار الملف عن تكلفة النموذج (فحص اتساق). */
+  biStd(D){
+    const S=window.DASH_STD, std=new Map(S.rows.filter(r=>r.item_code).map(r=>[String(r.item_code),r]));
+    const P=(window.DASH_IS26&&window.DASH_IS26.periods)||[], stm={};
+    P.forEach(p=>p.months.forEach(m=>{ stm[m]={ratio:p.cogs/p.net_sales,q:p.months.length>1,period:p.period}; }));
+    const SM=(window.DASH_MARGIN&&window.DASH_MARGIN.statements&&window.DASH_MARGIN.statements.by_month)||[];
+    const by={};
+    (D.lines||[]).forEach(l=>{ if(String(l.month||"").slice(0,4)!=="2026") return;
+      const o=by[l.month]||(by[l.month]={month:l.month,rev:0,covRev:0,stdCogs:0});
+      const t=+l.line_total||0, r=std.get(String(l.item_code)); o.rev+=t;
+      if(r){ o.covRev+=t; o.stdCogs+=(+l.qty||0)*r.total; } });
+    const months=Object.values(by).sort((a,b)=>a.month.localeCompare(b.month)).map(o=>{
+      const s=stm[o.month], ns=(SM.find(x=>x.period===o.month)||{}).net_sales;
+      const stdR=o.covRev?o.stdCogs/o.covRev:null, act=s?s.ratio:null;
+      return {...o,cov:o.rev?o.covRev/o.rev:0,stdR,actR:act,q:s&&s.q,ns:s?ns:null,
+        var:act!=null&&stdR!=null&&ns!=null?(act-stdR)*ns:null}; });
+    /* لكل صنف: آخر شهر 2026 في اللقطة — سعر البيع الفعلي (بنود غير البونص) والهامش المعياري. */
+    const skuMonth=months.length?months[months.length-1].month:null, M=window.DASH_MARGIN, agg={};
+    (D.lines||[]).forEach(l=>{ if(l.month!==skuMonth) return; const c=String(l.item_code); if(!std.has(c)) return;
+      const o=agg[c]||(agg[c]={qty:0,bonus:0,rev:0,name:l.item_name});
+      if(l.is_bonus||!(+l.line_total>0)) o.bonus+=+l.qty||0; else { o.qty+=+l.qty||0; o.rev+=+l.line_total; } });
+    const sku=S.rows.filter(r=>r.item_code).map(r=>{ const o=agg[String(r.item_code)]||{qty:0,bonus:0,rev:0,name:r.key};
+      const price=o.qty?o.rev/o.qty:null;
+      return {code:r.item_code,name:o.name,brand:r.brand,std:r.total,mix:r.mix,pack:r.pack,qty:o.qty,bonus:o.bonus,rev:o.rev,price,
+        std_margin:price?(price-r.total)/price:null,std_gp:o.rev-r.total*(o.qty+o.bonus)}; }).sort((a,b)=>b.rev-a.rev);
+    /* فحص اتساق: تكلفة الوحدة التي استعملها نموذج الربحية في يونيو مقابل معيار الملف. */
+    const cons=S.rows.filter(r=>r.item_code).map(r=>{
+      const x=((M&&M.by_item_month)||[]).find(y=>y.month==="2026-06"&&String(y.item_code)===String(r.item_code)&&y.qty>0);
+      const u=x?(x.revenue-x.gross_profit)/x.qty:null;
+      return {code:r.item_code,name:x?x.item_name:r.key,std:r.total,model:u,diff:u==null?null:(u-r.total)/r.total}; })
+      .filter(r=>r.diff!=null&&Math.abs(r.diff)>0.05);
+    return {months,sku,skuMonth,cons,linked:std.size,unmatched:S.unmatched,unresolved:S.unresolved};
+  }
+  biStdBody(X,T,api){
+    if(!window.DASH_STD) return [this.biNeed("bsd0","ملف التكلفة المعيارية غير مضمن في هذا الملف.")];
+    const Z=this.advMemo(api,"biStd",(X2,D)=>this.biStd(D)), out=[], ok=Z.months.filter(r=>r.var!=null), last=ok[ok.length-1];
+    out.push(this.opsLegend("bsdl"));
+    out.push(this.kpiTiles([
+      ["أصناف بتكلفة معيارية",T.int(Z.linked),"من "+T.int(window.DASH_STD.rows.length+Z.unresolved.length)+" صفًا في الملف","#3b82f6"],
+      ["تغطية المبيعات",last?T.pct(last.cov):"—",last?"من إيراد "+this.fsMon(last.month):"","#06b6d4"],
+      ["الانحراف التقديري",last?T.egpK(last.var):"—",last?this.fsMon(last.month)+" · موجب = فوق المعيار":"","#f59e0b"],
+      ["أصناف تُباع دون معيارها",T.int(Z.sku.filter(r=>r.std_margin!=null&&r.std_margin<0).length),Z.skuMonth?"في "+this.fsMon(Z.skuMonth):"","#ef4444"]],"bsdk"));
+    out.push(this.advNote("bsdn","المعيار = الخلطة + التغليف للعبوة من ملف «سعر انتاج تام» (تأكيد الإدارة). لا يشمل أجور الإنتاج ولا الأعباء، بينما تكلفة المبيعات في القائمة قد تشملها، "
+      +"فجزء من الانحراف فرق أساس قياس لا هدر. كمية البونص تُحسب في التكلفة المعيارية لأنها تخرج من المخزن."));
+    out.push(this.card("التكلفة المعيارية مقابل قائمة الدخل — شهريًا",[
+      this.fsTable("bsdm",["الشهر","تغطية الإيراد","نسبة التكلفة المعيارية","نسبة التكلفة الفعلية","الانحراف (نقطة)","الانحراف التقديري"],
+        Z.months.map(r=>[this.fsMon(r.month),this.fsC(r.cov,"pct"),this.fsC(r.stdR,"pct"),
+          r.actR==null?{v:"يحتاج بيانات",c:"#c4b5fd"}:{v:T.pct(r.actR)+(r.q?" (ربع)":"")},
+          r.actR==null||r.stdR==null?"—":{v:((r.actR-r.stdR)*100).toFixed(1),c:r.actR>r.stdR?"#fca5a5":"#6ee7b7"},
+          r.var==null?"—":this.fsC(r.var)])),
+      Z.months.some(r=>r.actR==null)?this.biNeed("bsdmn","قائمة دخل "+Z.months.filter(r=>r.actR==null).map(r=>this.fsMon(r.month)).join(" و")+" لحساب الانحراف."):null].filter(Boolean),
+      {k:"bsd1",approx:true,sub:"يناير–مارس: نسبة الربع الأول (قائمة واحدة) · الانحراف تقدير يفترض أن الأصناف المربوطة تمثل الباقي"}));
+    const r2=x=>x==null?"—":this.fsC(Math.round(x*100)/100);
+    if(Z.skuMonth) out.push(this.card("الهامش المعياري لكل صنف — "+this.fsMon(Z.skuMonth),this.fsTable("bsds",
+      ["الصنف","المعيار للعبوة","متوسط سعر البيع","الهامش المعياري","الكمية","بونص","الإيراد","مجمل الربح المعياري"],
+      Z.sku.map(r=>[r.name,r2(r.std),r2(r.price),r.std_margin==null?"—":{v:T.pct(r.std_margin),c:r.std_margin<0?"#fca5a5":null},
+        this.fsC(r.qty),this.fsC(r.bonus),this.fsC(r.rev),this.fsC(r.std_gp)])),
+      {k:"bsd2",sub:"مُتحقَّق: المعيار من الملف والسعر من الفواتير · مجمل الربح المعياري يحمّل البونص بمعياره"}));
+    out.push(this.advNote("bsdc","لا تكلفة فعلية مستقلة لكل صنف في البيانات: تكلفة الأصناف في «الربحية» محسوبة من المعيار نفسه (الخلطة + التغليف × الكمية) ثم موزع الفرق على الأصناف التجارية، "
+      +"فلا يُعرض انحراف بالصنف. الانحراف الفعلي الوحيد هو مستوى الشركة أعلاه."));
+    if(Z.cons.length) out.push(this.advNote("bsdx","فحص اتساق: "+Z.cons.map(r=>"«"+r.name+"» معياره في الملف "+r2(r.std).v+" بينما استعمل نموذج الربحية "
+      +r2(r.model).v+" للوحدة").join("؛ ")+" — أكّد أي الرقمين هو المعيار.","warn"));
+    const um=Z.unmatched.map(r=>[r.brand,r.key,this.fsC(Math.round(r.total*100)/100),r.match_basis])
+      .concat(Z.unresolved.map(r=>[r.brand,r.name,this.fsC(Math.round(r.total*100)/100),r.reason]));
+    if(um.length) out.push(this.card("صفوف في الملف لم تُربط بصنف مبيعات",this.fsTable("bsdu",["العلامة","الصف","المعيار","السبب"],um),
+      {k:"bsd3",sub:"حجم العبوة في الملف يختلف عن أحجام المبيعات (مثل 300/700 مقابل 350/800) — لا يُربط تخمينًا؛ تحتاج تأكيد الإدارة"}));
+    const top=Z.sku.filter(r=>r.std_margin!=null&&r.std_margin<0);
+    out.push(this.opsDecision("bsdd",[
+      top.length?{t:"أوقف البيع دون المعيار: "+top.map(r=>r.name).join("، ")+" — سعرها أقل من تكلفة خلطتها وتغليفها.",tag:"v"}:null,
+      Z.cons.length?{t:"حسم معيار "+Z.cons.map(r=>"«"+r.name+"»").join("، ")+" بين الملف ونموذج الربحية.",tag:"v"}:null,
+      um.length?{t:"أكّد الصنف المقابل لـ"+um.length+" صفًا غير مربوط لرفع تغطية المبيعات من "+(last?T.pct(last.cov):"—")+".",tag:"v"}:null,
+      last&&last.var>0?{t:"الانحراف التقديري "+T.egpK(last.var)+" في "+this.fsMon(last.month)+": افصل أثر الأجور والأعباء (خارج المعيار) قبل اعتباره هدرًا.",tag:"e"}:null]));
+    return out;
+  }
+
   /* ======================= 4) سجل التنبيهات الموحد ========================= */
   /* كل تنبيه: المؤشر، القيمة الفعلية، الحد، الانحراف، السبب المحتمل (مُتحقَّق أو فرضية)،
      الإجراء، المسؤول (دور مقترح)، الحالة، تاريخ آخر تحديث. الحالة تُحفظ في هذا الجهاز فقط. */
@@ -354,6 +437,14 @@
         thr:T.pct(sp)+" (افتراض)",dev:T.egpK(gap),cause:"فرضية: مورد مختلف أو تغير سعر السوق أو خطأ إدخال — راجع «المشتريات والموردون»",ct:"h",
         action:"توحيد المورد أو التفاوض على سعر ثابت للأصناف الأعلى إنفاقًا",owner:"المشتريات",sev:"medium",
         updated:Bd.purchases_through?this.opsMonEnd(Bd.purchases_through):null,go:"ops_purchases",src:"المشتريات"});
+    }
+    if(window.DASH_STD){
+      const Z=this.biStd(D), under=Z.sku.filter(r=>r.std_margin!=null&&r.std_margin<0);
+      rules.push({id:"bi_std",kpi:"بيع دون التكلفة المعيارية",thr:"سعر البيع < معيار العبوة",on:under.length>0,src:"التكلفة المعيارية"});
+      if(under.length) out.push({id:"bi_std",kpi:"بيع دون التكلفة المعيارية ("+this.fsMon(Z.skuMonth)+")",
+        value:under.length+" صنف · "+under.map(r=>r.name).join("، "),thr:"0%",dev:"أدنى هامش "+T.pct(Math.min(...under.map(r=>r.std_margin))),
+        cause:"متوسط سعر البيع في الفواتير أقل من معيار الخلطة والتغليف",ct:"v",action:"رفع السعر أو إيقاف الخصم على الصنف",owner:"مدير المبيعات",
+        sev:"high",updated:this.opsMonEnd(Z.skuMonth),go:"bi_std",src:"التكلفة المعيارية"});
     }
     const PG=(M&&M.pricing_gap)||[], below=PG.filter(p=>p.gap_pct>0);
     rules.push({id:"bi_floor",kpi:"أصناف تُباع دون سعر الأرضية",thr:"0",on:below.length>0,src:"ربحية الأصناف"});
@@ -458,6 +549,13 @@
         {kpi:"صافي أرصدة الموردين",value:T.egpK(S.net_credit),unit:"ج.م",formula:"الدائن − المدين",source:"كشف أرصدة الموردين",period:"لحظي",
           as_of:S.as_of,check:S.total_printed==null?"—":ok(near(S.net_credit,S.total_printed))+": المحسوب = المطبوع",status:"مُتحقَّق"});
     }
+    if(window.DASH_STD){
+      const Z=this.biStd(D), last=Z.months.filter(r=>r.var!=null).pop();
+      out.push({kpi:"انحراف التكلفة المعيارية",value:last?T.egpK(last.var)+" ("+this.fsMon(last.month)+")":"—",unit:"ج.م",
+        formula:"(تكلفة المبيعات ÷ المبيعات في القائمة − التكلفة المعيارية ÷ إيراد الأصناف المربوطة) × صافي المبيعات",
+        source:"سعر انتاج تام + الفواتير + قوائم الدخل 2026",period:"شهري",as_of:last?this.opsMonEnd(last.month):null,
+        check:last?"تغطية الأصناف المربوطة "+T.pct(last.cov):"—",status:last?"تقدير":"يحتاج بيانات"});
+    }
     out.push(
       {kpi:"الفعلي مقابل الموازنة",value:"—",unit:"ج.م",formula:"الفعلي − الموازنة لكل بند",source:"data/budget/budget_2026.csv",period:"شهري",as_of:null,
         check:"لا موازنة محمّلة",status:"يحتاج بيانات"},
@@ -471,7 +569,9 @@
       {module:"الموازنة مقابل الفعلي والتوقعات",need:"data/budget/budget_2026.csv (القالب موجود في المستودع)",owner:"المحاسب / الإدارة",status:"يحتاج بيانات"},
       {module:"حدود الائتمان",need:"حد ائتمان معتمد لكل عميل",owner:"الإدارة / مدير المبيعات",status:"يحتاج بيانات"},
       {module:"توقع التحصيل والتدفق النقدي 13 أسبوعًا",need:"جدول أقساط القروض وشروطها، أرصدة البنوك أسبوعيًا، شروط سداد الموردين",owner:"المحاسب",status:"يحتاج بيانات"},
-      {module:"التكلفة المعيارية وانحرافاتها",need:"تكلفة معيارية معتمدة لكل وصفة",owner:"الإدارة",status:"يحتاج بيانات"},
+      window.DASH_STD?{module:"التكلفة المعيارية — الأصناف غير المربوطة",need:(window.DASH_STD.unmatched.length+window.DASH_STD.unresolved.length)
+        +" صف في «سعر انتاج تام» بحجم عبوة لا يطابق صنف مبيعات أو بلا اسم منتج — تأكيد الصنف المقابل لكل منها",owner:"الإدارة",status:"يحتاج تأكيدًا"}
+        :{module:"التكلفة المعيارية وانحرافاتها",need:"تكلفة معيارية معتمدة لكل وصفة",owner:"الإدارة",status:"يحتاج بيانات"},
       {module:"دقة الجرد (دفتري مقابل فعلي)",need:"الرصيد الدفتري من النظام لكل صنف في تاريخ كل جرد",owner:"المخزن",status:"يحتاج بيانات"},
       {module:"عمر المخزون وتواريخ الصلاحية",need:"تاريخ الاستلام والصلاحية لكل دفعة",owner:"المخزن",status:"يحتاج بيانات"},
       {module:"قوائم الدخل بعد "+(this.biStmts().slice(-1)[0]?this.fsMon(this.biStmts().slice(-1)[0].period):"—")+" والميزانية بعد "
@@ -527,6 +627,21 @@
           col("التصنيف","cls"), col("الخامة","name"), col("الكمية",null,r=>num(r.qty)), col("متوسط التكلفة",null,r=>num(r.wac)), col("القيمة",null,r=>num(r.value)),
           col("بلا حركة منذ","since")]},
         {id:"bi_unpriced",label:"ذكاء الأعمال — أصناف برصيد بلا تكلفة",rows:V.unpriced,columns:[col("الصنف","name"), col("الكمية",null,r=>num(r.qty))]});
+    }
+    if(window.DASH_STD){
+      const Z=this.advMemo(api,"biStd",(X2,D2)=>this.biStd(D2));
+      out.push(
+        {id:"bi_std_cost",label:"ذكاء الأعمال — التكلفة المعيارية للعبوة",rows:window.DASH_STD.rows.concat(window.DASH_STD.unresolved),columns:[
+          col("العلامة","brand"), col("الصف في الملف",null,r=>r.key||r.name), col("الخلطة",null,r=>num(r.mix)), col("التغليف",null,r=>num(r.pack)),
+          col("الإجمالي",null,r=>num(r.total)), col("كود المبيعات",null,r=>r.item_code||""), col("الربط",null,r=>r.match_basis||r.reason||"")]},
+        {id:"bi_std_variance_month",label:"ذكاء الأعمال — انحراف التكلفة المعيارية شهريًا",rows:Z.months,columns:[
+          col("الشهر","month"), col("إيراد الفواتير",null,r=>num(r.rev)), col("إيراد الأصناف المربوطة",null,r=>num(r.covRev)),
+          col("التكلفة المعيارية",null,r=>num(r.stdCogs)), col("نسبة المعيارية",null,r=>num(r.stdR)), col("نسبة القائمة",null,r=>r.actR==null?"يحتاج بيانات":num(r.actR)),
+          col("الانحراف التقديري",null,r=>r.var==null?"":num(r.var))]},
+        {id:"bi_std_margin_sku",label:"ذكاء الأعمال — الهامش المعياري بالصنف "+(Z.skuMonth||""),rows:Z.sku,columns:[
+          col("الكود","code"), col("الصنف","name"), col("المعيار",null,r=>num(r.std)), col("متوسط سعر البيع",null,r=>r.price==null?"":num(r.price)),
+          col("الهامش المعياري",null,r=>r.std_margin==null?"":num(r.std_margin)), col("الكمية",null,r=>num(r.qty)), col("بونص",null,r=>num(r.bonus)),
+          col("الإيراد",null,r=>num(r.rev)), col("مجمل الربح المعياري",null,r=>num(r.std_gp))]});
     }
     const A=this.biAlertRows(X,D,st.filters||{},T);
     out.push(

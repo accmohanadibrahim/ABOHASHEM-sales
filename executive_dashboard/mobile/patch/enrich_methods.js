@@ -1038,6 +1038,7 @@
     const st=this.state;
     out.push({id:"build_info", label:"معلومات البناء وتواريخ البيانات", rows:this.opsBuildRows(), columns:[
       col("البند","k"), col("القيمة","v")]});
+    this.fs26Export(out,col,num);
     if(!st.api) return;
     const api=st.api, O=window.DASH_OPS;
     const Rf=this.advMemo(api,"opsRfm",(X2,D,f2)=>this.opsRfm(D,f2));
@@ -1129,3 +1130,113 @@
         col("القاعدة","id"), col("الوصف","title"), col("العدد",null,r=>num(r.count))]});
   }
 
+
+  /* ======================= قوائم الدخل 2026 (DASH_IS26) ======================
+     من ملفات PDF كما صدرت (src/income_2026.py): الربع الأول قائمة واحدة، وأبريل–يوليو
+     شهرية. كل قائمة مطابقة لمطبوعها ولقوائم الربحية المضمنة (شرط البناء). الربع الأول
+     يُعرض ثلاثة أشهر موزعة بأوزان المبيعات (allocation_weight في قوائم الربحية) — تقدير،
+     ومجموعها = القائمة الربعية. لا إهلاك في قوائم 2026 فلا يُضاف. */
+  fs26Sec(){ return [["operating","مصروفات تشغيلية"],["admin","مصروفات إدارية وعمومية"],["selling","مصروفات بيعية وتسويقية"],
+    ["financing","مصاريف تمويلية"]]; }
+  fs26PeriodName(p){ return p.months.length>1?"الربع الأول "+p.period.slice(0,4):this.fsMon(p.period); }
+  /* الأعمدة: شهر بشهر، والربع الأول مقسومًا بالأوزان إن وُجدت ومجموعها 1، وإلا عمودًا واحدًا كما صدر. */
+  fs26Cols(){
+    const P=window.DASH_IS26.periods, SM=(window.DASH_MARGIN&&window.DASH_MARGIN.statements&&window.DASH_MARGIN.statements.by_month)||[];
+    const w=m=>{ const r=SM.find(x=>x.period===m); return r&&r.allocation_weight!=null?r.allocation_weight:null; };
+    const cols=[];
+    P.forEach(p=>{
+      const ws=p.months.map(w);
+      if(p.months.length>1&&ws.every(x=>x!=null)&&Math.abs(ws.reduce((a,x)=>a+x,0)-1)<1e-6)
+        p.months.forEach((m,i)=>cols.push({label:this.fsMon(m)+" (تقدير)",p,f:ws[i],est:true,month:m}));
+      else cols.push({label:this.fs26PeriodName(p),p,f:1,est:false,month:p.period});
+    });
+    return cols;
+  }
+  fs26Rows(){
+    const cols=this.fs26Cols(), P=window.DASH_IS26.periods;
+    const sec=(p,k)=>p.sections[k], v=(c,k)=>c.p[k]*c.f;
+    const op=c=>sec(c.p,"operating")==null?null:sec(c.p,"operating")*c.f;
+    const S=(c,k)=>(sec(c.p,k)||0)*c.f;
+    const ebitda=c=>v(c,"gross_profit")-(op(c)||0)-S(c,"admin")-S(c,"selling");
+    const T={net_sales:0,cogs:0,gross_profit:0,net_profit:0,operating:0,admin:0,selling:0,financing:0};
+    P.forEach(p=>{ ["net_sales","cogs","gross_profit","net_profit"].forEach(k=>T[k]+=p[k]);
+      ["operating","admin","selling","financing"].forEach(k=>T[k]+=p.sections[k]||0); });
+    T.ebitda=T.gross_profit-T.operating-T.admin-T.selling;
+    const opMonths=P.filter(p=>p.sections.operating!=null).map(p=>this.fsMon(p.period).split(" ")[0]);
+    const R=(label,f,tot,kind,bold)=>({label,kind,bold:!!bold,vals:cols.map(f),total:tot});
+    return {cols,opMonths,rows:[
+      R("صافي المبيعات",c=>v(c,"net_sales"),T.net_sales),
+      R("تكلفة المبيعات",c=>v(c,"cogs"),T.cogs),
+      R("مجمل الربح",c=>v(c,"gross_profit"),T.gross_profit,null,1),
+      R("هامش مجمل الربح",c=>v(c,"gross_profit")/v(c,"net_sales"),T.gross_profit/T.net_sales,"pct"),
+      R("مصروفات تشغيلية",op,T.operating,"op"),
+      R("مصروفات إدارية وعمومية",c=>S(c,"admin"),T.admin),
+      R("الإدارية % من المبيعات",c=>S(c,"admin")/v(c,"net_sales"),T.admin/T.net_sales,"pct"),
+      R("مصروفات بيعية وتسويقية",c=>S(c,"selling"),T.selling),
+      R("البيعية % من المبيعات",c=>S(c,"selling")/v(c,"net_sales"),T.selling/T.net_sales,"pct"),
+      R("EBITDA",ebitda,T.ebitda,null,1),
+      R("هامش EBITDA",c=>ebitda(c)/v(c,"net_sales"),T.ebitda/T.net_sales,"pct"),
+      R("مصاريف تمويلية",c=>S(c,"financing"),T.financing),
+      R("صافي الربح (كما بالقائمة)",c=>v(c,"net_profit"),T.net_profit,null,1),
+      R("هامش صافي الربح",c=>v(c,"net_profit")/v(c,"net_sales"),T.net_profit/T.net_sales,"pct")]};
+  }
+  fs26Span(){
+    const P=window.DASH_IS26.periods, a=P[0].months[0], b=P[P.length-1].months.slice(-1)[0];
+    return this.fsMon(a).split(" ")[0]+"–"+this.fsMon(b);
+  }
+  fs26YoY(F){
+    const P=window.DASH_IS26.periods, I=(F&&F.income)||{};
+    const pairs=P.filter(p=>p.months.length===1&&I[(+p.period.slice(0,4)-1)+p.period.slice(4)]).map(p=>[I[(+p.period.slice(0,4)-1)+p.period.slice(4)],p]);
+    if(!pairs.length) return null;
+    const [a,b]=pairs[pairs.length-1], s=b.sections;
+    /* في 2025 كانت بنود التشغيل داخل «الإدارية»، فتُقارن الإدارية + التشغيلية بالإدارية. */
+    const L=[["صافي المبيعات",a.net_sales,b.net_sales],["تكلفة المبيعات",a.cogs,b.cogs],["مجمل الربح",a.gross_profit,b.gross_profit,1],
+      ["هامش مجمل الربح",a.gross_profit/a.net_sales,b.gross_profit/b.net_sales,0,"pct"],
+      ["الإدارية والتشغيلية",a.admin,(s.admin||0)+(s.operating||0)],["البيعية",a.selling,s.selling||0],
+      ["التمويلية",a.finance,s.financing||0],["صافي الربح قبل الإهلاك",a.net_profit_pre_dep,b.net_profit,1]];
+    return {m:b.period,m0:(+b.period.slice(0,4)-1)+b.period.slice(4),rows:L.map(([l,x,y,bold,k])=>({label:l,a:x,b:y,bold:!!bold,kind:k,
+      d:k==="pct"?y-x:y-x,dp:k==="pct"||!x?null:(y-x)/Math.abs(x)}))};
+  }
+  fs26Cards(F,T){
+    if(!window.DASH_IS26||!(window.DASH_IS26.periods||[]).length) return [];
+    const R=this.fs26Rows(), P=window.DASH_IS26.periods, out=[];
+    const cell=(x,k)=>k==="op"&&x==null?{v:"ضمن الإدارية",c:"#94a3b8"}:this.fsC(x,k==="pct"?"pct":undefined);
+    const q=P.find(p=>p.months.length>1), est=R.cols.some(c=>c.est);
+    out.push(this.card("قائمة الدخل 2026 ("+this.fs26Span()+")",[
+      this.fsTable("pl26",["البند"].concat(R.cols.map(c=>c.label),["إجمالي "+this.fs26Span()]),
+        R.rows.map(r=>({bold:r.bold,cells:[r.label].concat(r.vals.map(x=>cell(x,r.kind)),[cell(r.total,r.kind==="op"?null:r.kind)])}))),
+      React.createElement("div",{key:"n",style:{fontSize:10.5,lineHeight:1.8,color:"#94a3b8"}},
+        (est&&q?"قائمة "+this.fs26PeriodName(q)+" صدرت قائمة واحدة؛ أعمدة "+q.months.map(m=>this.fsMon(m).split(" ")[0]).join(" و")
+          +" موزعة بأوزان المبيعات (تقدير) ومجموعها = القائمة الربعية. ":"")
+        +"«المصروفات التشغيلية» بند مستقل في قوائم "+R.opMonths.join(" و")+" فقط، وقبلها داخل «الإدارية»؛ وإجماليها لهذه الشهور. "
+        +"لا إهلاك في قوائم 2026، فالصافي كما بالقائمة.")],
+      {k:"fi26",sub:"من قوائم الدخل كما صدرت · كل قائمة مطابقة لمطبوعها"}));
+    const Y=this.fs26YoY(F);
+    if(Y) out.push(this.card(this.fsMon(Y.m)+" مقابل "+this.fsMon(Y.m0),this.fsTable("yoy26",["البند",this.fsMon(Y.m0),this.fsMon(Y.m),"التغير","التغير %"],
+      Y.rows.map(r=>({bold:r.bold,cells:[r.label,this.fsC(r.a,r.kind),this.fsC(r.b,r.kind),
+        r.kind==="pct"?{v:((r.d>=0?"+":"−")+Math.abs(r.d*100).toFixed(1))+" نقطة",c:r.d<0?"#fca5a5":null}:this.fsC(r.d),
+        r.dp==null?"—":this.fsC(r.dp,"pct")]}))),
+      {k:"fi27",sub:"الشهر الوحيد الموجود في السنتين · الإدارية تُقارن مع التشغيلية لأنها كانت داخلها في 2025"}));
+    const keys=P.map(p=>p.period), mon=keys.includes(this.state.fs26Month)?this.state.fs26Month:keys[keys.length-1], p=P.find(x=>x.period===mon);
+    const SN={operating:"تشغيلية",admin:"إدارية",selling:"بيعية",financing:"تمويلية"};
+    out.push(this.fsPick("fi26m",P.map(x=>[x.period,this.fs26PeriodName(x)]),mon,"fs26Month"));
+    const outside=p.items.filter(i=>!i.in_total);
+    out.push(this.card("بنود مصروفات "+this.fs26PeriodName(p),[
+      this.fsTable("it26",["القسم","البند","القيمة"],p.items.map(i=>[SN[i.section]||i.section,i.label+(i.in_total?"":" (خارج إجمالي القائمة)"),
+        i.in_total?this.fsC(i.amount):{v:this.fsC(i.amount).v,c:"#fcd34d"}])),
+      outside.length?this.advNote("it26o","القائمة تذكر "+outside.length+" بند بقيمة "+this.fsC(outside.reduce((a,i)=>a+i.amount,0)).v
+        +" لا يدخل في إجمالي قسمه المطبوع ولا في صافي الربح؛ يُعرض كما ورد ولا يُحسب. راجع المحاسب: هل يُضاف للقائمة أم يُحذف من التفصيل؟","warn"):null].filter(Boolean),
+      {k:"fi28",sub:p.items.length+" بند · المصدر: "+p.source}));
+    return out;
+  }
+  fs26Export(out,col,num){
+    if(!window.DASH_IS26) return;
+    const R=this.fs26Rows(), F=window.DASH_FS, Y=this.fs26YoY(F), v=(x,k)=>k==="op"&&x==null?"ضمن الإدارية":num(x);
+    out.push({id:"fs_pl_2026",label:"القوائم — قائمة الدخل 2026",rows:R.rows,
+      columns:[col("البند","label")].concat(R.cols.map((c,i)=>col(c.label,null,r=>v(r.vals[i],r.kind))),[col("الإجمالي",null,r=>num(r.total))])},
+      {id:"fs_items_2026",label:"القوائم — بنود مصروفات 2026",rows:[].concat(...window.DASH_IS26.periods.map(p=>p.items.map(i=>({...i,period:p.period})))),
+      columns:[col("الفترة","period"),col("القسم","section"),col("البند","label"),col("القيمة",null,r=>num(r.amount)),
+        col("داخل الإجمالي المطبوع",null,r=>r.in_total?"نعم":"لا"),col("النص في الملف","label_raw")]});
+    if(Y) out.push({id:"fs_yoy_2026",label:"القوائم — "+Y.m+" مقابل "+Y.m0,rows:Y.rows,columns:[col("البند","label"),
+      col(Y.m0,null,r=>num(r.a)),col(Y.m,null,r=>num(r.b)),col("التغير",null,r=>num(r.d)),col("التغير %",null,r=>r.dp==null?"":num(r.dp))]});
+  }
