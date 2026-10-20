@@ -5,7 +5,8 @@
       → merge_into_mobile.py   → mobile/Abu_Hashem_Mobile_merged.html
       → enhance_mobile.py      → mobile/Abu_Hashem_Mobile_enhanced.html
       → python3 -m src.ops_ingest → ../data/processed/ops_data.json
-      → enrich_mobile.py       → mobile/Abu_Hashem_Mobile_full.html
+      → enrich_mobile.py       → mobile/Abu_Hashem_Mobile_full.html   (production)
+      → bi_mobile.py           → mobile/Abu_Hashem_Mobile_bi.html     («ذكاء الأعمال», dev file only)
 
 Usage:
   python3 build_all.py            rebuild every stage
@@ -40,6 +41,7 @@ STAGES = [
     ("enhance", [sys.executable, "enhance_mobile.py"], MOB / "Abu_Hashem_Mobile_enhanced.html"),
     ("ingest", [sys.executable, "-m", "src.ops_ingest"], OPS_JSON),
     ("enrich", [sys.executable, "enrich_mobile.py"], MOB / "Abu_Hashem_Mobile_full.html"),
+    ("bi", [sys.executable, "bi_mobile.py"], MOB / "Abu_Hashem_Mobile_bi.html"),
 ]
 
 
