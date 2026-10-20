@@ -721,16 +721,17 @@
     const p=g("wiP",0), v=g("wiV",0), c=g("wiC",0), o=g("wiO",0);
     const base=this.opsWhatIfCalc(B0,0,0,0,0), r=this.opsWhatIfCalc(B0,p,v,c,o);
     const chips=a=>a.map(x=>[x,(x>0?"+":"")+Math.round(x*100)+"%"]);
+    const LV=[-0.3,-0.2,-0.1,-0.05,0,0.05,0.1,0.2,0.3]; // كل الروافع من −30% إلى +30%
     out.push(this.opsLegend("dwl"));
     out.push(this.advNote("dwn","الأساس: قوائم 2026 المقيسة "+this.fsMon(B0.months[0])+" – "+this.fsMon(B0.months[B0.months.length-1])
       +" ("+B0.months.length+" شهور"+(B0.skipped.length?"؛ استُبعدت "+B0.skipped.map(m=>this.fsMon(m).split(" ")[0]).join("، ")
         +" لأنها موزَّعة من قائمة ربعية بلا تفصيل للمصروفات":"")+"). "
       +"الافتراضات المعلنة: مصروفات البيع تتحرك مع الإيراد؛ الإدارية والتشغيلية والتمويلية ثابتة إلا بتغيير «المصروفات الثابتة»؛ تغيّر التكلفة يطبَّق على تكلفة الوحدة كلها."));
     out.push(this.card("الروافع",[
-      React.createElement("div",{key:"l1",style:{fontSize:11,color:"#94a3b8"}},"تغيير سعر البيع"),this.fsPick("wip",chips([-0.1,-0.05,-0.02,0,0.02,0.05,0.1]),p,"wiP"),
-      React.createElement("div",{key:"l2",style:{fontSize:11,color:"#94a3b8"}},"تغيير الكمية المباعة"),this.fsPick("wiv",chips([-0.2,-0.1,-0.05,0,0.05,0.1,0.2]),v,"wiV"),
-      React.createElement("div",{key:"l3",style:{fontSize:11,color:"#94a3b8"}},"تغيير تكلفة الوحدة"),this.fsPick("wic",chips([-0.1,-0.05,0,0.05,0.1,0.15,0.2]),c,"wiC"),
-      React.createElement("div",{key:"l4",style:{fontSize:11,color:"#94a3b8"}},"تغيير المصروفات الثابتة"),this.fsPick("wio",chips([-0.1,-0.05,0,0.05,0.1]),o,"wiO")],
+      React.createElement("div",{key:"l1",style:{fontSize:11,color:"#94a3b8"}},"تغيير سعر البيع"),this.fsPick("wip",chips(LV),p,"wiP"),
+      React.createElement("div",{key:"l2",style:{fontSize:11,color:"#94a3b8"}},"تغيير الكمية المباعة"),this.fsPick("wiv",chips(LV),v,"wiV"),
+      React.createElement("div",{key:"l3",style:{fontSize:11,color:"#94a3b8"}},"تغيير تكلفة الوحدة"),this.fsPick("wic",chips(LV),c,"wiC"),
+      React.createElement("div",{key:"l4",style:{fontSize:11,color:"#94a3b8"}},"تغيير المصروفات الثابتة"),this.fsPick("wio",chips(LV),o,"wiO")],
       {k:"dw1",sub:"افتراض — اختر قيمة لكل رافعة"}));
     const dlt=(a,b2)=>{ const d=a-b2; return (d>=0?"▲ ":"▼ ")+T.egpK(Math.abs(d)); };
     out.push(this.kpiTiles([["صافي المبيعات",T.egpK(r.rev),dlt(r.rev,base.rev),"#3b82f6"],
