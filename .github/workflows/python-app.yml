@@ -28,6 +28,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install flake8 pytest
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    - name: Install a browser for the dashboard tests
+      run: |
+        # tests/test_browser_mobile.py opens the built mobile dashboard and visits every section
+        pip install playwright==1.56.0
+        python -m playwright install --with-deps chromium
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names

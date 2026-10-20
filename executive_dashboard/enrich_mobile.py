@@ -13,7 +13,9 @@ Insertion-only, like stages 1 and 2: strip the declared insertions from the
 output and the enhanced file is what remains (tests/test_enrich_mobile.py
 checks it). Added:
 
-  * window.DASH_OPS and window.DASH_VAL, embedded as data.
+  * window.DASH_OPS and window.DASH_VAL, embedded as data, and window.DASH_BUILD:
+    the dates the data is as of plus a version (a fingerprint of this stage's
+    inputs), shown under the title and exported as a table in the Excel file.
   * a nav group «قرارات وتشغيل» with eleven sections — inventory valuation and
     coverage, purchases and suppliers, cost pass-through, working capital,
     customer value/risk segments, rep scorecard, price leakage and bonus,
@@ -24,6 +26,7 @@ checks it). Added:
 
 Usage: python3 enrich_mobile.py      (run python3 -m src.ops_ingest first)
 """
+import hashlib
 import json
 from pathlib import Path
 
@@ -38,29 +41,66 @@ OPS_JSON = APP.parent / "data" / "processed" / "ops_data.json"
 VAL_JSON = APP.parent / "data" / "processed" / "valuation_scenarios.json"
 
 
-def data_script(ops: dict, val: dict) -> str:
-    def js(o):
-        return json.dumps(o, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+def js(o) -> str:
+    return json.dumps(o, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+
+
+def build_info(ops: dict, val: dict, methods: str) -> dict:
+    """Data dates and a version for the header and the Excel export.
+
+    The version fingerprints this stage's inputs, and the date is the one the
+    ingest keeps while the operations data is unchanged, so rebuilding the same
+    inputs gives the same file byte for byte."""
+    h = hashlib.sha256("\0".join([methods, js(ops), js(val)]).encode("utf-8")).hexdigest()[:10]
+    vals = (ops.get("inventory") or {}).get("valuations") or []
+    return {"version": h, "built": (ops.get("meta") or {}).get("generated"),
+            "inventory_as_of": vals[-1]["date"] if vals else None,
+            "purchases_through": max(ops.get("purchases") or {"": 0}) or None,
+            "suppliers_as_of": (ops.get("suppliers") or {}).get("as_of")}
+
+
+def data_script(ops: dict, val: dict, methods: str = "") -> str:
     return ("<script>/* بيانات التشغيل ونتائج التقييم — enrich_mobile.py */\n"
-            f"window.DASH_OPS = {js(ops)};\nwindow.DASH_VAL = {js(val)};</script>\n")
+            f"window.DASH_OPS = {js(ops)};\nwindow.DASH_VAL = {js(val)};\n"
+            f"window.DASH_BUILD = {js(build_info(ops, val, methods))};</script>\n")
+
+
+def dmy(d: str) -> str:
+    return f"{int(d[8:10])}/{int(d[5:7])}"
+
+
+def nav_notes(ops: dict) -> tuple:
+    """Sub-lines of «المخزون» and «المشتريات» name the dates the data actually holds."""
+    inv = ops.get("inventory") or {}
+    vals = [v["date"] for v in inv.get("valuations") or []] or ["2026-06-30", "2026-07-31"]
+    cnt = max(inv.get("counts") or {"2026-08": 0})
+    inv_p = ("تقييم " + "، ".join(dmy(d) for d in vals) + " · جرد " + {"2026-09": "30/9"}.get(cnt, "31/8")
+             + " بالموقع · تغطية بالأيام من المبيعات")
+    ar = {"07": "يوليو", "08": "أغسطس", "09": "سبتمبر", "10": "أكتوبر"}
+    months = sorted(ops.get("purchases") or {"2026-07": 0, "2026-08": 0})
+    rng = ar.get(months[0][5:7], months[0]) + (" إلى " + ar.get(months[-1][5:7], months[-1]) if len(months) > 1 else "")
+    last_kg = "سبتمبر" if any(r.get("kg_sep") is not None for r in inv.get("recipes") or []) else "يوليو"
+    return (inv_p, "مشتريات " + rng + " 2026 · تذبذب الأسعار · أرصدة الموردين 02/09",
+            "سعر كيلو الوصفات يونيو ← " + last_kg + " مقابل أسعار البيع في الفواتير")
 
 
 def edits(methods: str, ops: dict, val: dict):
     """(name, before, after, text): `text` goes between `before` and `after`,
     which must occur together exactly once in the enhanced file."""
+    inv_p, pur_p, cost_p = nav_notes(ops)
     return [
-        ("data", "", '<script type="application/json" id="snap-index">', data_script(ops, val)),
+        ("data", "", '<script type="application/json" id="snap-index">', data_script(ops, val, methods)),
         ("registry-ops", '      p:"قواعد معلنة الحدود على المديونية والمبيعات والأسعار والفواتير"});\n', "    return out;\n",
          "\n"
          "    /* قرارات وتشغيل — بيانات التشغيل (DASH_OPS) والفواتير والقوائم ونموذج التقييم. */\n"
          "    const G=\"قرارات وتشغيل\";\n"
          "    if(window.DASH_OPS){\n"
          '      push(G,"dash","ops_inventory",{label:"المخزون",h2:"المخزون — التقييم والتغطية والركود",\n'
-         '        p:"جرد 30/6 و31/7 بالقيمة · جرد 31/8 بالكمية · تغطية بالأيام من المبيعات"});\n'
+         f'        p:"{inv_p}"}});\n'
          '      push(G,"dash","ops_purchases",{label:"المشتريات والموردون",h2:"المشتريات والموردون",\n'
-         '        p:"مشتريات يوليو وأغسطس 2026 · تذبذب الأسعار · أرصدة الموردين 02/09"});\n'
+         f'        p:"{pur_p}"}});\n'
          '      push(G,"dash","ops_costpass",{label:"تمرير التكلفة",h2:"تكلفة الخامات مقابل سعر البيع",\n'
-         '        p:"سعر كيلو الوصفات يونيو ← يوليو مقابل أسعار البيع في الفواتير"});\n'
+         f'        p:"{cost_p}"}});\n'
          '      push(G,"dash","ops_wc",{label:"رأس المال العامل 2026",h2:"رأس المال العامل 2026",\n'
          '        p:"العملاء + المخزون − الموردون · أيام الدورة النقدية مقابل 31/12/2025"});\n'
          "    }\n"
@@ -98,6 +138,9 @@ def edits(methods: str, ops: dict, val: dict):
         # ECharts lays out SVG text with text-anchor assuming left-to-right; inherited
         # direction:rtl flips start/end, so legend text ran over its icons and y-axis
         # labels over the bars. Arabic inside each <text> still shapes and orders correctly.
+        # Under the title: the dates the figures are as of, and the build version.
+        ("build-line", '"لوحة الأداء التنفيذي المالي")', '),\n        React.createElement("div",{"data-print":"actions"',
+         ",\n          (this.opsBuildLine?this.opsBuildLine():null)"),
         ("css-chart-ltr", "</style>\n", "</head>",
          "<style>\n/* Every ECharts chart (the container carries _echarts_instance_): SVG text laid out left-to-right. */\n"
          "[_echarts_instance_] svg{direction:ltr}\n</style>\n"),
