@@ -10,7 +10,15 @@ operations repository (Abohashem):
     valuation: raw materials, finished goods, July purchases, recipe cost/kg.
   * ``stock_count_2026-07.xlsx`` / ``stock_count_2026-08.xlsx`` — physical
     counts by location (quantities only).
-  * ``purchases_2026-08.pdf`` — purchases register for August.
+  * ``purchases_2026-08.pdf`` / ``purchases_2026-09.pdf`` — purchases
+    registers for August and September, as printed.
+  * ``inventory_valuation_2026-08.xlsx`` — August valuation as management
+    issued it (raw materials at August WAC, finished goods re-priced).
+  * ``wac_model_2026-09.xlsx`` — the September WAC model: raw materials 30/9,
+    finished goods 30/9, recipe cost per kg (August and September), and the
+    September purchase lines after the invoice correction management confirmed.
+    Its formulas carry no cached values, so LibreOffice recalculates a copy.
+  * ``inventory_valuation_2026-09.xlsx`` — the priced 30/9 count, by location.
   * ``suppliers_2026-09-02.pdf`` — supplier balances printed 02/09/2026.
   * ``returns_items_2026-07.pdf`` / ``returns_items_2026-08.pdf`` — sales
     returns with item, quantity and value.
@@ -27,7 +35,8 @@ Cleaning contract (every rule is counted and published in ``cleaning``):
   * Every parsed total must equal the total printed in the source file
     (assert), so a parsing slip stops the build instead of reaching a chart.
 
-Stdlib + openpyxl only (pdftotext from poppler for the PDFs):
+Stdlib + openpyxl (pdftotext from poppler for the PDFs, LibreOffice for the
+September model):
 
     python3 -m src.ops_ingest          # from executive_dashboard/
 """
@@ -48,8 +57,12 @@ OUT_JSON = REPO_ROOT / "data" / "processed" / "ops_data.json"
 
 F_VAL_JUN = RAW / "inventory_valuation_2026-06.xlsx"
 F_VAL_JUL = RAW / "inventory_valuation_2026-07.xlsx"
+F_VAL_AUG = RAW / "inventory_valuation_2026-08.xlsx"
+F_WAC_SEP = RAW / "wac_model_2026-09.xlsx"
 F_CNT = {"2026-07": RAW / "stock_count_2026-07.xlsx", "2026-08": RAW / "stock_count_2026-08.xlsx"}
-F_PUR_AUG = RAW / "purchases_2026-08.pdf"
+F_CNT_SEP = RAW / "inventory_valuation_2026-09.xlsx"
+F_PUR = {"2026-08": RAW / "purchases_2026-08.pdf", "2026-09": RAW / "purchases_2026-09.pdf"}
+MONTH_AR = {"2026-08": "أغسطس", "2026-09": "سبتمبر"}
 F_SUP = RAW / "suppliers_2026-09-02.pdf"
 F_RET = {"2026-07": RAW / "returns_items_2026-07.pdf", "2026-08": RAW / "returns_items_2026-08.pdf"}
 
@@ -264,37 +277,60 @@ def parse_val_jun(items: list) -> dict:
     return {"date": "2026-06-30", "raw": raw, "fg": fg, "raw_value": raw_v, "fg_value": fg_v, "total_printed": total}
 
 
-def parse_val_jul(items: list) -> dict:
-    import openpyxl
-    wb = openpyxl.load_workbook(F_VAL_JUL, data_only=True)
-    ws = wb["جرد الخامات آخر يوليو"]
+def last_num(row):
+    return next((num(x) for x in reversed(row) if num(x) is not None), None)
+
+
+def parse_wac_raw(ws, chg_key: str) -> tuple:
+    """A «جرد الخامات آخر <شهر>» sheet of the WAC model: one row per item from row 5."""
     raw, raw_total = [], None
     for row in ws.iter_rows(min_row=5, values_only=True):
         a = clean_text(row[0])
         if a.startswith("إجمالى قيمة مخزون الخامات"):
-            raw_total = next((num(x) for x in reversed(row) if num(x) is not None), None)
+            raw_total = last_num(row)
             continue
         if not a:
             continue
         raw.append({"name": a, "open_qty": num(row[1]) or 0.0, "open_price": num(row[2]), "open_value": num(row[3]) or 0.0,
                     "purch_qty": num(row[4]) or 0.0, "purch_value": num(row[5]) or 0.0, "wac": num(row[8]),
-                    "qty": num(row[9]) or 0.0, "value": num(row[10]) or 0.0, "chg_vs_jun": num(row[11])})
-    ws = wb["جرد المنتج التام آخر يوليو"]
+                    "qty": num(row[9]) or 0.0, "value": num(row[10]) or 0.0, chg_key: num(row[11])})
+    return raw, raw_total
+
+
+def parse_fg_sheet(ws, items: list, prev_key: str, fg_label: str, all_label: str) -> tuple:
+    """A finished-goods valuation sheet (name, qty, previous price, price, change, value, note) from row 4."""
     fg, fg_total, all_total = [], None, None
     for row in ws.iter_rows(min_row=4, values_only=True):
         a = clean_text(row[0])
-        if a.startswith("إجمالى قيمة مخزون المنتج التام"):
-            fg_total = next((num(x) for x in reversed(row) if num(x) is not None), None)
+        if a.startswith(fg_label):
+            fg_total = last_num(row)
             continue
-        if a.startswith("إجمالى قيمة المخزون الكلى"):
-            all_total = next((num(x) for x in reversed(row) if num(x) is not None), None)
+        if a.startswith(all_label):
+            all_total = last_num(row)
             continue
         if not a:
             continue
-        rec = {"name": a, "qty": num(row[1]) or 0.0, "price_jun": num(row[2]), "price": num(row[3]),
+        rec = {"name": a, "qty": num(row[1]) or 0.0, prev_key: num(row[2]), "price": num(row[3]),
                "chg": num(row[4]), "value": num(row[5]) or 0.0, "note": clean_text(row[6])}
         rec.update(link(a, items))
         fg.append(rec)
+    return fg, fg_total, all_total
+
+
+def check_valuation(raw, fg, raw_total, fg_total, all_total):
+    rv, fv = sum(r["value"] for r in raw), sum(r["value"] for r in fg)
+    assert abs(rv - raw_total) < 1, (rv, raw_total)
+    assert abs(fv - fg_total) < 1, (fv, fg_total)
+    assert abs(rv + fv - all_total) < 1, (rv + fv, all_total)
+    return rv, fv
+
+
+def parse_val_jul(items: list) -> dict:
+    import openpyxl
+    wb = openpyxl.load_workbook(F_VAL_JUL, data_only=True)
+    raw, raw_total = parse_wac_raw(wb["جرد الخامات آخر يوليو"], "chg_vs_jun")
+    fg, fg_total, all_total = parse_fg_sheet(wb["جرد المنتج التام آخر يوليو"], items, "price_jun",
+                                             "إجمالى قيمة مخزون المنتج التام", "إجمالى قيمة المخزون الكلى")
     ws = wb["مشتريات يوليو التفصيلية"]
     pur, pur_total = [], None
     for row in ws.iter_rows(min_row=4, values_only=True):
@@ -316,27 +352,117 @@ def parse_val_jul(items: list) -> dict:
         rec = {"product": a, "brand": clean_text(row[1]), "batch_jun": num(row[2]), "batch_jul": num(row[3]),
                "kg_jun": num(row[4]), "kg_jul": num(row[5]), "chg": num(row[6])}
         recipes.append(rec)
-    rv, fv, pv = (sum(r["value"] for r in raw), sum(r["value"] for r in fg), sum(r["total"] for r in pur))
-    assert abs(rv - raw_total) < 1, (rv, raw_total)
-    assert abs(fv - fg_total) < 1, (fv, fg_total)
-    assert abs(rv + fv - all_total) < 1, (rv + fv, all_total)
+    rv, fv = check_valuation(raw, fg, raw_total, fg_total, all_total)
+    pv = sum(r["total"] for r in pur)
     assert abs(pv - pur_total) < 1, (pv, pur_total)
     return {"date": "2026-07-31", "raw": raw, "fg": fg, "raw_value": rv, "fg_value": fv, "total_printed": all_total,
             "purchases": pur, "purchases_total": pv, "recipes": recipes}
 
 
-def parse_count(path: Path, items: list) -> dict:
+def parse_val_aug(items: list) -> dict:
+    """August valuation as management issued it (file «-2»): the same layout as July's."""
+    import openpyxl
+    wb = openpyxl.load_workbook(F_VAL_AUG, data_only=True)
+    raw, raw_total = parse_wac_raw(wb["جرد الخامات آخر أغسطس"], "chg_vs_prev")
+    fg, fg_total, all_total = parse_fg_sheet(wb["جرد المنتج التام آخر أغسطس"], items, "price_prev",
+                                             "إجمالى قيمة مخزون المنتج التام", "إجمالى قيمة المخزون الكلى")
+    rv, fv = check_valuation(raw, fg, raw_total, fg_total, all_total)
+    return {"date": "2026-08-31", "raw": raw, "fg": fg, "raw_value": rv, "fg_value": fv, "total_printed": all_total}
+
+
+def recalculated(path: Path):
+    """The September model ships its formulas without cached values; LibreOffice
+    recalculates a copy (the file in data/raw/ops is never touched)."""
+    import shutil
+    import tempfile
+
+    import openpyxl
+    soffice = shutil.which("soffice") or shutil.which("libreoffice")
+    assert soffice, f"LibreOffice is needed to recalculate {path.name}"
+    with tempfile.TemporaryDirectory() as tmp:
+        src = Path(tmp) / "in" / path.name
+        src.parent.mkdir()
+        shutil.copy2(path, src)
+        subprocess.run([soffice, "--headless", "--calc", "--convert-to", "xlsx", "--outdir", tmp, str(src)],
+                       check=True, capture_output=True, timeout=300)
+        return openpyxl.load_workbook(Path(tmp) / path.name, data_only=True)
+
+
+def parse_wac_sep(items: list) -> dict:
+    """September WAC model: raw-material valuation 30/9, finished goods 30/9,
+    recipe cost per kg (August and September on one basis) and the corrected
+    purchase lines with the stock item each one was charged to."""
+    wb = recalculated(F_WAC_SEP)
+    ws = wb["احتساب متوسط سبتمبر"]
+    raw, totals = [], None
+    for row in ws.iter_rows(min_row=5, values_only=True):
+        a = clean_text(row[0])
+        if a == "الإجمالى":
+            totals = {"open_value": num(row[3]), "purch_value": num(row[5]), "value": num(row[11])}
+            break  # the pool block below the total repeats the Indian-meat cuts as one line
+        if not a:
+            continue
+        raw.append({"name": a, "open_qty": num(row[1]) or 0.0, "open_price": num(row[2]), "open_value": num(row[3]) or 0.0,
+                    "purch_qty": num(row[4]) or 0.0, "purch_value": num(row[5]) or 0.0, "wac": num(row[8]),
+                    "qty": num(row[10]) or 0.0, "value": num(row[11]) or 0.0, "chg_vs_prev": num(row[12]),
+                    "note": clean_text(row[13])})
+    fg, fg_total, all_total = parse_fg_sheet(wb["المنتج التام آخر سبتمبر"], items, "price_prev",
+                                             "إجمالى قيمة مخزون المنتج التام", "إجمالى قيمة المخزون الكلى")
+    rv, fv = check_valuation(raw, fg, totals["value"], fg_total, all_total)
+    assert abs(sum(r["open_value"] for r in raw) - totals["open_value"]) < 1
+
+    recipes = []
+    for row in wb["سعر الكجم من الوصفات"].iter_rows(min_row=4, values_only=True):
+        a = clean_text(row[0])
+        if a and num(row[4]) is not None:
+            recipes.append({"product": a, "brand": clean_text(row[1]), "batch_aug": num(row[2]),
+                            "batch_sep": num(row[3]), "kg_aug": num(row[4]), "kg_sep": num(row[5])})
+
+    pur, pur_tot = [], {}
+    for row in wb["مشتريات سبتمبر التفصيلية"].iter_rows(min_row=4, values_only=True):
+        label = clean_text(row[3])
+        if num(row[0]) is None:
+            if label.startswith("إجمالى مشتريات سبتمبر"):
+                pur_tot["corrected"], pur_tot["recorded"] = num(row[7]), num(row[12])
+            elif label.startswith("منها: بلا مقابل"):
+                pur_tot["unmatched"] = num(row[7])
+            continue
+        pur.append({"idx": int(num(row[0])), "date": clean_text(row[1]).replace("/", "-"), "code": clean_text(row[2]),
+                    "name": clean_text(row[3]), "unit": clean_text(row[4]), "qty": num(row[5]) or 0.0,
+                    "price": num(row[6]), "total": num(row[7]) or 0.0, "stock_item": clean_text(row[8]),
+                    "confidence": clean_text(row[9]), "basis": clean_text(row[10]), "invoice": clean_text(row[11]),
+                    "total_recorded": num(row[12]) or 0.0})
+    assert abs(sum(r["total"] for r in pur) - pur_tot["corrected"]) < 1, pur_tot
+    assert abs(sum(r["total_recorded"] for r in pur) - pur_tot["recorded"]) < 1, pur_tot
+    return {"date": "2026-09-30", "raw": raw, "fg": fg, "raw_value": rv, "fg_value": fv, "total_printed": all_total,
+            "open_value": totals["open_value"], "recipes": recipes, "purchases": pur, "purchases_totals": pur_tot}
+
+
+def parse_count(path: Path, items: list, priced: bool = False) -> dict:
+    """Physical count by location (columns B–F, total G).
+
+    The priced 30/9 file carries price and value after the raw block (H, I), so
+    its finished-goods block starts at J and keeps a price (L). Its totals are
+    formulas without cached values: the total is then the sum of the five
+    locations, the rule the WAC model applies too."""
     import openpyxl
     ws = openpyxl.load_workbook(path, data_only=True).worksheets[0]
+    fg_col = 9 if priced else 7
     raw, fg = [], []
     for row in ws.iter_rows(min_row=1, values_only=True):
         a = clean_text(row[0])
         if a and a != "اسم الصنف" and not a.startswith("جرد") and not is_junk_name(a):
             qtys = [num(row[i]) or 0.0 for i in range(1, 6)]
-            raw.append({"name": a, "qty": dict(zip(LOCATIONS, qtys)), "qty_total": num(row[6]) or 0.0})
-        fgn = clean_text(row[7]) if len(row) > 7 else ""
+            rec = {"name": a, "qty": dict(zip(LOCATIONS, qtys)),
+                   "qty_total": sum(qtys) if priced else num(row[6]) or 0.0}
+            if priced:
+                rec["price"] = num(row[7])
+            raw.append(rec)
+        fgn = clean_text(row[fg_col]) if len(row) > fg_col else ""
         if fgn and fgn != "اسم الصنف" and not is_junk_name(fgn):
-            rec = {"name": fgn, "qty": num(row[8]) or 0.0}
+            rec = {"name": fgn, "qty": num(row[fg_col + 1]) or 0.0}
+            if priced:
+                rec["price"] = num(row[fg_col + 2])
             rec.update(link(fgn, items))
             fg.append(rec)
     return {"raw": raw, "fg": fg}
@@ -347,8 +473,8 @@ ROW_PUR = re.compile(r"^\s*(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+(\d{4}/\d{2}/\d{2
                      r"([\d,]+(?:\.\d+)?)\s*(\d{6,})\s+(\d+)\s+(\S+)\s+(.+?)\s+(\d+)\s*$")
 
 
-def parse_purchases_aug() -> dict:
-    lines = pdf_lines(F_PUR_AUG)
+def parse_purchases(month: str) -> dict:
+    lines = pdf_lines(F_PUR[month])
     rows = []
     for ln in lines:
         m = ROW_PUR.match(ln)
@@ -363,8 +489,8 @@ def parse_purchases_aug() -> dict:
     assert abs(s - printed) < 1, (s, printed, len(rows))
     assert [r["idx"] for r in rows] == list(range(1, len(rows) + 1)), "missing purchase rows"
     LOG.hit("pdf_text", "تحويل نص PDF (أشكال العرض العربية ← NFKC، إزالة علامات الاتجاه، الأرقام الهندية ← لاتينية)",
-            "مشتريات أغسطس", n=len(rows))
-    return {"month": "2026-08", "rows": rows, "total": s, "total_printed": printed}
+            "مشتريات " + MONTH_AR[month], n=len(rows))
+    return {"month": month, "rows": rows, "total": s, "total_printed": printed}
 
 
 ROW_SUP = re.compile(r"^\s*(?:(\d{8,})\s+)?([\d,]+\.\d+)\s+([\d,]+\.\d+)\s+(.+?)\s+(\d+)\s*$")
@@ -452,6 +578,47 @@ def parse_returns(month: str, path: Path, items: list) -> dict:
 
 
 # ---------------------------------------------------------------- build
+def merge_recipes(jul: list, sep: list) -> list:
+    """July's recipe rows gain August and September cost per kg from the
+    September model (one basis for both months, so the change between them is
+    the change in raw-material prices alone)."""
+    by = {(norm_name(r["product"]), norm_name(r["brand"])): r for r in sep}
+    assert len(by) == len(sep) == len(jul), (len(sep), len(jul))
+    for r in jul:
+        s = by.pop((norm_name(r["product"]), norm_name(r["brand"])))
+        r.update({"batch_aug": s["batch_aug"], "batch_sep": s["batch_sep"], "kg_aug": s["kg_aug"], "kg_sep": s["kg_sep"]})
+    assert not by, by
+    return jul
+
+
+def check_purchases_sep(model: dict, pdf: dict) -> dict:
+    """The September model's purchase lines are the printed register line for
+    line; the only change is the invoice management confirmed was mis-keyed."""
+    rows, tot = model["purchases"], model["purchases_totals"]
+    assert len(rows) == len(pdf["rows"]), (len(rows), len(pdf["rows"]))
+    for r, p in zip(sorted(rows, key=lambda r: r["idx"]), pdf["rows"]):
+        assert (r["idx"], r["code"]) == (p["idx"], p["code"]), (r["idx"], r["code"], p["code"])
+        assert abs(r["total_recorded"] - p["total"]) < 0.01, (r["idx"], r["total_recorded"], p["total"])
+        r["sale_price"] = p["sale_price"]
+    assert abs(tot["recorded"] - pdf["total_printed"]) < 1, (tot, pdf["total_printed"])
+    fixed = [r for r in rows if abs(r["total"] - r["total_recorded"]) >= 0.01]
+    assert {r["invoice"] for r in fixed} == {"1111115217"}, fixed
+    LOG.hit("invoice_fix", "تصحيح سطرَي الفاتورة 1111115217 بمشتريات سبتمبر: سعرا مفروم فراخ C و A معكوسان "
+            "(تأكيد الإدارة) — الإجمالى المطبوع محفوظ في total_recorded",
+            [f'{r["name"]}: {r["total_recorded"]:,.2f} ← {r["total"]:,.2f}' for r in fixed], n=len(fixed))
+    return {"month": "2026-09", "rows": sorted(rows, key=lambda r: r["idx"]), "total": tot["corrected"],
+            "total_recorded": tot["recorded"], "total_printed": pdf["total_printed"],
+            "unmatched": tot.get("unmatched"), "correction": tot["corrected"] - tot["recorded"]}
+
+
+def check_count_sep(cnt: dict, sep: dict):
+    """The priced 30/9 count and the September model value the same stock."""
+    rv = sum(r["qty_total"] * (r["price"] or 0) for r in cnt["raw"])
+    fv = sum(r["qty"] * (r["price"] or 0) for r in cnt["fg"])
+    assert abs(rv - sep["raw_value"]) < 1, (rv, sep["raw_value"])
+    assert abs(fv - sep["fg_value"]) < 1, (fv, sep["fg_value"])
+
+
 def build() -> dict:
     items = load_items()
     jun = parse_val_jun(items)
@@ -459,12 +626,20 @@ def build() -> dict:
     for r in jul["recipes"]:
         r["sales_codes"] = recipe_family(r["product"], r["brand"], items)
         assert r["sales_codes"], ("recipe without a sales family", r["product"])
+    aug = parse_val_aug(items)
+    sep = parse_wac_sep(items)
+    recipes = merge_recipes(jul["recipes"], sep.pop("recipes"))
     counts = {m: parse_count(p, items) for m, p in F_CNT.items()}
-    pur_aug = parse_purchases_aug()
+    counts["2026-09"] = parse_count(F_CNT_SEP, items, priced=True)
+    check_count_sep(counts["2026-09"], sep)
+    pur_aug = parse_purchases("2026-08")
+    pur_sep = check_purchases_sep(sep, parse_purchases("2026-09"))
+    sep = {k: v for k, v in sep.items() if k not in ("purchases", "purchases_totals")}
     sup = parse_suppliers()
     ret = {m: parse_returns(m, p, items) for m, p in F_RET.items()}
 
-    linked = [r for src in (jun["fg"], jul["fg"], counts["2026-07"]["fg"], counts["2026-08"]["fg"])
+    linked = [r for src in (jun["fg"], jul["fg"], aug["fg"], sep["fg"],
+                            counts["2026-07"]["fg"], counts["2026-08"]["fg"], counts["2026-09"]["fg"])
               for r in src] + [r for m in ret.values() for r in m["rows"]]
     hi = [r for r in linked if r["match"] == "عالية"]
     LOG.hit("link_items", "ربط أسماء المنتج التام والمرتجعات بأكواد أصناف المبيعات بتوقيع (نوع/علامة/حجم)",
@@ -472,6 +647,8 @@ def build() -> dict:
     unl = sorted({(r.get("name") or r.get("item")) for r in linked if r["match"] != "عالية"})
     LOG.hit("unlinked", "أسماء بقيت غير مربوطة (لا ربط تخميني)", unl[:5], n=len(unl))
 
+    vals = {"jun": jun, "jul": jul, "aug": aug, "sep": sep}
+    gap = aug["raw_value"] - sep["open_value"]
     return {
         "meta": {
             "generated": date.today().isoformat(),
@@ -479,18 +656,30 @@ def build() -> dict:
                 {"file": p.name, "kind": k} for p, k in [
                     (F_VAL_JUN, "جرد وتقييم آخر يونيو 2026"), (F_VAL_JUL, "تقييم مخزون آخر يوليو 2026 بمتوسط التكلفة"),
                     (F_CNT["2026-07"], "جرد كميات يوليو"), (F_CNT["2026-08"], "جرد كميات أغسطس"),
-                    (F_PUR_AUG, "تقرير مشتريات أغسطس 2026"), (F_SUP, "حسابات الموردين 02/09/2026"),
-                    (F_RET["2026-07"], "مرتجعات يوليو بالصنف"), (F_RET["2026-08"], "مرتجعات أغسطس بالصنف")]],
+                    (F_PUR["2026-08"], "تقرير مشتريات أغسطس 2026"), (F_SUP, "حسابات الموردين 02/09/2026"),
+                    (F_RET["2026-07"], "مرتجعات يوليو بالصنف"), (F_RET["2026-08"], "مرتجعات أغسطس بالصنف"),
+                    (F_VAL_AUG, "تقييم مخزون آخر أغسطس 2026 بمتوسط التكلفة (ملف الإدارة «-2»)"),
+                    (F_WAC_SEP, "نموذج متوسط التكلفة سبتمبر 2026 (خامات ومنتج تام 30/9، الوصفات، المشتريات)"),
+                    (F_CNT_SEP, "جرد 30/9 مُسعّرًا بالموقع"), (F_PUR["2026-09"], "تقرير مشتريات سبتمبر 2026")]],
             "notes": [
                 "تقييم المخزون بتكلفة الخامات والتعبئة فقط؛ لا يشمل أجورًا مباشرة ولا أعباء صناعية غير مباشرة "
                 "(كما ينص ملف المصدر).",
-                "جرد أغسطس كميات فقط بلا أسعار؛ قيمته غير متاحة.",
-                "عمود «سعر البيع الحالي» في تقرير مشتريات أغسطس محفوظ كما طُبع (sale_price) ولا يدخل في أي حساب.",
+                "تقييم 31/8 كما أصدرته الإدارة (ملف «-2»). رصيد أول سبتمبر في نموذج سبتمبر يقوم على الجرد المعدَّل 31/8، "
+                f"فيقل عن خامات ملف «-2» بمقدار {gap:,.2f} ج.م (فروق كميات، أغلبها «زيت سيارات»).",
+                "سعر كيلو الوصفات لأغسطس وسبتمبر من نموذج سبتمبر على أساس واحد؛ قد يختلف سعر أغسطس فيه عن ملف «-2» "
+                "في الخانة الرابعة.",
+                f"مشتريات سبتمبر: الإجمالى المطبوع {pur_sep['total_printed']:,.2f} ج.م؛ بعد تصحيح الفاتورة 1111115217 "
+                f"{pur_sep['total']:,.2f} ج.م (سعرا الفراخ المفرومة C و A معكوسان بتأكيد الإدارة).",
+                "عمود «سعر البيع الحالي» في تقريري المشتريات محفوظ كما طُبع (sale_price) ولا يدخل في أي حساب.",
             ],
         },
         "inventory": {"jun": jun, "jul": {k: v for k, v in jul.items() if k not in ("purchases", "recipes")},
-                      "counts": counts, "recipes": jul["recipes"], "locations": LOCATIONS},
-        "purchases": {"2026-07": {"rows": jul["purchases"], "total": jul["purchases_total"]}, "2026-08": pur_aug},
+                      "aug": aug, "sep": sep,
+                      "valuations": [{"key": k, "date": v["date"], "raw_value": v["raw_value"], "fg_value": v["fg_value"]}
+                                     for k, v in vals.items()],
+                      "counts": counts, "recipes": recipes, "locations": LOCATIONS},
+        "purchases": {"2026-07": {"rows": jul["purchases"], "total": jul["purchases_total"]}, "2026-08": pur_aug,
+                      "2026-09": pur_sep},
         "suppliers": sup,
         "returns_items": ret,
         "cleaning": LOG.out(),
@@ -498,12 +687,22 @@ def build() -> dict:
     }
 
 
+def keep_generated(payload: dict, out: Path = OUT_JSON) -> dict:
+    """Reuse the date already on disk when nothing but that date would change,
+    so rebuilding from the same sources reproduces the committed files byte for byte."""
+    if out.exists():
+        old = json.loads(out.read_text(encoding="utf-8"))
+        same = dict(payload, meta=dict(payload["meta"], generated=old.get("meta", {}).get("generated")))
+        if same == old:
+            return same
+    return payload
+
+
 def main() -> int:
-    payload = build()
+    payload = keep_generated(build())
     OUT_JSON.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
     inv = payload["inventory"]
-    print("inventory jun", round(inv["jun"]["raw_value"] + inv["jun"]["fg_value"], 2),
-          "jul", round(inv["jul"]["raw_value"] + inv["jul"]["fg_value"], 2))
+    print("inventory", {v["key"]: round(v["raw_value"] + v["fg_value"], 2) for v in inv["valuations"]})
     print("purchases", {m: round(v["total"], 2) for m, v in payload["purchases"].items()},
           "suppliers net credit", round(payload["suppliers"]["net_credit"], 2))
     print("returns", {m: (len(v["rows"]), round(v["total"], 2)) for m, v in payload["returns_items"].items()})

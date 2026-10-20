@@ -2,7 +2,7 @@
 # All aggregation runs on Polars (scales to 1M+ rows); pandas is only glue for
 # the Excel/PDF writers. The dashboard itself ships pre-aggregated JSON and needs
 # no Python at view time.
-polars>=1.0
+polars>=1.0,<2      # 2.0 removed Expr.replace's default argument that build.py relies on
 pandas>=2.0
 numpy>=1.24
 plotly>=5.20
