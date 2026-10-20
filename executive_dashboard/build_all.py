@@ -13,6 +13,12 @@ Usage:
   python3 build_all.py --skip-ingest
                                   reuse the committed ops_data.json (no pdftotext,
                                   openpyxl or LibreOffice needed)
+  python3 build_all.py --month 2026-10 --strict
+                                  check that month's files first (src/monthly.py) and
+                                  stop before building if a required one is missing
+
+Every build starts by printing the month's intake checklist (the latest month with
+files unless --month is given), naming each missing file.
 
 The desktop pipeline (build.py → data.js, statements_data.js) is not part of this
 chain: data.js is the frozen 16/7 sales snapshot and build.py does not rebuild it
@@ -45,7 +51,18 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--check", action="store_true", help="fail if a rebuilt output differs from the one on disk")
     ap.add_argument("--skip-ingest", action="store_true", help="keep the committed ops_data.json")
+    ap.add_argument("--month", help="YYYY-MM whose intake checklist to print (default: the latest month with files)")
+    ap.add_argument("--strict", action="store_true", help="stop before building if a required file of --month is missing")
     args = ap.parse_args(argv)
+
+    sys.path.insert(0, str(APP))
+    from src import monthly
+    month = args.month or (monthly.months() or [None])[-1]
+    if month:
+        print(monthly.report(month), flush=True)
+        if args.strict and monthly.missing(month):
+            print(f"stopped: {month} is missing required files (listed above)")
+            return 2
 
     changed = []
     for name, cmd, out in STAGES:
