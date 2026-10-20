@@ -25,17 +25,34 @@ def test_every_row_is_mix_plus_pack(data):
         assert r["mix"] + r["pack"] == pytest.approx(r["total"], abs=0.01), r
 
 
-def test_links_are_one_to_one_and_by_signature(data):
+def test_links_are_one_to_one_by_signature_or_confirmation(data):
     linked = [r for r in data["rows"] if r.get("item_code")]
     codes = [r["item_code"] for r in linked]
-    assert len(codes) == len(set(codes)) >= 10
-    assert all(r["match_basis"].startswith("توقيع مطابق") for r in linked)
+    assert len(codes) == len(set(codes)) >= 15
+    for r in linked:
+        if r["row"] in sc.CONFIRMED:
+            assert r["match_basis"].startswith(sc.DECIDED), r
+        else:
+            assert r["match_basis"].startswith("توقيع مطابق"), r
     assert {r["key"] for r in data["unmatched"]} == {r["key"] for r in data["rows"] if not r.get("item_code")}
 
 
-def test_rows_without_a_product_or_a_size_are_reported_not_guessed(data):
-    assert {r["name"] for r in data["unresolved"]} == {"سجق", "350جرام", "800جرام"}
-    assert all(r.get("reason") for r in data["unresolved"])
+def test_management_confirmations_are_applied_exactly(data):
+    """2026-10-20: سجق الهنا 300/700 = 350/800; Abu Hashem «سجق» = سجق 350, «350جرام»/«800جرام» = كفته 350/800."""
+    by_row = {r["row"]: r for r in data["rows"]}
+    assert {row: by_row[row]["item_code"] for row in sc.CONFIRMED} == {5: "108", 6: "99", 47: "7", 55: "8", 56: "114"}
+    assert {row: by_row[row]["name"] for row in sc.CONFIRMED} == {row: c[0] for row, c in sc.CONFIRMED.items()}
+    assert data["unresolved"] == []                       # every nameless / weightless row is now confirmed
+
+
+def test_unit_standard_is_the_file_total_except_the_override(data):
+    """«سجق الهنا 5 ك» uses 135.09 (management); the file's 234.68 is kept beside it, unchanged."""
+    for r in data["rows"]:
+        if r["row"] == 7:
+            assert r["name"] == "سجق الهنا 5 ك" and r["item_code"] == "257"
+            assert r["std"] == 135.09 and r["total"] == pytest.approx(234.6755) and "234.68" in r["std_basis"]
+        else:
+            assert r["std"] == r["total"] and r["std_basis"] == "الملف", r
 
 
 def test_rebuilding_gives_the_committed_file(data):

@@ -10,7 +10,12 @@ Rules:
     same block (the Abu Hashem blocks name the product once, then only the weight). A
     block that never names its product is reported in ``unresolved``, not guessed;
   * a row is linked to a sales item code only through the signature (type / brand /
-    size) of ``src/ops_ingest.py`` and only when exactly one sales item has it.
+    size) of ``src/ops_ingest.py`` and only when exactly one sales item has it — or
+    through an explicit management confirmation in ``CONFIRMED`` (2026-10-20);
+  * the file's mixture, packaging and total are never changed. The unit standard used
+    (``std``) is the file total, except where the management set it (``STD_OVERRIDE``).
+    Both tables are keyed by the file row AND its name as read, so a changed workbook
+    stops the build instead of linking the wrong row.
 
     python3 -m src.standard_cost        # from executive_dashboard/
 """
@@ -29,6 +34,19 @@ SRC = REPO_ROOT / "data" / "raw" / "cost" / "standard_cost.xlsx"
 OUT_JSON = REPO_ROOT / "data" / "processed" / "standard_cost.json"
 SHEET = "ورقة1"
 BRAND_ROWS = {"الهنا": "الهنا", "اسباشيل": "اسباشيل", "ابو هاشم": "ابو هاشم"}
+
+DECIDED = "تأكيد الإدارة 20/10/2026"
+# file row -> (name as read, product, sales item code): packs the file names differently
+# from sales (300/700 = 350/800), or names only the product or only the weight.
+CONFIRMED = {
+    5: ("سجق الهنا 300", "سجق", "108"),
+    6: ("سجق الهنا 700", "سجق", "99"),
+    47: ("سجق", "سجق", "7"),
+    55: ("350جرام", "كفته", "8"),
+    56: ("800جرام", "كفته", "114"),
+}
+# file row -> (name as read, unit standard set by the management)
+STD_OVERRIDE = {7: ("سجق الهنا 5 ك", 135.09)}
 
 
 def _cells(row) -> list:
@@ -67,6 +85,14 @@ def parse(path: Path = SRC) -> tuple[list, list]:
             ptype = own
         typ = own or ptype
         rec = {"row": i, "brand": brand, "name": name, "mix": round(mix, 4), "pack": round(pack, 4), "total": round(total, 4)}
+        if i in CONFIRMED:
+            cname, cprod, _code = CONFIRMED[i]
+            assert name == cname, f"row {i}: «{name}» is not the confirmed «{cname}»"
+            rec["product"] = cprod
+            brand_word = "" if any(w in nn for w, _ in BRANDS) else brand
+            rec["key"] = clean_text(f"{name if cprod in nn else cprod + ' ' + name} {brand_word}")
+            rows.append(rec)
+            continue
         if not typ:
             rec["reason"] = "الكتلة لا تسمّي المنتج (الوزن فقط)"
             unresolved.append(rec)
@@ -85,15 +111,32 @@ def parse(path: Path = SRC) -> tuple[list, list]:
 def build() -> dict:
     rows, unresolved = parse()
     items = load_items()
+    names = {it["code"]: it["name"] for it in items}
     for r in rows:
-        r.update(link(r["key"], items))
+        c = CONFIRMED.get(r["row"])
+        if c:
+            assert c[2] in names, f"row {r['row']}: confirmed code {c[2]} is not a sales item"
+            r.update({"item_code": c[2], "item_name_sales": names[c[2]], "match": "عالية",
+                      "match_basis": f"{DECIDED} — «{r['name']}» = «{names[c[2]]}»"})
+        else:
+            r.update(link(r["key"], items))
+        o = STD_OVERRIDE.get(r["row"])
+        if o:
+            assert r["name"] == o[0], f"row {r['row']}: «{r['name']}» is not «{o[0]}»"
+            r["std"], r["std_basis"] = o[1], f"{DECIDED} (الملف {r['total']:,.2f})"
+        else:
+            r["std"], r["std_basis"] = r["total"], "الملف"
         sig = signature(r["key"])
         r["signature"] = None if not sig else f"{sig[0]}/{sig[1] or '—'}/{sig[2]}"
     linked = {r["item_code"] for r in rows if r.get("item_code")}
     dup = [c for c in linked if sum(r.get("item_code") == c for r in rows) > 1]
     assert not dup, f"two standard costs for one sales item: {dup}"
+    assert not set(CONFIRMED) - {r["row"] for r in rows}, "a confirmed row was not read"
+    assert not set(STD_OVERRIDE) - {r["row"] for r in rows}, "an overridden row was not read"
     return {"meta": {"source": str(SRC.relative_to(REPO_ROOT)), "sheet": SHEET,
-                     "basis": "تكلفة معيارية للعبوة = الخلطة + التغليف (تأكيد الإدارة 20/10/2026)"},
+                     "basis": "تكلفة معيارية للعبوة = الخلطة + التغليف (تأكيد الإدارة 20/10/2026)",
+                     "decisions": DECIDED + ": سجق الهنا 300/700 = 350/800؛ صفوف أبو هاشم «سجق» = سجق 350، "
+                                  "«350جرام»/«800جرام» = كفته 350/800؛ معيار سجق الهنا 5 كيلو = 135.09"},
             "rows": rows, "unresolved": unresolved,
             "unmatched": [r for r in rows if not r.get("item_code")]}
 
@@ -102,7 +145,7 @@ def main() -> int:
     payload = build()
     OUT_JSON.write_text(json.dumps(payload, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     for r in payload["rows"]:
-        print(f"{r['brand']:>9} | {r['key']:<22} | {r['total']:>9.2f} | {r.get('item_code') or '—':>5} | {r['match_basis']}")
+        print(f"{r['brand']:>9} | {r['key']:<22} | {r['std']:>9.2f} | {r.get('item_code') or '—':>5} | {r['match_basis']}")
     for r in payload["unresolved"]:
         print(f"unresolved row {r['row']}: {r['brand']} «{r['name']}» {r['total']:.2f} — {r['reason']}")
     print(f"wrote {OUT_JSON.relative_to(REPO_ROOT)} — {sum(1 for r in payload['rows'] if r.get('item_code'))} linked, "

@@ -205,7 +205,8 @@ def test_standard_cost_variance(page):
     statement show «يحتاج بيانات». Per SKU only the standard margin at the invoiced price is shown."""
     text = go(page, "bi_std")
     z = page.evaluate("() => window.__abhApp.biStd(window.__abhApp.state.api.D)")
-    assert z["linked"] >= 10 and z["months"]
+    assert z["linked"] >= 15 and z["months"]
+    assert "257" not in {c["code"] for c in z["cons"]}                 # 257 now uses the confirmed 135.09
     for m in z["months"]:
         assert 0 < m["cov"] <= 1 and m["stdCogs"] > 0, m["month"]
         if m["actR"] is None:
@@ -216,5 +217,6 @@ def test_standard_cost_variance(page):
         if s["price"] is not None:
             assert s["std_margin"] == pytest.approx((s["price"] - s["std"]) / s["price"])
     assert "لا تكلفة فعلية مستقلة لكل صنف" in text and "صفوف في الملف لم تُربط بصنف مبيعات" in text
+    assert "قرارات الإدارة على ملف التكلفة المعيارية" in text and "135.09" in text
     if any(m["actR"] is None for m in z["months"]):
         assert "يحتاج بيانات" in text
