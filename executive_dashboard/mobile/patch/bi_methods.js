@@ -335,7 +335,7 @@
     const hank=S.rows.filter(r=>r.item_code&&r.hank_qty!=null).map(r=>{
       const x=jun(r), u=x?(x.revenue-x.gross_profit)/x.qty:null, gap=u==null?null:U(r)-u, rest=gap==null?null:gap-r.hank_cost;
       return {code:r.item_code,name:x?x.item_name:r.key,brand:r.brand,std:U(r),hank:r.hank_cost,hank_qty:r.hank_qty,hank_price:r.hank_price,
-        per_kg:r.hank_per_kg,in_file:r.hank_in_file,model:u,gap,rest,qty:x?x.qty:0,
+        per_kg:r.hank_per_kg,model:u,gap,rest,qty:x?x.qty:0,
         status:gap==null?null:Math.min(Math.abs(gap),Math.abs(rest))>0.1*U(r)?"غير مفسَّر":Math.abs(gap)<=Math.abs(rest)?"متفق":"النموذج بلا هانك"}; });
     const decided=S.rows.filter(r=>basis(r)!=="الملف");
     return {months,sku,skuMonth,cons,hank,decided,linked:std.size,unmatched:S.unmatched,unresolved:S.unresolved};
@@ -381,10 +381,11 @@
     const hk=Z.hank.filter(r=>r.model!=null), hc=hk.filter(r=>r.status==="النموذج بلا هانك"), hu=hk.filter(r=>r.status==="غير مفسَّر");
     const hImp=hc.reduce((a,r)=>a+r.hank*r.qty,0);
     if(hk.length) out.push(this.card("السجق: المعيار شامل الهانك مقابل نموذج الربحية — يونيو 2026",this.fsTable("bsdh",
-      ["الصنف","المعيار","منه الهانك","الهانك في الملف","تكلفة النموذج للوحدة","الفرق","الحكم","الكمية"],
-      hk.map(r=>[r.name,r2(r.std),r2(r.hank),r.in_file?"نعم":"أُضيف",r2(r.model),r2(r.gap),
+      ["الصنف","المعيار","منه الهانك","تكلفة النموذج للوحدة","الفرق","الحكم","الكمية"],
+      hk.map(r=>[r.name,r2(r.std),r2(r.hank),r2(r.model),r2(r.gap),
         {v:r.status,c:{"متفق":"#6ee7b7","النموذج بلا هانك":"#fca5a5"}[r.status]||"#fcd34d"},this.fsC(r.qty)])),
-      {k:"bsd5",approx:true,sub:"الهانك "+(+Z.hank[0].per_kg).toFixed(4)+" لكل كيلو سجق بسعر "+r2(Z.hank[0].hank_price).v+" (السعر من الملف، الكمية بتأكيد الإدارة) · "
+      {k:"bsd5",approx:true,sub:"الهانك "+(+Z.hank[0].per_kg).toFixed(4)+" لكل كيلو سجق (تأكيد الإدارة) بسعره في ورقة وصفة كل علامة: "
+        +[...new Map(Z.hank.map(r=>[r.brand,r.hank_price])).entries()].map(([b,p])=>b+" "+r2(p).v).join("، ")+" · "
         +"الحكم بأقرب تفسير للفرق: ≈ صفر «متفق»، ≈ الهانك «النموذج بلا هانك» (البقية فرق وزن العجينة 300/700 مقابل 350/800)، غير ذلك «غير مفسَّر»"}));
     out.push(this.opsDecision("bsdd",[
       top.length?{t:"أوقف البيع دون المعيار: "+top.map(r=>r.name).join("، ")+" — سعرها أقل من تكلفة خلطتها وتغليفها.",tag:"v"}:null,

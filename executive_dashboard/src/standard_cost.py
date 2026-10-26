@@ -13,11 +13,11 @@ Rules:
     size) of ``src/ops_ingest.py`` and only when exactly one sales item has it — or
     through an explicit management confirmation in ``CONFIRMED`` (2026-10-20);
   * the file's mixture, packaging and total are never changed. The unit standard used
-    (``std``) is the file total, except that every kilo of sausage of any brand carries
-    0.0666666667 casing (هانك, management 26/10/2026): where the brand's file figure leaves
-    the casing out (``CASING_IN_FILE``) it is added. The casing price is read from the file
-    (الهنا 5 ك sausage − its paste, ÷ its casing) and the build checks that every الهنا
-    sausage mix is exactly paste × weight + casing × that price.
+    (``std``) is the file total. Every kilo of sausage of any brand carries 0.0666666667
+    casing (هانك, management 26/10/2026); each brand's recipe sheet in the same workbook adds
+    the casing cost per kilo to the paste price (``CASING_CELLS``, found by label, not by
+    position), so the sausage figures in «ورقة1» already include it. The build reads that
+    cost, and checks for الهنا that every sausage mix is exactly paste × weight + casing.
     Both tables are keyed by the file row AND its name as read, so a changed workbook
     stops the build instead of linking the wrong row.
 
@@ -52,9 +52,11 @@ CONFIRMED = {
 # Casing (هانك), management 26/10/2026: 0.0666666667 per kilo of sausage, any brand.
 DECIDED_FILE = "تأكيد الإدارة 26/10/2026"
 HANK_PER_KG = 0.0666666667
-# Whether the brand's file figure already includes the casing: الهنا is proven from the file
-# (see apply_hank), أبو هاشم and اسباشيل were answered by the management.
-CASING_IN_FILE = {"الهنا": True, "ابو هاشم": True, "اسباشيل": False}
+# brand -> (recipe sheet, casing label, the block header it sits under or None): the cell to
+# the right of the label is the casing cost per kilo of sausage that the sheet adds to the paste.
+CASING_CELLS = {"الهنا": ("الهنا", "هانك", None),
+                "ابو هاشم": ("الهاشم", "هنكات للكيلو", "تكلفه سجق ابوهاشم"),
+                "اسباشيل": ("اسبشيال 2026", "هانك", None)}
 HANK_PASTE = (8, "عجينة سجق 5 ك")      # الهنا 5 ك paste: the same mix as row 7 without casing
 HANK_REF = (7, "سجق الهنا 5 ك")         # casing price = (row 7 mix − paste mix) / row 7 casing
 KG_CONFIRMED = {47: 0.35}               # «سجق» names no weight; confirmed = سجق 350 جم ابو هاشم
@@ -126,33 +128,62 @@ def _kg(r: dict):
     return sig[2] / 1000 if sig and isinstance(sig[2], (int, float)) else None
 
 
-def apply_hank(rows: list) -> float:
-    """Casing on every sausage row (not the paste rows). The price comes from the file; every
-    الهنا sausage mix must equal paste-per-kg × weight + casing × price (±0.01), which is what
-    proves الهنا includes it. Where a brand leaves it out, it is added to `std`."""
+def _num(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def read_casing(path: Path = SRC) -> dict:
+    """brand -> (casing cost per kilo of sausage, "sheet!cell"), from each brand's recipe sheet."""
+    import openpyxl  # local import: keeps the module importable without it (as in statements.py)
+
+    wb = openpyxl.load_workbook(path, data_only=True)
+    out = {}
+    for brand, (sheet, label, header) in CASING_CELLS.items():
+        ws = wb[sheet]
+        cells = [c for row in ws.iter_rows() for c in row if isinstance(c.value, str)]
+        col = None
+        if header:
+            hs = [c for c in cells if clean_text(c.value) == header]
+            assert len(hs) == 1, f"{sheet}: header «{header}» found {len(hs)} times"
+            col = hs[0].column
+        hits = [c for c in cells if clean_text(c.value) == label and (col is None or c.column == col)]
+        assert len(hits) == 1, f"{sheet}: casing label «{label}» found {len(hits)} times"
+        lab = hits[0]
+        val = next(((ws.cell(lab.row, c).coordinate, _num(ws.cell(lab.row, c).value))
+                    for c in range(lab.column + 1, lab.column + 4) if _num(ws.cell(lab.row, c).value) is not None), None)
+        assert val and val[1] > 0, f"{sheet}: no casing cost next to «{label}»"
+        out[brand] = (val[1], f"{sheet}!{val[0]}")
+    return out
+
+
+def apply_hank(rows: list, casing: dict) -> float:
+    """Casing on every sausage row (not the paste rows), at the cost per kilo its brand's recipe
+    sheet adds. For الهنا the summary itself proves it: (sausage 5 ك − paste 5 ك) ÷ 5 must equal
+    that sheet's casing cost, and every الهنا sausage mix = paste-per-kg × weight + casing."""
     by = {r["row"]: r for r in rows}
     paste, ref = by.get(HANK_PASTE[0]), by.get(HANK_REF[0])
     assert paste and paste["name"] == HANK_PASTE[1], f"row {HANK_PASTE[0]} is not «{HANK_PASTE[1]}»"
     assert ref and ref["name"] == HANK_REF[1], f"row {HANK_REF[0]} is not «{HANK_REF[1]}»"
-    price = (ref["mix"] - paste["mix"]) / (HANK_PER_KG * _kg(ref))
     per_kg = paste["mix"] / _kg(paste)
+    assert abs((ref["mix"] - paste["mix"]) / _kg(ref) - casing["الهنا"][0]) <= 0.01, "الهنا casing ≠ its recipe sheet"
     sausages = [r for r in rows if (signature(r["key"]) or ("",))[0] == "سجق"
                 or r["row"] in CONFIRMED and CONFIRMED[r["row"]][1] == "سجق"]  # paste is «عجينه-سجق», not sausage
-    assert {r["brand"] for r in sausages} == set(CASING_IN_FILE), "a sausage brand has no casing decision"
+    assert {r["brand"] for r in sausages} == set(casing), "a sausage brand has no casing in its recipe sheet"
     for r in sausages:
         kg = _kg(r)
         assert kg, f"row {r['row']}: sausage without a weight"
-        qty, cost = HANK_PER_KG * kg, HANK_PER_KG * kg * price
+        kg_cost, cell = casing[r["brand"]]
+        price = kg_cost / HANK_PER_KG                       # per casing: 300 (الهنا, أبو هاشم), 250 (اسباشيل)
+        qty, cost = HANK_PER_KG * kg, kg_cost * kg
         if r["brand"] == "الهنا":
             assert abs(per_kg * kg + cost - r["mix"]) <= 0.01, f"row {r['row']}: mix ≠ paste + casing"
-        inc = CASING_IN_FILE[r["brand"]]
-        r.update(hank_per_kg=HANK_PER_KG, hank_qty=round(qty, 6), hank_price=round(price, 4), hank_cost=round(cost, 4), hank_in_file=inc, cons_ok=True)
-        if inc:
-            r["std_basis"] = f"الملف — {DECIDED_FILE}: يشمل الهانك {qty:.4g} × {price:,.2f} = {cost:,.2f}"
-        else:
-            r["std"] = round(r["total"] + cost, 4)
-            r["std_basis"] = f"الملف {r['total']:,.2f} + الهانك {qty:.4g} × {price:,.2f} = {cost:,.2f} ({DECIDED_FILE})"
-    return price
+        r.update(hank_per_kg=HANK_PER_KG, hank_qty=round(qty, 6), hank_price=round(price, 4), hank_cost=round(cost, 4),
+                 hank_source=cell, cons_ok=True,
+                 std_basis=f"الملف — يشمل الهانك {qty:.4g} × {price:,.2f} = {cost:,.2f} ({cell})")
+    return {b: round(v[0] / HANK_PER_KG, 2) for b, v in casing.items()}
 
 
 def build() -> dict:
@@ -174,13 +205,14 @@ def build() -> dict:
     dup = [c for c in linked if sum(r.get("item_code") == c for r in rows) > 1]
     assert not dup, f"two standard costs for one sales item: {dup}"
     assert not set(CONFIRMED) - {r["row"] for r in rows}, "a confirmed row was not read"
-    hank_price = apply_hank(rows)
+    hank_price = apply_hank(rows, read_casing())
     return {"meta": {"source": str(SRC.relative_to(REPO_ROOT)), "sheet": SHEET,
                      "basis": "تكلفة معيارية للعبوة = الخلطة + التغليف (تأكيد الإدارة 20/10/2026)",
                      "decisions": DECIDED + ": سجق الهنا 300/700 = 350/800؛ صفوف أبو هاشم «سجق» = سجق 350، "
                                   "«350جرام»/«800جرام» = كفته 350/800. "
-                                  + DECIDED_FILE + f": كل كيلو سجق من أي علامة عليه {HANK_PER_KG:.4g} هانك بسعر {hank_price:,.2f}؛ "
-                                  "الهنا وأبو هاشم يشملانه في الملف، واسباشيل يُضاف إليه"},
+                                  + DECIDED_FILE + f": كل كيلو سجق من أي علامة عليه {HANK_PER_KG:.4g} هانك، "
+                                  "وأوراق الوصفات في الملف نفسه تضيف تكلفته إلى سعر العجينة، فمعيار السجق في «ورقة1» يشمله "
+                                  "(سعر الهانك: " + "، ".join(f"{b} {p:,.2f}" for b, p in hank_price.items()) + ")"},
             "rows": rows, "unresolved": unresolved,
             "unmatched": [r for r in rows if not r.get("item_code")]}
 

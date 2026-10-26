@@ -46,30 +46,35 @@ def test_management_confirmations_are_applied_exactly(data):
 
 
 def test_casing_on_every_sausage_kilo(data):
-    """26/10/2026: every kilo of sausage, any brand, carries 0.0666666667 casing at the file's price
-    (300 = (الهنا 5 ك sausage − its paste) ÷ its casing). الهنا and أبو هاشم include it in the file;
-    اسباشيل gets it added. Nothing else changes: std = file total, figures kept as read."""
+    """26/10/2026: every kilo of sausage, any brand, carries 0.0666666667 casing. Each brand's recipe
+    sheet adds its cost to the paste price (الهنا!هانك 20, الهاشم!هنكات للكيلو 20, اسبشيال 2026!هانك
+    250/15), so «ورقة1» already includes it: std = file total for every row, nothing is added."""
     by = {r["row"]: r for r in data["rows"]}
-    price = (by[7]["mix"] - by[8]["mix"]) / (sc.HANK_PER_KG * 5)
-    assert price == pytest.approx(300.0, abs=0.01)
     kg = {5: 0.3, 6: 0.7, 7: 5, 27: 0.3, 28: 0.7, 29: 5, 47: 0.35, 48: 0.8, 49: 3, 50: 5}
+    price = {"الهنا": 300.0, "ابو هاشم": 300.0, "اسباشيل": 250.0}      # per casing = cost per kilo × 15
     assert {r["row"] for r in data["rows"] if "hank_qty" in r} == set(kg)          # paste rows carry none
     paste_kg = by[8]["mix"] / 5
     for row, w in kg.items():
         r = by[row]
         assert r["hank_qty"] == pytest.approx(sc.HANK_PER_KG * w, abs=1e-6)
-        assert r["hank_cost"] == pytest.approx(r["hank_qty"] * price, abs=1e-3)
-        if r["brand"] == "الهنا":
-            assert r["mix"] == pytest.approx(paste_kg * w + r["hank_cost"], abs=0.01)  # proven from the file
-        if r["hank_in_file"]:
-            assert r["std"] == r["total"] and r["std_basis"].startswith("الملف — " + sc.DECIDED_FILE), r
-        else:
-            assert r["brand"] == "اسباشيل" and r["std"] == pytest.approx(r["total"] + r["hank_cost"], abs=1e-3), r
-    assert [round(by[x]["std"], 2) for x in (27, 28, 29)] == [24.11, 51.32, 329.13]
-    assert round(by[7]["std"], 2) == 234.68                                        # the file, not the model's 135.09
+        assert r["hank_price"] == pytest.approx(price[r["brand"]], abs=0.01), r
+        assert r["hank_cost"] == pytest.approx(r["hank_qty"] * r["hank_price"], abs=1e-3)
+        assert r["hank_source"].split("!")[0] == sc.CASING_CELLS[r["brand"]][0]
+        if r["brand"] == "الهنا":                       # proven from «ورقة1» itself: paste + casing
+            assert r["mix"] == pytest.approx(paste_kg * w + r["hank_cost"], abs=0.01)
+        assert r["std"] == r["total"] and "يشمل الهانك" in r["std_basis"], r
+    assert round(by[7]["std"], 2) == 234.68 and [round(by[x]["std"], 2) for x in (27, 28, 29)] == [18.11, 37.32, 229.13]
     for r in data["rows"]:
         if "hank_qty" not in r:
             assert r["std"] == r["total"] and r["std_basis"] == "الملف" and not r.get("cons_ok"), r
+
+
+def test_casing_is_read_from_the_recipe_sheets():
+    pytest.importorskip("openpyxl")
+    if not sc.SRC.exists():
+        pytest.skip("standard_cost.xlsx not present")
+    got = {b: round(v, 4) for b, (v, _cell) in sc.read_casing().items()}
+    assert got == {"الهنا": 20.0, "ابو هاشم": 20.0, "اسباشيل": round(250 / 15, 4)}
 
 
 def test_rebuilding_gives_the_committed_file(data):
