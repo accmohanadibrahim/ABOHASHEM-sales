@@ -45,15 +45,30 @@ def test_management_confirmations_are_applied_exactly(data):
     assert data["unresolved"] == []                       # every nameless / weightless row is now confirmed
 
 
-def test_unit_standard_is_the_file_total_except_the_override(data):
-    """«سجق الهنا 5 ك» uses 135.09 (management); the file's 234.68 is kept beside it, unchanged."""
-    for r in data["rows"]:
-        if r["row"] == 7:
-            assert r["name"] == "سجق الهنا 5 ك" and r["item_code"] == "257"
-            assert r["std"] == 135.09 and r["total"] == pytest.approx(234.6755) and "234.68" in r["std_basis"]
-        elif r["row"] in sc.FILE_CONFIRMED:                  # 26/10/2026: the file, not the model, is the standard
-            assert r["std"] == r["total"] and r["cons_ok"] and r["std_basis"].startswith("الملف — " + sc.DECIDED_FILE), r
+def test_casing_on_every_sausage_kilo(data):
+    """26/10/2026: every kilo of sausage, any brand, carries 0.0666666667 casing at the file's price
+    (300 = (الهنا 5 ك sausage − its paste) ÷ its casing). الهنا and أبو هاشم include it in the file;
+    اسباشيل gets it added. Nothing else changes: std = file total, figures kept as read."""
+    by = {r["row"]: r for r in data["rows"]}
+    price = (by[7]["mix"] - by[8]["mix"]) / (sc.HANK_PER_KG * 5)
+    assert price == pytest.approx(300.0, abs=0.01)
+    kg = {5: 0.3, 6: 0.7, 7: 5, 27: 0.3, 28: 0.7, 29: 5, 47: 0.35, 48: 0.8, 49: 3, 50: 5}
+    assert {r["row"] for r in data["rows"] if "hank_qty" in r} == set(kg)          # paste rows carry none
+    paste_kg = by[8]["mix"] / 5
+    for row, w in kg.items():
+        r = by[row]
+        assert r["hank_qty"] == pytest.approx(sc.HANK_PER_KG * w, abs=1e-6)
+        assert r["hank_cost"] == pytest.approx(r["hank_qty"] * price, abs=1e-3)
+        if r["brand"] == "الهنا":
+            assert r["mix"] == pytest.approx(paste_kg * w + r["hank_cost"], abs=0.01)  # proven from the file
+        if r["hank_in_file"]:
+            assert r["std"] == r["total"] and r["std_basis"].startswith("الملف — " + sc.DECIDED_FILE), r
         else:
+            assert r["brand"] == "اسباشيل" and r["std"] == pytest.approx(r["total"] + r["hank_cost"], abs=1e-3), r
+    assert [round(by[x]["std"], 2) for x in (27, 28, 29)] == [24.11, 51.32, 329.13]
+    assert round(by[7]["std"], 2) == 234.68                                        # the file, not the model's 135.09
+    for r in data["rows"]:
+        if "hank_qty" not in r:
             assert r["std"] == r["total"] and r["std_basis"] == "الملف" and not r.get("cons_ok"), r
 
 

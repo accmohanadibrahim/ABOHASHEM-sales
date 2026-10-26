@@ -13,7 +13,11 @@ Rules:
     size) of ``src/ops_ingest.py`` and only when exactly one sales item has it — or
     through an explicit management confirmation in ``CONFIRMED`` (2026-10-20);
   * the file's mixture, packaging and total are never changed. The unit standard used
-    (``std``) is the file total, except where the management set it (``STD_OVERRIDE``).
+    (``std``) is the file total, except that every kilo of sausage of any brand carries
+    0.0666666667 casing (هانك, management 26/10/2026): where the brand's file figure leaves
+    the casing out (``CASING_IN_FILE``) it is added. The casing price is read from the file
+    (الهنا 5 ك sausage − its paste, ÷ its casing) and the build checks that every الهنا
+    sausage mix is exactly paste × weight + casing × that price.
     Both tables are keyed by the file row AND its name as read, so a changed workbook
     stops the build instead of linking the wrong row.
 
@@ -45,12 +49,15 @@ CONFIRMED = {
     55: ("350جرام", "كفته", "8"),
     56: ("800جرام", "كفته", "114"),
 }
-# file row -> (name as read, unit standard set by the management)
-STD_OVERRIDE = {7: ("سجق الهنا 5 ك", 135.09)}
-# file row -> name as read: the management confirmed the file figure is the standard even
-# though the profitability model costs the unit lower (the consistency check is closed).
+# Casing (هانك), management 26/10/2026: 0.0666666667 per kilo of sausage, any brand.
 DECIDED_FILE = "تأكيد الإدارة 26/10/2026"
-FILE_CONFIRMED = {5: "سجق الهنا 300", 6: "سجق الهنا 700"}
+HANK_PER_KG = 0.0666666667
+# Whether the brand's file figure already includes the casing: الهنا is proven from the file
+# (see apply_hank), أبو هاشم and اسباشيل were answered by the management.
+CASING_IN_FILE = {"الهنا": True, "ابو هاشم": True, "اسباشيل": False}
+HANK_PASTE = (8, "عجينة سجق 5 ك")      # الهنا 5 ك paste: the same mix as row 7 without casing
+HANK_REF = (7, "سجق الهنا 5 ك")         # casing price = (row 7 mix − paste mix) / row 7 casing
+KG_CONFIRMED = {47: 0.35}               # «سجق» names no weight; confirmed = سجق 350 جم ابو هاشم
 
 
 def _cells(row) -> list:
@@ -112,6 +119,42 @@ def parse(path: Path = SRC) -> tuple[list, list]:
     return rows, unresolved
 
 
+def _kg(r: dict):
+    if r["row"] in KG_CONFIRMED:
+        return KG_CONFIRMED[r["row"]]
+    sig = signature(r["key"])
+    return sig[2] / 1000 if sig and isinstance(sig[2], (int, float)) else None
+
+
+def apply_hank(rows: list) -> float:
+    """Casing on every sausage row (not the paste rows). The price comes from the file; every
+    الهنا sausage mix must equal paste-per-kg × weight + casing × price (±0.01), which is what
+    proves الهنا includes it. Where a brand leaves it out, it is added to `std`."""
+    by = {r["row"]: r for r in rows}
+    paste, ref = by.get(HANK_PASTE[0]), by.get(HANK_REF[0])
+    assert paste and paste["name"] == HANK_PASTE[1], f"row {HANK_PASTE[0]} is not «{HANK_PASTE[1]}»"
+    assert ref and ref["name"] == HANK_REF[1], f"row {HANK_REF[0]} is not «{HANK_REF[1]}»"
+    price = (ref["mix"] - paste["mix"]) / (HANK_PER_KG * _kg(ref))
+    per_kg = paste["mix"] / _kg(paste)
+    sausages = [r for r in rows if (signature(r["key"]) or ("",))[0] == "سجق"
+                or r["row"] in CONFIRMED and CONFIRMED[r["row"]][1] == "سجق"]  # paste is «عجينه-سجق», not sausage
+    assert {r["brand"] for r in sausages} == set(CASING_IN_FILE), "a sausage brand has no casing decision"
+    for r in sausages:
+        kg = _kg(r)
+        assert kg, f"row {r['row']}: sausage without a weight"
+        qty, cost = HANK_PER_KG * kg, HANK_PER_KG * kg * price
+        if r["brand"] == "الهنا":
+            assert abs(per_kg * kg + cost - r["mix"]) <= 0.01, f"row {r['row']}: mix ≠ paste + casing"
+        inc = CASING_IN_FILE[r["brand"]]
+        r.update(hank_per_kg=HANK_PER_KG, hank_qty=round(qty, 6), hank_price=round(price, 4), hank_cost=round(cost, 4), hank_in_file=inc, cons_ok=True)
+        if inc:
+            r["std_basis"] = f"الملف — {DECIDED_FILE}: يشمل الهانك {qty:.4g} × {price:,.2f} = {cost:,.2f}"
+        else:
+            r["std"] = round(r["total"] + cost, 4)
+            r["std_basis"] = f"الملف {r['total']:,.2f} + الهانك {qty:.4g} × {price:,.2f} = {cost:,.2f} ({DECIDED_FILE})"
+    return price
+
+
 def build() -> dict:
     rows, unresolved = parse()
     items = load_items()
@@ -124,29 +167,20 @@ def build() -> dict:
                       "match_basis": f"{DECIDED} — «{r['name']}» = «{names[c[2]]}»"})
         else:
             r.update(link(r["key"], items))
-        o = STD_OVERRIDE.get(r["row"])
-        if o:
-            assert r["name"] == o[0], f"row {r['row']}: «{r['name']}» is not «{o[0]}»"
-            r["std"], r["std_basis"] = o[1], f"{DECIDED} (الملف {r['total']:,.2f})"
-        elif r["row"] in FILE_CONFIRMED:
-            assert r["name"] == FILE_CONFIRMED[r["row"]], f"row {r['row']}: «{r['name']}» is not «{FILE_CONFIRMED[r['row']]}»"
-            r["std"], r["cons_ok"] = r["total"], True
-            r["std_basis"] = f"الملف — {DECIDED_FILE}: المعيار هو الملف لا نموذج الربحية"
-        else:
-            r["std"], r["std_basis"] = r["total"], "الملف"
+        r["std"], r["std_basis"] = r["total"], "الملف"
         sig = signature(r["key"])
         r["signature"] = None if not sig else f"{sig[0]}/{sig[1] or '—'}/{sig[2]}"
     linked = {r["item_code"] for r in rows if r.get("item_code")}
     dup = [c for c in linked if sum(r.get("item_code") == c for r in rows) > 1]
     assert not dup, f"two standard costs for one sales item: {dup}"
     assert not set(CONFIRMED) - {r["row"] for r in rows}, "a confirmed row was not read"
-    assert not set(STD_OVERRIDE) - {r["row"] for r in rows}, "an overridden row was not read"
-    assert not set(FILE_CONFIRMED) - {r["row"] for r in rows}, "a file-confirmed row was not read"
+    hank_price = apply_hank(rows)
     return {"meta": {"source": str(SRC.relative_to(REPO_ROOT)), "sheet": SHEET,
                      "basis": "تكلفة معيارية للعبوة = الخلطة + التغليف (تأكيد الإدارة 20/10/2026)",
                      "decisions": DECIDED + ": سجق الهنا 300/700 = 350/800؛ صفوف أبو هاشم «سجق» = سجق 350، "
-                                  "«350جرام»/«800جرام» = كفته 350/800؛ معيار سجق الهنا 5 كيلو = 135.09. "
-                                  + DECIDED_FILE + ": معيار سجق الهنا 350/800 هو الملف (17.75 / 36.60)"},
+                                  "«350جرام»/«800جرام» = كفته 350/800. "
+                                  + DECIDED_FILE + f": كل كيلو سجق من أي علامة عليه {HANK_PER_KG:.4g} هانك بسعر {hank_price:,.2f}؛ "
+                                  "الهنا وأبو هاشم يشملانه في الملف، واسباشيل يُضاف إليه"},
             "rows": rows, "unresolved": unresolved,
             "unmatched": [r for r in rows if not r.get("item_code")]}
 

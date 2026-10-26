@@ -325,13 +325,20 @@
       return {code:r.item_code,name:o.name,brand:r.brand,std:U(r),basis:basis(r),mix:r.mix,pack:r.pack,qty:o.qty,bonus:o.bonus,rev:o.rev,price,
         std_margin:price?(price-U(r))/price:null,std_gp:o.rev-U(r)*(o.qty+o.bonus)}; }).sort((a,b)=>b.rev-a.rev);
     /* فحص اتساق: تكلفة الوحدة التي استعملها نموذج الربحية في يونيو مقابل معيار الملف. */
+    const jun=r=>((M&&M.by_item_month)||[]).find(y=>y.month==="2026-06"&&String(y.item_code)===String(r.item_code)&&y.qty>0);
     const cons=S.rows.filter(r=>r.item_code&&!r.cons_ok).map(r=>{
-      const x=((M&&M.by_item_month)||[]).find(y=>y.month==="2026-06"&&String(y.item_code)===String(r.item_code)&&y.qty>0);
-      const u=x?(x.revenue-x.gross_profit)/x.qty:null;
+      const x=jun(r), u=x?(x.revenue-x.gross_profit)/x.qty:null;
       return {code:r.item_code,name:x?x.item_name:r.key,std:U(r),model:u,diff:u==null?null:(u-U(r))/U(r)}; })
       .filter(r=>r.diff!=null&&Math.abs(r.diff)>0.05);
+    /* السجق: المعيار شامل الهانك (تأكيد الإدارة) مقابل تكلفة الوحدة في نموذج الربحية ليونيو.
+       أقرب تفسير للفرق: ≈ 0 → النموذج متفق؛ ≈ الهانك → النموذج لا يحمّل الهانك؛ وإلا (البقية > 10% من المعيار) غير مفسَّر. */
+    const hank=S.rows.filter(r=>r.item_code&&r.hank_qty!=null).map(r=>{
+      const x=jun(r), u=x?(x.revenue-x.gross_profit)/x.qty:null, gap=u==null?null:U(r)-u, rest=gap==null?null:gap-r.hank_cost;
+      return {code:r.item_code,name:x?x.item_name:r.key,brand:r.brand,std:U(r),hank:r.hank_cost,hank_qty:r.hank_qty,hank_price:r.hank_price,
+        per_kg:r.hank_per_kg,in_file:r.hank_in_file,model:u,gap,rest,qty:x?x.qty:0,
+        status:gap==null?null:Math.min(Math.abs(gap),Math.abs(rest))>0.1*U(r)?"غير مفسَّر":Math.abs(gap)<=Math.abs(rest)?"متفق":"النموذج بلا هانك"}; });
     const decided=S.rows.filter(r=>basis(r)!=="الملف");
-    return {months,sku,skuMonth,cons,decided,linked:std.size,unmatched:S.unmatched,unresolved:S.unresolved};
+    return {months,sku,skuMonth,cons,hank,decided,linked:std.size,unmatched:S.unmatched,unresolved:S.unresolved};
   }
   biStdBody(X,T,api){
     if(!window.DASH_STD) return [this.biNeed("bsd0","ملف التكلفة المعيارية غير مضمن في هذا الملف.")];
@@ -371,9 +378,20 @@
     if(um.length) out.push(this.card("صفوف في الملف لم تُربط بصنف مبيعات",this.fsTable("bsdu",["العلامة","الصف","المعيار","السبب"],um),
       {k:"bsd3",sub:"حجم العبوة في الملف يختلف عن أحجام المبيعات (مثل اسبشيال 400/1ك مقابل صغير/عائلي) أو لا صنف مبيعات مقابل — لا يُربط تخمينًا؛ تحتاج تأكيد الإدارة"}));
     const top=Z.sku.filter(r=>r.std_margin!=null&&r.std_margin<0);
+    const hk=Z.hank.filter(r=>r.model!=null), hc=hk.filter(r=>r.status==="النموذج بلا هانك"), hu=hk.filter(r=>r.status==="غير مفسَّر");
+    const hImp=hc.reduce((a,r)=>a+r.hank*r.qty,0);
+    if(hk.length) out.push(this.card("السجق: المعيار شامل الهانك مقابل نموذج الربحية — يونيو 2026",this.fsTable("bsdh",
+      ["الصنف","المعيار","منه الهانك","الهانك في الملف","تكلفة النموذج للوحدة","الفرق","الحكم","الكمية"],
+      hk.map(r=>[r.name,r2(r.std),r2(r.hank),r.in_file?"نعم":"أُضيف",r2(r.model),r2(r.gap),
+        {v:r.status,c:{"متفق":"#6ee7b7","النموذج بلا هانك":"#fca5a5"}[r.status]||"#fcd34d"},this.fsC(r.qty)])),
+      {k:"bsd5",approx:true,sub:"الهانك "+(+Z.hank[0].per_kg).toFixed(4)+" لكل كيلو سجق بسعر "+r2(Z.hank[0].hank_price).v+" (السعر من الملف، الكمية بتأكيد الإدارة) · "
+        +"الحكم بأقرب تفسير للفرق: ≈ صفر «متفق»، ≈ الهانك «النموذج بلا هانك» (البقية فرق وزن العجينة 300/700 مقابل 350/800)، غير ذلك «غير مفسَّر»"}));
     out.push(this.opsDecision("bsdd",[
       top.length?{t:"أوقف البيع دون المعيار: "+top.map(r=>r.name).join("، ")+" — سعرها أقل من تكلفة خلطتها وتغليفها.",tag:"v"}:null,
       Z.cons.length?{t:"حسم معيار "+Z.cons.map(r=>"«"+r.name+"»").join("، ")+" بين الملف ونموذج الربحية.",tag:"v"}:null,
+      hc.length?{t:"أضف الهانك إلى تكلفة "+hc.map(r=>"«"+r.name+"»").join("، ")+" في نموذج الربحية: مجمل ربحها هناك أعلى من الحقيقي بنحو "
+        +T.egpK(hImp)+" في يونيو (الهانك × الكمية).",tag:"e"}:null,
+      hu.length?{t:"راجع سعر عجينة "+hu.map(r=>"«"+r.name+"»").join("، ")+": الفرق بين المعيار ونموذج الربحية لا يفسّره الهانك.",tag:"v"}:null,
       um.length?{t:"أكّد الصنف المقابل لـ"+um.length+" صفًا غير مربوط لرفع تغطية المبيعات من "+(last?T.pct(last.cov):"—")+".",tag:"v"}:null,
       last&&last.var>0?{t:"الانحراف التقديري "+T.egpK(last.var)+" في "+this.fsMon(last.month)+": افصل أثر الأجور والأعباء (خارج المعيار) قبل اعتباره هدرًا.",tag:"e"}:null]));
     return out;
