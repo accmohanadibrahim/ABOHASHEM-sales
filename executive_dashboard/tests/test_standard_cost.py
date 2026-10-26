@@ -82,3 +82,29 @@ def test_rebuilding_gives_the_committed_file(data):
     if not sc.SRC.exists():
         pytest.skip("standard_cost.xlsx not present")
     assert sc.build() == data
+
+
+def test_monthly_standard_is_the_recipe_at_the_month_average(data):
+    """Management 26/10/2026: kg × the month's paste per kg + casing (sausage rows) + the file's packaging."""
+    mon = data["monthly"]
+    files = {m: json.loads((sc.MONTHLY_DIR / f"{m}.json").read_text(encoding="utf-8")) for m in mon["months"]}
+    assert mon["months"] == sorted(files) == ["2026-08", "2026-09"]
+    rows = {r["row"]: r for r in data["rows"]}
+    assert {r["item_code"] for r in mon["rows"]} == {r["item_code"] for r in data["rows"] if r.get("item_code")}
+    for r in mon["rows"]:
+        f = rows[r["row"]]
+        assert r["file_std"] == f["std"] and r["kg"] == sc.KG_FILE.get(r["row"], sc._kg(f))
+        for m, v in r["by_month"].items():
+            rc = files[m]["recipes"][r["recipe"]]
+            casing = sc.HANK_PER_KG * r["kg"] * files[m]["hank_price"] if f.get("hank_qty") is not None else 0.0
+            assert v["std"] == pytest.approx(r["kg"] * rc["paste_kg"] + casing + f["pack"], abs=1e-3), (r["key"], m)
+    assert next(r for r in mon["rows"] if r["row"] == 39)["kg"] == 0.55      # the file's 600 g burger
+    single = {s["item_code"]: s for s in mon["single"]}
+    assert set(single) == {"1", "2", "33"}
+    assert {c: s["mgmt"] for c, s in single.items()} == {"1": 90.09, "2": 65.75, "33": 264.0}
+    assert single["33"]["by_month"]["2026-09"]["std"] == pytest.approx(files["2026-09"]["pool"] + 2.0, abs=1e-3)
+
+
+def test_monthly_standard_can_be_switched_off(monkeypatch):
+    monkeypatch.setattr(sc, "MONTHLY", False)
+    assert sc.monthly([], {}) is None

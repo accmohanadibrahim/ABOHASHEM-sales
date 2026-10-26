@@ -226,3 +226,28 @@ def test_standard_cost_variance(page):
     assert "السجق: المعيار شامل الهانك مقابل نموذج الربحية" in text and "فحص اتساق" not in text
     if any(m["actR"] is None for m in z["months"]):
         assert "يحتاج بيانات" in text
+
+
+def test_monthly_standard(page):
+    """Beside the file standard: each linked pack at the month's recipe prices; the file standard
+    and the monthly variance table above are unchanged."""
+    text = go(page, "bi_std")
+    z = page.evaluate("() => window.__abhApp.biStd(window.__abhApp.state.api.D)")
+    q = z["mon"]
+    assert q["list"] == ["2026-08", "2026-09"]
+    sold = [m for m in q["months"] if m["rev"]]
+    assert [m["month"] for m in sold] == ["2026-08"]          # the 04/09 snapshot has no September lines
+    for m in sold:
+        assert m["missing"] == 0
+        assert m["fileR"] == pytest.approx(m["file"] / m["rev"]) and m["monR"] == pytest.approx(m["mon"] / m["rev"])
+    assert "يحتاج بيانات" in text and "لحساب نسبة التكلفة بمعيار الشهر" in text
+    for r in q["rows"]:
+        for v in r["by"].values():
+            assert v["std"] == pytest.approx(v["paste"] + v["casing"] + v["pack"], abs=1e-3)
+    s = {r["code"]: r for r in q["singles"]}
+    assert s["1"]["by"]["2026-09"]["std"] == pytest.approx(0.32 * 260.2402 + 6.25, abs=1e-3)
+    assert s["2"]["by"]["2026-09"]["std"] == pytest.approx(0.34 * 168.6305 + 6.25, abs=1e-3)
+    assert "المعيار الشهري: الوصفة بمتوسط سعر آخر الشهر" in text and "89.53" in text and "90.09" in text
+    assert "2026-08" in {m["month"] for m in z["months"]}                # the existing table still lists it
+    tabs = page.evaluate("() => window.__abhApp.exportTables().map(t => t.id)")
+    assert "bi_std_monthly" in tabs

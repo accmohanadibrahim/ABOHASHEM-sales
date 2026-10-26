@@ -338,7 +338,30 @@
         per_kg:r.hank_per_kg,model:u,gap,rest,qty:x?x.qty:0,
         status:gap==null?null:Math.min(Math.abs(gap),Math.abs(rest))>0.1*U(r)?"غير مفسَّر":Math.abs(gap)<=Math.abs(rest)?"متفق":"النموذج بلا هانك"}; });
     const decided=S.rows.filter(r=>basis(r)!=="الملف");
-    return {months,sku,skuMonth,cons,hank,decided,linked:std.size,unmatched:S.unmatched,unresolved:S.unresolved};
+    return {months,sku,skuMonth,cons,hank,decided,linked:std.size,unmatched:S.unmatched,unresolved:S.unresolved,mon:this.biStdMonthly(D,S,U)};
+  }
+  /* المعيار الشهري (تأكيد الإدارة 26/10/2026): الوصفة بمتوسط سعر الخامات آخر الشهر — بجوار معيار الملف لا بدلًا منه.
+     لكل شهر له ملف: نسبة التكلفة المعيارية للأصناف المربوطة بمعيار الملف وبمعيار الشهر (نفس الأصناف ونفس الكميات مع البونص)،
+     وأصناف الخامة الواحدة (مفروم/كبده) مستقلة لأنها ليست في الملف. */
+  biStdMonthly(D,S,U){
+    const Mo=S.monthly; if(!Mo) return null;
+    const fileRow=new Map(S.rows.filter(r=>r.item_code).map(r=>[String(r.item_code),r]));
+    const monRow=new Map(Mo.rows.map(r=>[String(r.item_code),r])), single=new Map(Mo.single.map(r=>[String(r.item_code),r]));
+    const names={}, by={};
+    Mo.months.forEach(m=>{ by[m]={month:m,rev:0,file:0,mon:0,missing:0,sRev:0,sStd:0,sQty:0}; });
+    (D.lines||[]).forEach(l=>{ const c=String(l.item_code); names[c]=names[c]||l.item_name; const o=by[l.month]; if(!o) return;
+      const q=+l.qty||0, t=+l.line_total||0, f=fileRow.get(c), mr=monRow.get(c), sr=single.get(c);
+      if(f){ const x=mr&&mr.by_month[l.month]; o.rev+=t; o.file+=q*U(f);
+        if(x&&x.std!=null) o.mon+=q*x.std; else { o.mon+=q*U(f); o.missing+=q; } }
+      else if(sr){ const x=sr.by_month[l.month]; o.sRev+=t; o.sQty+=q; if(x&&x.std!=null) o.sStd+=q*x.std; } });
+    const months=Mo.months.map(m=>{ const o=by[m];
+      return {...o,fileR:o.rev?o.file/o.rev:null,monR:o.rev?o.mon/o.rev:null,sR:o.sRev?o.sStd/o.sRev:null}; });
+    const last=Mo.months[Mo.months.length-1];
+    const rows=Mo.rows.map(r=>({code:r.item_code,name:names[r.item_code]||r.key,recipe:r.recipe,kg:r.kg,file:r.file_std,
+      by:r.by_month,chg:r.by_month[last]&&r.by_month[last].std!=null?r.by_month[last].std/r.file_std-1:null}));
+    const singles=Mo.single.map(r=>({code:r.item_code,name:names[r.item_code]||r.item_name_sales,recipe:r.recipe,mgmt:r.mgmt,
+      mgmt_basis:r.mgmt_basis,by:r.by_month,chg:r.by_month[last]&&r.by_month[last].std!=null?r.by_month[last].std/r.mgmt-1:null}));
+    return {months,rows,singles,list:Mo.months,last,basis:Mo.basis,hank:Mo.hank_price,pool:Mo.pool};
   }
   biStdBody(X,T,api){
     if(!window.DASH_STD) return [this.biNeed("bsd0","ملف التكلفة المعيارية غير مضمن في هذا الملف.")];
@@ -387,6 +410,27 @@
       {k:"bsd5",approx:true,sub:"الهانك "+(+Z.hank[0].per_kg).toFixed(4)+" لكل كيلو سجق (تأكيد الإدارة) بسعره في ورقة وصفة كل علامة: "
         +[...new Map(Z.hank.map(r=>[r.brand,r.hank_price])).entries()].map(([b,p])=>b+" "+r2(p).v).join("، ")+" · "
         +"الحكم بأقرب تفسير للفرق: ≈ صفر «متفق»، ≈ الهانك «النموذج بلا هانك» (البقية فرق وزن العجينة 300/700 مقابل 350/800)، غير ذلك «غير مفسَّر»"}));
+    const Q=Z.mon;
+    if(Q){
+      const hm=Q.list.map(m=>"المعيار "+this.fsMon(m));
+      out.push(this.card("المعيار الشهري: الوصفة بمتوسط سعر آخر الشهر",[
+        this.fsTable("bsdw",["الشهر","إيراد الأصناف المربوطة","نسبة التكلفة بمعيار الملف","نسبة التكلفة بمعيار الشهر","الفرق (نقطة)"],
+          Q.months.map(r=>r.rev?[this.fsMon(r.month),this.fsC(r.rev),this.fsC(r.fileR,"pct"),this.fsC(r.monR,"pct"),
+            {v:((r.monR-r.fileR)*100).toFixed(1),c:r.monR>r.fileR?"#fca5a5":"#6ee7b7"}]
+            :[this.fsMon(r.month),{v:"يحتاج بيانات",c:"#c4b5fd"},"—","—","—"])),
+        this.fsTable("bsdv",["الصنف","الكود","الوصفة","معيار الملف"].concat(hm,["التغير عن الملف"]),
+          Q.rows.map(r=>[r.name,r.code,r.recipe+(r.kg!=null?" × "+r.kg+" كجم":""),r2(r.file)].concat(
+            Q.list.map(m=>r.by[m]&&r.by[m].std!=null?r2(r.by[m].std):{v:"يحتاج بيانات",c:"#c4b5fd"}),
+            [r.chg==null?"—":{v:T.pct(r.chg),c:r.chg>0?"#fca5a5":"#6ee7b7"}])).concat(
+          Q.singles.map(r=>[r.name,r.code,r.recipe,{v:r2(r.mgmt).v+" (الإدارة: "+r.mgmt_basis+")"}].concat(
+            Q.list.map(m=>r.by[m]&&r.by[m].std!=null?r2(r.by[m].std):{v:"يحتاج بيانات",c:"#c4b5fd"}),
+            [r.chg==null?"—":{v:T.pct(r.chg),c:r.chg>0?"#fca5a5":"#6ee7b7"}])))),
+        Q.months.some(r=>!r.rev)?this.biNeed("bsdwn","مبيعات "+Q.months.filter(r=>!r.rev).map(r=>this.fsMon(r.month)).join(" و")
+          +" (اللقطة الحالية تنتهي قبلها) لحساب نسبة التكلفة بمعيار الشهر."):null].filter(Boolean),
+        {k:"bsd6",sub:"مُتحقَّق: "+Q.basis+" — سعر كجم العجينة من وصفة كل منتج بمتوسط الشهر، والسجق + الهانك 1/15 للكيلو بمتوسط الهانك ("
+          +Q.list.map(m=>this.fsMon(m)+" "+r2(Q.hank[m]).v).join("، ")+")، والتغليف من الملف كما هو · "
+          +"المفروم والكبدة بوصفة الإدارة ومتوسط اللحم الهندي/الكبدة · لا يُغيّر معيار الملف ولا الجدول الشهري أعلاه"}));
+    }
     out.push(this.opsDecision("bsdd",[
       top.length?{t:"أوقف البيع دون المعيار: "+top.map(r=>r.name).join("، ")+" — سعرها أقل من تكلفة خلطتها وتغليفها.",tag:"v"}:null,
       Z.cons.length?{t:"حسم معيار "+Z.cons.map(r=>"«"+r.name+"»").join("، ")+" بين الملف ونموذج الربحية.",tag:"v"}:null,
@@ -670,6 +714,11 @@
           col("الكود","code"), col("الصنف","name"), col("المعيار",null,r=>num(r.std)), col("أساس المعيار","basis"), col("متوسط سعر البيع",null,r=>r.price==null?"":num(r.price)),
           col("الهامش المعياري",null,r=>r.std_margin==null?"":num(r.std_margin)), col("الكمية",null,r=>num(r.qty)), col("بونص",null,r=>num(r.bonus)),
           col("الإيراد",null,r=>num(r.rev)), col("مجمل الربح المعياري",null,r=>num(r.std_gp))]});
+      if(Z.mon) out.push({id:"bi_std_monthly",label:"ذكاء الأعمال — المعيار الشهري (الوصفة بمتوسط آخر الشهر)",
+        rows:Z.mon.rows.concat(Z.mon.singles),columns:[
+          col("الكود","code"), col("الصنف","name"), col("الوصفة","recipe"), col("كجم",null,r=>r.kg==null?"":num(r.kg)),
+          col("معيار الملف / الإدارة",null,r=>num(r.file!=null?r.file:r.mgmt))].concat(
+          Z.mon.list.map(m=>col("المعيار "+m,null,r=>r.by[m]&&r.by[m].std!=null?num(r.by[m].std):"يحتاج بيانات")))});
     }
     const A=this.biAlertRows(X,D,st.filters||{},T);
     out.push(

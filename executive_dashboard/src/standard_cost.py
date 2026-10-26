@@ -21,6 +21,15 @@ Rules:
     Both tables are keyed by the file row AND its name as read, so a changed workbook
     stops the build instead of linking the wrong row.
 
+Monthly standard (management 26/10/2026: the standard is the manufacturing recipe at the
+month-end average price of its materials). ``data/raw/cost/monthly_standard/YYYY-MM.json`` are
+copies of ``monthly/YYYY-MM/standard.json`` from the Abohashem repository
+(``model/monthly_standard.py``): per recipe the paste per kg at that month's averages and the
+casing per kg of sausage. Here each linked pack gets kg × paste + casing (sausage rows only) +
+the file's packaging, beside the file's standard — the file standard and ``std`` are not
+changed. Three single-material recipes (مفروم صافي، كبده اسكندراني، كيلو مفروم هندي) are linked to
+their sales codes by the same decision. ``MONTHLY = False`` switches the whole addition off.
+
     python3 -m src.standard_cost        # from executive_dashboard/
 """
 from __future__ import annotations
@@ -60,6 +69,17 @@ CASING_CELLS = {"الهنا": ("الهنا", "هانك", None),
 HANK_PASTE = (8, "عجينة سجق 5 ك")      # الهنا 5 ك paste: the same mix as row 7 without casing
 HANK_REF = (7, "سجق الهنا 5 ك")         # casing price = (row 7 mix − paste mix) / row 7 casing
 KG_CONFIRMED = {47: 0.35}               # «سجق» names no weight; confirmed = سجق 350 جم ابو هاشم
+
+MONTHLY = True
+KG_FILE = {39: 0.55}    # «برجر 600 جرام ابو هاشم»: «ورقة1» and the recipe sheet both cost it at 0.55 kg
+MONTHLY_DIR = REPO_ROOT / "data" / "raw" / "cost" / "monthly_standard"
+RECIPE_SUFFIX = {"الهنا": "الهنا", "اسباشيل": "اسبشيال", "ابو هاشم": "ابوهاشم"}
+# single-material recipe (as named in standard.json) -> (sales code, the management's figure, its basis)
+SINGLE_CONFIRMED = {
+    "مفروم صافي 350": ("1", 90.09, "0.32 × 262 + 6.25"),
+    "كبده اسكندراني 400": ("2", 65.75, "0.34 × 175 + 6.25"),
+    "كيلو مفروم هندي": ("33", 264.0, "262 + 2.00"),
+}
 
 
 def _cells(row) -> list:
@@ -186,6 +206,45 @@ def apply_hank(rows: list, casing: dict) -> float:
     return {b: round(v[0] / HANK_PER_KG, 2) for b, v in casing.items()}
 
 
+def monthly(rows: list, names: dict) -> dict | None:
+    """Each linked pack at every month's recipe prices (see the module doc)."""
+    files = sorted(MONTHLY_DIR.glob("????-??.json")) if MONTHLY else []
+    if not files:
+        return None
+    months = [json.loads(f.read_text(encoding="utf-8")) for f in files]
+    for f, m in zip(files, months):
+        assert m["month"] == f.stem, f"{f.name}: month {m['month']}"
+        assert abs(m["hank_per_kg"] - HANK_PER_KG) < 1e-9, f"{f.name}: casing per kg {m['hank_per_kg']}"
+    out = []
+    for r in rows:
+        if not r.get("item_code"):
+            continue
+        recipe = f"{r['product']} {RECIPE_SUFFIX[r['brand']]}"
+        kg = KG_FILE.get(r["row"], _kg(r))
+        by = {}
+        for m in months:
+            rc = m["recipes"].get(recipe)
+            assert rc, f"{m['month']}: no recipe «{recipe}»"
+            paste = None if kg is None else kg * rc["paste_kg"]
+            casing = HANK_PER_KG * kg * m["hank_price"] if kg is not None and r.get("hank_qty") is not None else 0.0
+            by[m["month"]] = {"paste": None if paste is None else round(paste, 4), "casing": round(casing, 4),
+                              "pack": r["pack"], "std": None if paste is None else round(paste + casing + r["pack"], 4)}
+        out.append({"row": r["row"], "item_code": r["item_code"], "key": r["key"], "brand": r["brand"], "recipe": recipe,
+                    "kg": kg, "file_std": r["std"], "by_month": by})
+    single = []
+    for name, (code, mgmt, mgmt_basis) in SINGLE_CONFIRMED.items():
+        assert code in names, f"{name}: sales code {code} is not a sales item"
+        rec = [m["single"][name] for m in months]
+        single.append({"name": name, "item_code": code, "item_name_sales": names[code],
+                       "recipe": f"{rec[0]['kg']:g} كجم {rec[0]['item']} + تغليف {rec[0]['pack']:.2f}",
+                       "mgmt": mgmt, "mgmt_basis": mgmt_basis,
+                       "by_month": {m["month"]: {"price": x["price"], "std": x["std"]} for m, x in zip(months, rec)}})
+    return {"basis": months[0]["basis"], "months": [m["month"] for m in months],
+            "hank_price": {m["month"]: m["hank_price"] for m in months}, "pool": {m["month"]: m["pool"] for m in months},
+            "source": "Abohashem monthly/YYYY-MM/standard.json (model/monthly_standard.py)",
+            "rows": out, "single": single}
+
+
 def build() -> dict:
     rows, unresolved = parse()
     items = load_items()
@@ -206,7 +265,8 @@ def build() -> dict:
     assert not dup, f"two standard costs for one sales item: {dup}"
     assert not set(CONFIRMED) - {r["row"] for r in rows}, "a confirmed row was not read"
     hank_price = apply_hank(rows, read_casing())
-    return {"meta": {"source": str(SRC.relative_to(REPO_ROOT)), "sheet": SHEET,
+    mon = monthly(rows, names)
+    return {**({"monthly": mon} if mon else {}), "meta": {"source": str(SRC.relative_to(REPO_ROOT)), "sheet": SHEET,
                      "basis": "تكلفة معيارية للعبوة = الخلطة + التغليف (تأكيد الإدارة 20/10/2026)",
                      "decisions": DECIDED + ": سجق الهنا 300/700 = 350/800؛ صفوف أبو هاشم «سجق» = سجق 350، "
                                   "«350جرام»/«800جرام» = كفته 350/800. "
