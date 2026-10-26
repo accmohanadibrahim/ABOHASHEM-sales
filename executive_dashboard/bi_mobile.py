@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Stage 4: «ذكاء الأعمال» on top of the full mobile dashboard — a separate dev file.
+"""Stage 4: «ذكاء الأعمال» on top of the full mobile dashboard — the approved file.
 
 Reads
-  mobile/Abu_Hashem_Mobile_full.html   output of enrich_mobile.py (production), kept as is
+  mobile/Abu_Hashem_Mobile_full.html   output of enrich_mobile.py, kept as is
   mobile/patch/bi_methods.js           the new App methods
-and writes mobile/Abu_Hashem_Mobile_bi.html. The production file is never written:
-the BI sections ship only in the dev file until their tests are approved.
+and writes mobile/Abu_Hashem_Mobile_bi.html, the file management approved as the one
+dashboard (26/10/2026); full.html is never written and stays its tested base.
 
 Insertion-only, like stages 1–3: strip the declared insertions from the output and
 the full file is what remains (tests/test_bi_mobile.py checks it). No data is added;
@@ -51,7 +51,7 @@ def edits(methods: str, std: dict | None = None):
          f"<script>/* التكلفة المعيارية — bi_mobile.py */\nwindow.DASH_STD = {js(std)};</script>\n" if std else ""),
         ("registry-bi", '      p:"كل قاعدة وعدد ما أثّرت عليه · مطابقة الإجماليات بالمصدر · ما لم يُربط"});\n', "    return out;\n",
          "\n"
-         "    /* ذكاء الأعمال — ملف التطوير فقط (bi_mobile.py). ?nobi في الرابط يخفي المجموعة. */\n"
+         "    /* ذكاء الأعمال — الملف المعتمد (bi_mobile.py). ?nobi في الرابط يخفي المجموعة. */\n"
          "    if(!/[?&#]nobi\\b/.test(String(location.search)+String(location.hash))){\n"
          "      const G2=\"ذكاء الأعمال\";\n"
          '      push(G2,"dash","bi_exec",{label:"الملخص التنفيذي",h2:"الملخص التنفيذي وحداثة البيانات",\n'

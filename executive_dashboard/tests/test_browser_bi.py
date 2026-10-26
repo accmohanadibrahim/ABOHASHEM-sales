@@ -1,8 +1,8 @@
 """
-The BI dev file (mobile/Abu_Hashem_Mobile_bi.html), opened in a real browser.
+The approved file (mobile/Abu_Hashem_Mobile_bi.html), opened in a real browser.
 
-Regression: every section of the production file renders the same text in the dev
-file; the one declared exception is «التقارير», which lists the eleven new tables.
+Regression: every section of the base file (full.html) renders the same text in the
+approved file; the one declared exception is «التقارير», which lists the eleven new tables.
 Then the five BI sections: no JavaScript errors, figures traced back to the data
 they are computed from (recomputed here in Python where the data is in the repo),
 the alert status kept on the device, the ?nobi switch, and fault isolation.

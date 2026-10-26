@@ -7,8 +7,8 @@
       → python3 -m src.ops_ingest → ../data/processed/ops_data.json
       → python3 -m src.income_2026 → ../data/processed/income_2026.json   (2026 income statement PDFs)
       → python3 -m src.standard_cost → ../data/processed/standard_cost.json («سعر انتاج تام»)
-      → enrich_mobile.py       → mobile/Abu_Hashem_Mobile_full.html   (production)
-      → bi_mobile.py           → mobile/Abu_Hashem_Mobile_bi.html     («ذكاء الأعمال», dev file only)
+      → enrich_mobile.py       → mobile/Abu_Hashem_Mobile_full.html   (base of the approved file)
+      → bi_mobile.py           → mobile/Abu_Hashem_Mobile_bi.html     (the approved file, 26/10/2026: + «ذكاء الأعمال»)
 
 Usage:
   python3 build_all.py            rebuild every stage
