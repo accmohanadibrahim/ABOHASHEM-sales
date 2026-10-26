@@ -325,7 +325,7 @@
       return {code:r.item_code,name:o.name,brand:r.brand,std:U(r),basis:basis(r),mix:r.mix,pack:r.pack,qty:o.qty,bonus:o.bonus,rev:o.rev,price,
         std_margin:price?(price-U(r))/price:null,std_gp:o.rev-U(r)*(o.qty+o.bonus)}; }).sort((a,b)=>b.rev-a.rev);
     /* فحص اتساق: تكلفة الوحدة التي استعملها نموذج الربحية في يونيو مقابل معيار الملف. */
-    const cons=S.rows.filter(r=>r.item_code).map(r=>{
+    const cons=S.rows.filter(r=>r.item_code&&!r.cons_ok).map(r=>{
       const x=((M&&M.by_item_month)||[]).find(y=>y.month==="2026-06"&&String(y.item_code)===String(r.item_code)&&y.qty>0);
       const u=x?(x.revenue-x.gross_profit)/x.qty:null;
       return {code:r.item_code,name:x?x.item_name:r.key,std:U(r),model:u,diff:u==null?null:(u-U(r))/U(r)}; })
@@ -360,7 +360,7 @@
       {k:"bsd2",sub:"مُتحقَّق: المعيار من الملف (أو بتأكيد الإدارة حيث يُذكر) والسعر من الفواتير · مجمل الربح المعياري يحمّل البونص بمعياره"}));
     if(Z.decided.length) out.push(this.card("قرارات الإدارة على ملف التكلفة المعيارية",this.fsTable("bsdq",["الصف في الملف","صنف المبيعات","الكود","المعيار المستعمل","الأساس"],
       Z.decided.map(r=>[r.name,r.item_name_sales||"—",r.item_code||"—",r2(r.std!=null?r.std:r.total),
-        r.std_basis&&r.std_basis!=="الملف"?r.std_basis:r.match_basis])),
+        [r.std_basis&&r.std_basis!=="الملف"?r.std_basis:null,/^تأكيد الإدارة/.test(r.match_basis||"")?r.match_basis:null].filter(Boolean).join(" · ")])),
       {k:"bsd4",sub:"مُتحقَّق (تأكيد الإدارة): أرقام الملف لا تُعدَّل — الربط والمعيار المستعمل فقط مسجلان بقرار مؤرخ"}));
     out.push(this.advNote("bsdc","لا تكلفة فعلية مستقلة لكل صنف في البيانات: تكلفة الأصناف في «الربحية» محسوبة من المعيار نفسه (الخلطة + التغليف × الكمية) ثم موزع الفرق على الأصناف التجارية، "
       +"فلا يُعرض انحراف بالصنف. الانحراف الفعلي الوحيد هو مستوى الشركة أعلاه."));

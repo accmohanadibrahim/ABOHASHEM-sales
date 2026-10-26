@@ -51,8 +51,10 @@ def test_unit_standard_is_the_file_total_except_the_override(data):
         if r["row"] == 7:
             assert r["name"] == "سجق الهنا 5 ك" and r["item_code"] == "257"
             assert r["std"] == 135.09 and r["total"] == pytest.approx(234.6755) and "234.68" in r["std_basis"]
+        elif r["row"] in sc.FILE_CONFIRMED:                  # 26/10/2026: the file, not the model, is the standard
+            assert r["std"] == r["total"] and r["cons_ok"] and r["std_basis"].startswith("الملف — " + sc.DECIDED_FILE), r
         else:
-            assert r["std"] == r["total"] and r["std_basis"] == "الملف", r
+            assert r["std"] == r["total"] and r["std_basis"] == "الملف" and not r.get("cons_ok"), r
 
 
 def test_rebuilding_gives_the_committed_file(data):

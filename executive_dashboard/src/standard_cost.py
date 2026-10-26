@@ -47,6 +47,10 @@ CONFIRMED = {
 }
 # file row -> (name as read, unit standard set by the management)
 STD_OVERRIDE = {7: ("سجق الهنا 5 ك", 135.09)}
+# file row -> name as read: the management confirmed the file figure is the standard even
+# though the profitability model costs the unit lower (the consistency check is closed).
+DECIDED_FILE = "تأكيد الإدارة 26/10/2026"
+FILE_CONFIRMED = {5: "سجق الهنا 300", 6: "سجق الهنا 700"}
 
 
 def _cells(row) -> list:
@@ -124,6 +128,10 @@ def build() -> dict:
         if o:
             assert r["name"] == o[0], f"row {r['row']}: «{r['name']}» is not «{o[0]}»"
             r["std"], r["std_basis"] = o[1], f"{DECIDED} (الملف {r['total']:,.2f})"
+        elif r["row"] in FILE_CONFIRMED:
+            assert r["name"] == FILE_CONFIRMED[r["row"]], f"row {r['row']}: «{r['name']}» is not «{FILE_CONFIRMED[r['row']]}»"
+            r["std"], r["cons_ok"] = r["total"], True
+            r["std_basis"] = f"الملف — {DECIDED_FILE}: المعيار هو الملف لا نموذج الربحية"
         else:
             r["std"], r["std_basis"] = r["total"], "الملف"
         sig = signature(r["key"])
@@ -133,10 +141,12 @@ def build() -> dict:
     assert not dup, f"two standard costs for one sales item: {dup}"
     assert not set(CONFIRMED) - {r["row"] for r in rows}, "a confirmed row was not read"
     assert not set(STD_OVERRIDE) - {r["row"] for r in rows}, "an overridden row was not read"
+    assert not set(FILE_CONFIRMED) - {r["row"] for r in rows}, "a file-confirmed row was not read"
     return {"meta": {"source": str(SRC.relative_to(REPO_ROOT)), "sheet": SHEET,
                      "basis": "تكلفة معيارية للعبوة = الخلطة + التغليف (تأكيد الإدارة 20/10/2026)",
                      "decisions": DECIDED + ": سجق الهنا 300/700 = 350/800؛ صفوف أبو هاشم «سجق» = سجق 350، "
-                                  "«350جرام»/«800جرام» = كفته 350/800؛ معيار سجق الهنا 5 كيلو = 135.09"},
+                                  "«350جرام»/«800جرام» = كفته 350/800؛ معيار سجق الهنا 5 كيلو = 135.09. "
+                                  + DECIDED_FILE + ": معيار سجق الهنا 350/800 هو الملف (17.75 / 36.60)"},
             "rows": rows, "unresolved": unresolved,
             "unmatched": [r for r in rows if not r.get("item_code")]}
 
