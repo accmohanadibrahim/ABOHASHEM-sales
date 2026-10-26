@@ -2,7 +2,7 @@
 
 جرد الملف الإنتاجي `mobile/Abu_Hashem_Mobile_full.html` كما هو على `main` (نسخة البيانات `0e2c6c2a01`، آخر تغيير في بيانات التشغيل 2026-10-20). استُخرج القسمان التاليان من الملف نفسه في المتصفح (`registry()` و`exportTables()`) لا من الذاكرة، وكل سطر فيهما قسم أو جدول موجود فعلًا.
 
-**النسخة الاحتياطية وفصل التطوير:** الإنتاج هو `Abu_Hashem_Mobile_full.html` ولا يُكتب في هذه المرحلة. التطوير في ملف منفصل `Abu_Hashem_Mobile_bi.html` يبنيه `bi_mobile.py` بالإدراج فقط فوق ملف الإنتاج، و`tests/test_bi_mobile.py` يحذف الإدراجات ويتحقق أن الباقي هو ملف الإنتاج بايتًا ببايت. لا حاجة لنسخة يدوية: ملف الإنتاج محفوظ في git، وكل مرحلة سابقة (الأصلي ← المدمج ← المطوَّر ← الكامل) باقية في `mobile/` ومثبتة باختبار الإدراج نفسه.
+**النسخة الاحتياطية وفصل التطوير:** كان الإنتاج `Abu_Hashem_Mobile_full.html` حتى 26/10/2026، حين اعتمدت الإدارة `Abu_Hashem_Mobile_bi.html` ملفًا واحدًا للوحة. يبنيه `bi_mobile.py` بالإدراج فقط فوق `full.html` الذي لا يُكتب ويبقى أساسه، و`tests/test_bi_mobile.py` يحذف الإدراجات ويتحقق أن الباقي هو `full.html` بايتًا ببايت؛ و`?nobi` يخفي «ذكاء الأعمال». لا حاجة لنسخة يدوية: ملف الإنتاج محفوظ في git، وكل مرحلة سابقة (الأصلي ← المدمج ← المطوَّر ← الكامل) باقية في `mobile/` ومثبتة باختبار الإدراج نفسه.
 
 ## سلسلة البناء والاعتماديات
 
@@ -12,8 +12,8 @@
 | 1 | `merge_into_mobile.py` | الأصلي + `data.js` (لقطة 16/7) + `statements_data.js` (`DASH_FS`) | `Abu_Hashem_Mobile_merged.html` | `test_merge_mobile.py` |
 | 2 | `enhance_mobile.py` | المدمج | `Abu_Hashem_Mobile_enhanced.html` | `test_enhance_mobile.py` |
 | — | `python3 -m src.ops_ingest` | `data/raw/ops/*` (PDF/Excel) | `data/processed/ops_data.json` | `test_ops_ingest.py` |
-| 3 | `enrich_mobile.py` | المطوَّر + `ops_data.json` + `valuation_scenarios.json` | `Abu_Hashem_Mobile_full.html` **(الإنتاج)** | `test_enrich_mobile.py`، `test_browser_mobile.py` |
-| 4 | `bi_mobile.py` | الكامل | `Abu_Hashem_Mobile_bi.html` **(تطوير)** | `test_bi_mobile.py`، `test_browser_bi.py` |
+| 3 | `enrich_mobile.py` | المطوَّر + `ops_data.json` + `valuation_scenarios.json` | `Abu_Hashem_Mobile_full.html` **(أساس المعتمد؛ الإنتاج حتى 26/10/2026)** | `test_enrich_mobile.py`، `test_browser_mobile.py` |
+| 4 | `bi_mobile.py` | الكامل | `Abu_Hashem_Mobile_bi.html` **(المعتمد منذ 26/10/2026)** | `test_bi_mobile.py`، `test_browser_bi.py` |
 
 `build_all.py` يشغّلها بالترتيب، ويبدأ بقائمة استلام ملفات الشهر (`src/monthly.py`).
 

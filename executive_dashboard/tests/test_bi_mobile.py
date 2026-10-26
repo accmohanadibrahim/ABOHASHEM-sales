@@ -1,10 +1,10 @@
 """
-Stage 4 tests (bi_mobile.py) — «ذكاء الأعمال», a separate dev file.
+Stage 4 tests (bi_mobile.py) — «ذكاء الأعمال», the approved file (26/10/2026).
 
-Additive only, like stages 1–3: removing the declared insertions from the dev
-file gives back the production file byte for byte, so every existing section,
-figure and export is untouched. The committed dev file must be what the script
-builds today, and the script must never write the production file.
+Additive only, like stages 1–3: removing the declared insertions from the approved
+file gives back its base (full.html) byte for byte, so every existing section,
+figure and export is untouched. The committed approved file must be what the script
+builds today, and the script must never write its base.
 """
 import json
 import re
