@@ -200,6 +200,7 @@
     const R=D.receivables||{}, vals=window.DASH_OPS?this.opsVals():[], iv=vals[vals.length-1];
     const Al=this.biAlertRows(X,D,this.state.filters||{},T).rows;
     out.push(this.opsLegend("bel"));
+    this.biExecCards(this.biExecAnswers(D,T,Al)).forEach(c=>out.push(c));
     const dS=a&&b&&a.net_sales?(b.net_sales-a.net_sales)/Math.abs(a.net_sales):null;
     out.push(this.kpiTiles([
       b?["صافي المبيعات "+this.fsMon(m1),T.egpK(b.net_sales),dS==null?"":(dS>=0?"▲ ":"▼ ")+T.pct(Math.abs(dS))+" مقابل "+this.fsMon(m0),"#3b82f6"]
@@ -232,6 +233,99 @@
       hi.map(r=>[r.kpi,r.value,r.action,r.owner])),{k:"be3"}));
     out.push(this.advLink("bego","سجل التنبيهات الكامل","bi_alerts"));
     return out;
+  }
+
+  /* ---- أسئلة الإدارة الخمسة (خطة تنظيم اللوحة، المرحلة 3) --------------------
+     كل إجابة من البيانات المضمنة نفسها، ولكلٍّ قسم تفاصيلها. 1–3 من قوائم الدخل فلا تتبع فلاتر
+     الفواتير؛ 4–5 من سجل التنبيهات فتتبعها كما يتبعها السجل. لا موازنة ⇒ «يحتاج بيانات» لا مستهدف بديل. */
+  biExecAnswers(D,T,Al){
+    const [m0,m1]=this.biLastTwo(), out=[];
+    const P=window.DASH_IS25&&window.DASH_IS26&&window.DASH_FS?this.biPl():null, col=m=>P&&P.cols.find(c=>c.m===m)||null;
+    const c1=col(m1), c0=col(m0), y=m1?(+m1.slice(0,4)-1)+m1.slice(4):null, cy=col(y);
+    const chg=(x,b)=>typeof x==="number"&&typeof b==="number"&&b?(x-b)/Math.abs(b):null;
+    const gm=c=>c&&!c.need&&c.v.net?c.v.gp/c.v.net:null;
+    const sp=v=>v==null?"—":(v>=0?"▲ ":"▼ ")+T.pct(Math.abs(v));
+    /* 1) الأداء الحالي */
+    if(c1&&c0){
+      const rows=[["net","صافي المبيعات"],["gpm","هامش مجمل الربح"],["np","صافي الربح"]].map(([k,l])=>{
+        const v=c=>!c||c.need?null:k==="gpm"?gm(c):c.v[k];
+        const d=(x,b)=>k==="gpm"?(x==null||b==null?null:(x-b)*100):chg(x,b);
+        return {k,l,v1:v(c1),v0:v(c0),vy:v(cy),d0:d(v(c1),v(c0)),dy:d(v(c1),v(cy))}; });
+      const r=rows[0];
+      out.push({n:1,q:"ما حجم الأداء الحالي؟",go:"fs_income",basis:"مُتحقَّق",m0,m1,y,c1,c0,cy,rows,
+        src:"قوائم الدخل: "+this.fsMon(m1)+" ("+c1.tag+") · "+this.fsMon(m0)+" ("+c0.tag+") · "+this.fsMon(y)+" ("+(cy?cy.tag:"لا قائمة")+")",
+        answer:"صافي المبيعات "+this.fsMon(m1)+" "+T.egpK(r.v1)+": "+sp(r.d0)+" عن "+this.fsMon(m0)
+          +(r.vy==null?" · "+this.fsMon(y)+": يحتاج بيانات":" و"+sp(r.dy)+" عن "+this.fsMon(y))});
+    } else out.push({n:1,q:"ما حجم الأداء الحالي؟",go:"fs_income",basis:"يحتاج بيانات",src:"قوائم الدخل",
+      need:"قائمتا دخل مقيستان لشهرين متتاليين",answer:"يحتاج بيانات"});
+    /* 2) المستهدف — data/budget/budget_2026.csv عبر src/statements.py (DASH_FS.budget) */
+    const B=(window.DASH_FS&&window.DASH_FS.budget||{})[m1]||null;
+    const LN=[["net_sales","صافي المبيعات","net"],["cogs","تكلفة المبيعات","cogs"],["admin","المصروفات الإدارية","admin"],["selling","المصروفات البيعية","selling"]];
+    const brows=B&&c1?LN.filter(([k])=>typeof B[k]==="number").map(([k,l,ck])=>{ const act=c1.v[ck], ok=typeof act==="number";
+      return {k,l,bud:B[k],act:ok?act:null,var:ok?act-B[k]:null,pct:ok&&B[k]?(act-B[k])/Math.abs(B[k]):null}; }):[];
+    if(brows.length){ const r=brows.find(x=>x.k==="net_sales")||brows[0];
+      out.push({n:2,q:"هل نحقق المستهدف؟",go:"fs_exec",basis:"مُتحقَّق",rows:brows,src:"data/budget/budget_2026.csv · قائمة الدخل "+this.fsMon(m1),
+        answer:r.l+" "+this.fsMon(m1)+": الفعلي "+T.egpK(r.act)+" مقابل الموازنة "+T.egpK(r.bud)+" ("+sp(r.pct)+")"}); }
+    else out.push({n:2,q:"هل نحقق المستهدف؟",go:"fs_exec",basis:"يحتاج بيانات",src:"data/budget/budget_2026.csv",
+      need:"لا موازنة معتمدة لـ"+(m1?this.fsMon(m1):"آخر شهر")+" — املأ data/budget/budget_2026.csv (القالب موجود: الشهر والبند والمبلغ)",
+      answer:"يحتاج بيانات — لا موازنة معتمدة"});
+    /* 3) أين تحقق الربح أو حدثت الخسارة */
+    if(m0&&m1&&m0!==m1){
+      const Br=this.biPnlBridge(m0,m1), I=this.biItemBridge(m0,m1);
+      const ds=Br.steps.filter(s=>s.kind==="d").slice().sort((a,b)=>Math.abs(b.v)-Math.abs(a.v));
+      const it=I.items.filter(i=>typeof i.dgp==="number");
+      const up=it.slice().sort((a,b)=>b.dgp-a.dgp).filter(i=>i.dgp>0).slice(0,3), dn=it.slice().sort((a,b)=>a.dgp-b.dgp).filter(i=>i.dgp<0).slice(0,3);
+      out.push({n:3,q:"أين تحقق الربح أو حدثت الخسارة؟",go:"bi_bridge",basis:"مُتحقَّق",src:"جسر الربح "+this.fsMon(m0)+" ← "+this.fsMon(m1),
+        p0:Br.p0,p1:Br.p1,steps:ds.slice(0,3),up,dn,
+        answer:"صافي الربح من "+T.egpK(Br.p0)+" إلى "+T.egpK(Br.p1)+" · أكبر عامل: "+(ds[0]?ds[0].name+" ("+this.fsC(ds[0].v).v+")":"—")});
+    } else out.push({n:3,q:"أين تحقق الربح أو حدثت الخسارة؟",go:"bi_bridge",basis:"يحتاج بيانات",src:"قوائم الدخل",
+      need:"قائمتا دخل مقيستان لشهرين",answer:"يحتاج بيانات"});
+    /* 4–5) الانحرافات والإجراء: المفتوحة فقط، الأعلى أولوية، والأحدث داخل كل أولوية. */
+    const rank={high:0,medium:1,low:2};
+    const top=Al.map((r,i)=>({r,i})).filter(x=>this.biAlertState(x.r.id).s!=="مغلق")
+      .sort((a,b)=>(rank[a.r.sev]??3)-(rank[b.r.sev]??3)||String(b.r.updated||"").localeCompare(String(a.r.updated||""))||a.i-b.i)
+      .slice(0,3).map(x=>x.r);
+    out.push({n:4,q:"ما أهم الانحرافات والمخاطر؟",go:"bi_alerts",basis:top.length?"مُتحقَّق":"—",src:"سجل التنبيهات",alerts:top,
+      answer:top.length?top.map(r=>r.kpi).join(" · "):"لا تنبيهات مفتوحة"});
+    out.push({n:5,q:"ما الإجراء المطلوب؟",go:"bi_alerts",basis:top.length?"مُتحقَّق":"—",src:"سجل التنبيهات",alerts:top,
+      answer:top.length?top.map(r=>r.action+" ("+r.owner+")").join(" · "):"لا تنبيهات مفتوحة"});
+    return out;
+  }
+  biExecCards(A){
+    const T=this.state.T, money=v=>v==null?{v:"—"}:this.fsC(v), pctc=v=>v==null?{v:"—"}:{v:(v>=0?"▲ ":"▼ ")+T.pct(Math.abs(v)),c:v>=0?"#6ee7b7":"#fca5a5"};
+    const head=a=>React.createElement("div",{key:"h",style:{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",fontSize:10.5,color:"#64748b"}},
+      a.basis!=="—"?this.biStatusTag(a.basis):null,a.src);
+    return A.map(a=>{
+      const kids=[head(a)], k="bq"+a.n;
+      if(a.need) kids.push(this.biNeed(k+"n",a.need));
+      else if(a.n===1){
+        const ty=a.cy&&!a.cy.need, gp=r=>r.k==="gpm";
+        kids.push(this.fsTable(k+"t",["البند",this.fsMon(a.m1),this.fsMon(a.m0),"التغير",this.fsMon(a.y)+(a.cy?" ("+a.cy.tag+")":""),"التغير"],
+          a.rows.map(r=>[r.l,gp(r)?T.pct(r.v1):money(r.v1),gp(r)?T.pct(r.v0):money(r.v0),
+            gp(r)?{v:r.d0==null?"—":(r.d0>=0?"+":"−")+Math.abs(r.d0).toFixed(1)+" نقطة"}:pctc(r.d0),
+            !ty?{v:"يحتاج بيانات",c:"#94a3b8"}:gp(r)?T.pct(r.vy):money(r.vy),
+            !ty?{v:"—"}:gp(r)?{v:r.dy==null?"—":(r.dy>=0?"+":"−")+Math.abs(r.dy).toFixed(1)+" نقطة"}:pctc(r.dy)])));
+        kids.push(this.advNote(k+"x","المقارنة بالشهر نفسه من العام السابق مرجع لا مستهدف. صافي الربح كما في كل قائمة؛ وقوائم 2025 قبل الإهلاك (الإهلاك السنوي مُحمَّل على ديسمبر)."));
+      } else if(a.n===2){
+        kids.push(this.fsTable(k+"t",["البند","الموازنة","الفعلي","الانحراف","%"],
+          a.rows.map(r=>[r.l,money(r.bud),money(r.act),money(r.var),pctc(r.pct)])));
+      } else if(a.n===3){
+        kids.push(React.createElement("div",{key:k+"a",style:{fontSize:11.5,lineHeight:1.8,color:"#cbd5e1"}},a.answer+"."));
+        kids.push(this.fsTable(k+"s",["أكبر العوامل","الأثر"],a.steps.map(s=>[s.name,money(s.v)])));
+        const it=a.up.map(i=>({...i,dir:"ربح"})).concat(a.dn.map(i=>({...i,dir:"خسارة"})));
+        /* الصنف الجديد أو المتوقف كله أثر واحد، فلا يُقسَّم إلى سعر وتكلفة وكمية. */
+        const fx=(i,v)=>i.kind==="مشترك"?money(v):{v:"—"};
+        if(it.length) kids.push(this.fsTable(k+"i",["الصنف","الحالة","Δ مجمل الربح","أثر السعر","أثر التكلفة","الكمية والمزيج"],
+          it.map(i=>[i.name,i.kind,{...money(i.dgp),c:i.dgp>=0?"#6ee7b7":"#fca5a5"},fx(i,i.price),fx(i,i.cost),fx(i,i.vol)])));
+        kids.push(this.advNote(k+"x","الإجماليات من القوائم «مُتحقَّق»؛ أثر التكلفة بالصنف «تقدير» من تكلفة الصنف في جدول الربحية. التفصيل الكامل وكل الأصناف في «جسر الربح»."));
+      } else if(!a.alerts.length) kids.push(this.empty("لا تنبيهات مفتوحة"));
+      else if(a.n===4) kids.push(this.fsTable(k+"t",["المؤشر","القيمة","الحد","الانحراف"],a.alerts.map(r=>[r.kpi,r.value,r.thr,r.dev])));
+      else kids.push(this.fsTable(k+"t",["الإجراء","المسؤول","الحالة"],a.alerts.map(r=>[{v:React.createElement("span",{onClick:()=>this.go(r.go),
+          "data-bi-q5":r.go,style:{cursor:"pointer",color:"var(--abh-93c5fd,#93c5fd)",textDecoration:"underline",textUnderlineOffset:3}},r.action)},
+        r.owner,this.biAlertState(r.id).s])));
+      kids.push(this.advLink(k+"go","التفاصيل",a.go));
+      return this.card(a.n+" — "+a.q,kids,{k});
+    });
   }
 
   /* ======================= 2) جسر الربح (السعر × الكمية × التكلفة) ========== */
@@ -1259,6 +1353,8 @@
         col("حتى",null,r=>r.as_of||""), col("الفحص","check"), col("الأساس","status")]},
       {id:"bi_readiness",label:"ذكاء الأعمال — جاهزية البيانات",rows:this.biReadiness(),columns:[
         col("الوحدة","module"), col("المطلوب","need"), col("من","owner"), col("الحالة","status")]},
+      {id:"bi_exec_answers",label:"ذكاء الأعمال — أسئلة الإدارة الخمسة",rows:this.biExecAnswers(D,T,A.rows),columns:[
+        col("#","n"), col("السؤال","q"), col("الإجابة","answer"), col("الأساس","basis"), col("المصدر","src"), col("القسم","go")]},
       {id:"bi_map",label:"ذكاء الأعمال — دليل اللوحة",rows:this.biMapRows(),columns:[
         col("المجموعة","group"), col("القسم","label"), col("المفتاح","key"), col("في القائمة","nav"), col("المصدر","source"),
         col("حتى",null,r=>r.as_of||""), col("الحداثة","fresh"), col("الفلاتر","filters")]});

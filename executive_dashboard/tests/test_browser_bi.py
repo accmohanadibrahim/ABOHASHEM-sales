@@ -118,6 +118,59 @@ def test_exec_figures_are_the_statement_figures(page):
     assert r["sales"] in text and r["np"] in text and ("صافي المبيعات " + r["label"]) in text
 
 
+def test_exec_answers_five_questions(browser):
+    """The five management questions open «الملخص التنفيذي», before what was there: each answer is
+    the figure of its source, a missing budget is «يحتاج بيانات» with no figure, the alerts are the
+    open ones by priority then date, each links to its section, and the export holds the five."""
+    pg = _page(browser)
+    _open(pg, BI_HTML)
+    text = go(pg, "bi_exec")
+    qs = ["ما حجم الأداء الحالي؟", "هل نحقق المستهدف؟", "أين تحقق الربح أو حدثت الخسارة؟",
+          "ما أهم الانحرافات والمخاطر؟", "ما الإجراء المطلوب؟"]
+    pos = [text.index(f"{i + 1} — {q}") for i, q in enumerate(qs)]
+    assert pos == sorted(pos) and pos[-1] < text.index("حداثة البيانات حسب المجال") < text.index("أعلى التنبيهات أولوية")
+    A = pg.evaluate("""() => { const A = window.__abhApp, D = A.state.api.D, T = A.state.T, X = A.state.api.buildContext({});
+      const [m0, m1] = A.biLastTwo(), P = A.biPl(), col = m => P.cols.find(c => c.m === m);
+      const Al = A.biAlertRows(X, D, {}, T).rows, B = A.biPnlBridge(m0, m1);
+      return {ans: A.biExecAnswers(D, T, Al), m0, m1, s0: A.biStmt(m0), s1: A.biStmt(m1), y: col((+m1.slice(0, 4) - 1) + m1.slice(4)),
+        al: Al.map((r, i) => [r.id, r.sev, r.updated || "", i, A.biAlertState(r.id).s]),
+        top: B.steps.filter(s => s.kind === "d").reduce((a, s) => Math.abs(s.v) > Math.abs(a.v) ? s : a)}; }""")
+    a1, a2, a3, a4, a5 = A["ans"]
+    r = {x["k"]: x for x in a1["rows"]}
+    assert r["net"]["v1"] == A["s1"]["net_sales"] and r["net"]["v0"] == A["s0"]["net_sales"]
+    assert r["np"]["v1"] == A["s1"]["net_profit"] and r["np"]["v0"] == A["s0"]["net_profit"]
+    assert r["net"]["d0"] == pytest.approx((A["s1"]["net_sales"] - A["s0"]["net_sales"]) / A["s0"]["net_sales"])
+    if A["y"] and not A["y"].get("need"):
+        assert r["net"]["vy"] == A["y"]["v"]["net"]
+    else:
+        assert r["net"]["vy"] is None and "يحتاج بيانات" in text
+    assert f"{A['s1']['net_sales']:,.0f}" in text and f"{A['s0']['net_sales']:,.0f}" in text
+    # 2) no budget filled in ⇒ no target, no figure
+    card2 = text[pos[1]:pos[2]]
+    assert a2["basis"] == "يحتاج بيانات" and "budget_2026.csv" in card2 and not re.search(r"\d{2},\d{3}", card2)
+    assert A["top"]["name"] in a3["answer"]
+    # 4–5) open alerts: priority, then the newest first, then the register's order
+    rank = {"high": 0, "medium": 1, "low": 2}
+    want = sorted([x for x in A["al"] if x[4] != "مغلق"], key=lambda x: (rank.get(x[1], 3), -int(x[2].replace("-", "") or 0), x[3]))[:3]
+    assert [x["id"] for x in a4["alerts"]] == [x[0] for x in want] == [x["id"] for x in a5["alerts"]]
+    for x in a5["alerts"]:
+        assert x["action"] in text and x["owner"] in text
+    pg.click(f'[data-bi-q5="{a5["alerts"][0]["go"]}"]')
+    pg.wait_for_function("k => window.__abhApp.state.section === k", arg=a5["alerts"][0]["go"])
+    tab = pg.evaluate("() => window.__abhApp.exportTables().find(t => t.id === 'bi_exec_answers')")
+    assert [x["n"] for x in tab["rows"]] == [1, 2, 3, 4, 5]
+    # a budget, once filled in, is compared — variance = actual − budget
+    b = pg.evaluate("""m1 => { window.DASH_FS.budget = {[m1]: {net_sales: 4000000, cogs: 2500000}}; const A = window.__abhApp, D = A.state.api.D;
+      return A.biExecAnswers(D, A.state.T, A.biAlertRows(A.state.api.buildContext({}), D, {}, A.state.T).rows)[1]; }""", A["m1"])
+    assert b["basis"] == "مُتحقَّق" and [x["k"] for x in b["rows"]] == ["net_sales", "cogs"]
+    assert b["rows"][0]["var"] == pytest.approx(A["s1"]["net_sales"] - 4000000)
+    assert b["rows"][1]["var"] == pytest.approx(A["s1"]["cogs"] - 2500000)
+    text = go(pg, "bi_exec")
+    assert "4,000,000" in text and f"{A['s1']['net_sales'] - 4000000:,.0f}" in text
+    assert pg.errors == []
+    pg.close()
+
+
 def test_profit_bridges_add_up(page):
     """Company bridge: start + every Δ = end, for every pair of consecutive months.
     Item bridge: price + cost + volume/mix + new + dropped = the change, to the pound."""
