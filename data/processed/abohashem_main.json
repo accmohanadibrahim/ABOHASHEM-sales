@@ -1,0 +1,1110 @@
+{
+ "enabled": true,
+ "label": "لقطة يونيو 2026 من ملف Abohashem-main.zip",
+ "as_of": {
+  "invoices_from": "2026-06-02",
+  "invoices_to": "2026-06-27",
+  "debt_as_of": "2026-06-24",
+  "aging_ref": "2026-06-27"
+ },
+ "source": "abohashem_main/ (Abohashem-main.zip)",
+ "summary": {
+  "period_start": "2026-06-02",
+  "period_end": "2026-06-27",
+  "period_days": 26,
+  "invoices": 256,
+  "zero_invoices": 40,
+  "line_items": 652,
+  "distinct_items": 33,
+  "distinct_customers_invoiced": 110,
+  "salespeople": 9,
+  "total_sales_EGP": 3376569.54,
+  "total_qty": 56088.5,
+  "total_paid_EGP": 6945.6,
+  "total_remaining_EGP": 3369623.94,
+  "total_outstanding_debt_EGP": 3692545.42
+ },
+ "checks": [
+  {
+   "check": "مجموع الأصناف = إجمالي المبيعات",
+   "a": 3376569.54,
+   "b": 3376569.54,
+   "ok": true
+  },
+  {
+   "check": "مجموع العملاء = إجمالي المبيعات",
+   "a": 3376569.54,
+   "b": 3376569.54,
+   "ok": true
+  },
+  {
+   "check": "مجموع المناديب = إجمالي المديونية",
+   "a": 3692545.42,
+   "b": 3692545.42,
+   "ok": true
+  },
+  {
+   "check": "شرائح الأعمار = مديونية كل عميل",
+   "a": 3738018.9,
+   "b": 3738018.9,
+   "ok": true
+  },
+  {
+   "check": "سطر «الإجمالى» في الأعمار = مجموع العملاء",
+   "a": 3738018.9,
+   "b": 3738018.9,
+   "ok": true
+  },
+  {
+   "check": "عدد الفواتير الصفرية",
+   "a": 40,
+   "b": 40,
+   "ok": true
+  },
+  {
+   "check": "فرق الأعمار عن المديونية = عملاء غير مرتبطين + أرصدة دائنة",
+   "a": 45473.48,
+   "b": 45473.48,
+   "ok": true
+  }
+ ],
+ "salespeople": [
+  {
+   "salesperson": "محمد امام الصعيد",
+   "customers": 18.0,
+   "period_sales_EGP": 1334373.1,
+   "period_invoices": 29.0,
+   "monthly_sales_EGP": 1539661.27,
+   "outstanding_debt_EGP": 1548494.68,
+   "credit_exposure_months": 1.01
+  },
+  {
+   "salesperson": "ايمن فارس",
+   "customers": 37.0,
+   "period_sales_EGP": 357038.85,
+   "period_invoices": 37.0,
+   "monthly_sales_EGP": 411967.9,
+   "outstanding_debt_EGP": 608476.35,
+   "credit_exposure_months": 1.48
+  },
+  {
+   "salesperson": "هانى",
+   "customers": 22.0,
+   "period_sales_EGP": 248397.3,
+   "period_invoices": 18.0,
+   "monthly_sales_EGP": 286612.27,
+   "outstanding_debt_EGP": 425587.33,
+   "credit_exposure_months": 1.48
+  },
+  {
+   "salesperson": "محمد امام",
+   "customers": 52.0,
+   "period_sales_EGP": 361373.35,
+   "period_invoices": 20.0,
+   "monthly_sales_EGP": 416969.25,
+   "outstanding_debt_EGP": 383092.41,
+   "credit_exposure_months": 0.92
+  },
+  {
+   "salesperson": "محمد بشرى",
+   "customers": 60.0,
+   "period_sales_EGP": 581281.8,
+   "period_invoices": 55.0,
+   "monthly_sales_EGP": 670709.77,
+   "outstanding_debt_EGP": 372847.45,
+   "credit_exposure_months": 0.56
+  },
+  {
+   "salesperson": "حسام حسن",
+   "customers": 36.0,
+   "period_sales_EGP": 302838.44,
+   "period_invoices": 39.0,
+   "monthly_sales_EGP": 349428.97,
+   "outstanding_debt_EGP": 272280.71,
+   "credit_exposure_months": 0.78
+  },
+  {
+   "salesperson": "محمد خليل",
+   "customers": 17.0,
+   "period_sales_EGP": 69063.5,
+   "period_invoices": 22.0,
+   "monthly_sales_EGP": 79688.65,
+   "outstanding_debt_EGP": 56582.62,
+   "credit_exposure_months": 0.71
+  },
+  {
+   "salesperson": "شعبان",
+   "customers": 4.0,
+   "period_sales_EGP": 78511.6,
+   "period_invoices": 6.0,
+   "monthly_sales_EGP": 90590.31,
+   "outstanding_debt_EGP": 14999.87,
+   "credit_exposure_months": 0.17
+  },
+  {
+   "salesperson": "محمود السيد",
+   "customers": 3.0,
+   "period_sales_EGP": 10184.0,
+   "period_invoices": 3.0,
+   "monthly_sales_EGP": 11750.77,
+   "outstanding_debt_EGP": 10184.0,
+   "credit_exposure_months": 0.87
+  },
+  {
+   "salesperson": "(غير مرتبط/unmapped)",
+   "customers": 0.0,
+   "period_sales_EGP": 33507.6,
+   "period_invoices": 27.0,
+   "monthly_sales_EGP": 38662.62,
+   "outstanding_debt_EGP": 0.0,
+   "credit_exposure_months": 0.0
+  }
+ ],
+ "aging_totals": {
+  "days_0_30_EGP": 2509968.42,
+  "days_31_60_EGP": 0.0,
+  "days_61_90_EGP": 0.0,
+  "days_over_90_EGP": 0.0,
+  "opening_carryover_undated_EGP": 1228050.48
+ },
+ "aging_vs_debt": {
+  "aging_total": 3738018.9,
+  "debt_total": 3692545.42,
+  "difference": 45473.48,
+  "unmapped_customers": 5,
+  "unmapped_debt": 26562.0,
+  "credit_balances": -18911.48,
+  "credit_customers": 49
+ },
+ "aging_top": [
+  {
+   "customer_code": "677",
+   "customer": "ميكس فود",
+   "salesperson": "محمد امام الصعيد",
+   "days_0_30_EGP": 266000.7,
+   "days_31_60_EGP": 0.0,
+   "days_61_90_EGP": 0.0,
+   "days_over_90_EGP": 0.0,
+   "opening_carryover_undated_EGP": 85344.76,
+   "total_debt_EGP": 351345.46
+  },
+  {
+   "customer_code": "710",
+   "customer": "احمد صلح المنيا",
+   "salesperson": "محمد امام الصعيد",
+   "days_0_30_EGP": 303659.75,
+   "days_31_60_EGP": 0.0,
+   "days_61_90_EGP": 0.0,
+   "days_over_90_EGP": 0.0,
+   "opening_carryover_undated_EGP": 25311.1,
+   "total_debt_EGP": 328970.85
+  },
+  {
+   "customer_code": "532",
+   "customer": "محمود العمده الصعيد",
+   "salesperson": "محمد امام الصعيد",
+   "days_0_30_EGP": 226945.2,
+   "days_31_60_EGP": 0.0,
+   "days_61_90_EGP": 0.0,
+   "days_over_90_EGP": 0.0,
+   "opening_carryover_undated_EGP": 20507.42,
+   "total_debt_EGP": 247452.62
+  },
+  {
+   "customer_code": "922",
+   "customer": "مصطفى عبدالمجيد",
+   "salesperson": "محمد امام الصعيد",
+   "days_0_30_EGP": 216056.6,
+   "days_31_60_EGP": 0.0,
+   "days_61_90_EGP": 0.0,
+   "days_over_90_EGP": 0.0,
+   "opening_carryover_undated_EGP": 24818.9,
+   "total_debt_EGP": 240875.5
+  },
+  {
+   "customer_code": "918",
+   "customer": "مصطفى قمر بنى سويف",
+   "salesperson": "محمد امام الصعيد",
+   "days_0_30_EGP": 56255.25,
+   "days_31_60_EGP": 0.0,
+   "days_61_90_EGP": 0.0,
+   "days_over_90_EGP": 0.0,
+   "opening_carryover_undated_EGP": 176287.06,
+   "total_debt_EGP": 232542.31
+  },
+  {
+   "customer_code": "714",
+   "customer": "مصطفى ابو سويف الدهب بنى",
+   "salesperson": "محمد امام",
+   "days_0_30_EGP": 120214.2,
+   "days_31_60_EGP": 0.0,
+   "days_61_90_EGP": 0.0,
+   "days_over_90_EGP": 0.0,
+   "opening_carryover_undated_EGP": 45725.59,
+   "total_debt_EGP": 165939.79
+  },
+  {
+   "customer_code": "455",
+   "customer": "ثلجه المهدي",
+   "salesperson": "محمد امام",
+   "days_0_30_EGP": 76117.5,
+   "days_31_60_EGP": 0.0,
+   "days_61_90_EGP": 0.0,
+   "days_over_90_EGP": 0.0,
+   "opening_carryover_undated_EGP": 85083.25,
+   "total_debt_EGP": 161200.75
+  },
+  {
+   "customer_code": "962",
+   "customer": "الدوليه",
+   "salesperson": "هانى",
+   "days_0_30_EGP": 114033.0,
+   "days_31_60_EGP": 0.0,
+   "days_61_90_EGP": 0.0,
+   "days_over_90_EGP": 0.0,
+   "opening_carryover_undated_EGP": 37595.8,
+   "total_debt_EGP": 151628.8
+  },
+  {
+   "customer_code": "802",
+   "customer": "شركة العل اسكندرية",
+   "salesperson": "ايمن فارس",
+   "days_0_30_EGP": 43381.5,
+   "days_31_60_EGP": 0.0,
+   "days_61_90_EGP": 0.0,
+   "days_over_90_EGP": 0.0,
+   "opening_carryover_undated_EGP": 87331.07,
+   "total_debt_EGP": 130712.57
+  },
+  {
+   "customer_code": "511",
+   "customer": "طارق سعيد السماعليه",
+   "salesperson": "ايمن فارس",
+   "days_0_30_EGP": 46211.1,
+   "days_31_60_EGP": 0.0,
+   "days_61_90_EGP": 0.0,
+   "days_over_90_EGP": 0.0,
+   "opening_carryover_undated_EGP": 58431.71,
+   "total_debt_EGP": 104642.81
+  },
+  {
+   "customer_code": "50",
+   "customer": "م اللفى",
+   "salesperson": "محمد بشرى",
+   "days_0_30_EGP": 102037.25,
+   "days_31_60_EGP": 0.0,
+   "days_61_90_EGP": 0.0,
+   "days_over_90_EGP": 0.0,
+   "opening_carryover_undated_EGP": 0.0,
+   "total_debt_EGP": 102037.25
+  },
+  {
+   "customer_code": "884",
+   "customer": "ثلجه الوادي",
+   "salesperson": "ايمن فارس",
+   "days_0_30_EGP": 90880.0,
+   "days_31_60_EGP": 0.0,
+   "days_61_90_EGP": 0.0,
+   "days_over_90_EGP": 0.0,
+   "opening_carryover_undated_EGP": 1692.75,
+   "total_debt_EGP": 92572.75
+  },
+  {
+   "customer_code": "890",
+   "customer": "الحاج م حامد شرم الشيخ",
+   "salesperson": "ايمن فارس",
+   "days_0_30_EGP": 0.0,
+   "days_31_60_EGP": 0.0,
+   "days_61_90_EGP": 0.0,
+   "days_over_90_EGP": 0.0,
+   "opening_carryover_undated_EGP": 83825.36,
+   "total_debt_EGP": 83825.36
+  },
+  {
+   "customer_code": "729",
+   "customer": "حمادة شلبى",
+   "salesperson": "محمد امام الصعيد",
+   "days_0_30_EGP": 79199.66,
+   "days_31_60_EGP": 0.0,
+   "days_61_90_EGP": 0.0,
+   "days_over_90_EGP": 0.0,
+   "opening_carryover_undated_EGP": 0.0,
+   "total_debt_EGP": 79199.66
+  },
+  {
+   "customer_code": "47",
+   "customer": "سامح توفيق",
+   "salesperson": "هانى",
+   "days_0_30_EGP": 19500.0,
+   "days_31_60_EGP": 0.0,
+   "days_61_90_EGP": 0.0,
+   "days_over_90_EGP": 0.0,
+   "opening_carryover_undated_EGP": 47893.0,
+   "total_debt_EGP": 67393.0
+  }
+ ],
+ "receivables_top": [
+  {
+   "customer_code": "677",
+   "customer": "ميكس فود",
+   "salesperson": "محمد امام الصعيد",
+   "due_debt_EGP": 351345.46,
+   "period_sales_EGP": 266000.7,
+   "credit_exposure_months": 1.14
+  },
+  {
+   "customer_code": "710",
+   "customer": "احمد صلح المنيا",
+   "salesperson": "محمد امام الصعيد",
+   "due_debt_EGP": 328970.85,
+   "period_sales_EGP": 303659.75,
+   "credit_exposure_months": 0.94
+  },
+  {
+   "customer_code": "532",
+   "customer": "محمود العمده الصعيد",
+   "salesperson": "محمد امام الصعيد",
+   "due_debt_EGP": 247452.62,
+   "period_sales_EGP": 226945.2,
+   "credit_exposure_months": 0.94
+  },
+  {
+   "customer_code": "922",
+   "customer": "مصطفى عبدالمجيد",
+   "salesperson": "محمد امام الصعيد",
+   "due_debt_EGP": 240875.5,
+   "period_sales_EGP": 216056.6,
+   "credit_exposure_months": 0.97
+  },
+  {
+   "customer_code": "918",
+   "customer": "مصطفى قمر بنى سويف",
+   "salesperson": "محمد امام الصعيد",
+   "due_debt_EGP": 232542.31,
+   "period_sales_EGP": 56255.25,
+   "credit_exposure_months": 3.58
+  },
+  {
+   "customer_code": "714",
+   "customer": "مصطفى ابو سويف الدهب بنى",
+   "salesperson": "محمد امام",
+   "due_debt_EGP": 165939.79,
+   "period_sales_EGP": 120214.2,
+   "credit_exposure_months": 1.2
+  },
+  {
+   "customer_code": "455",
+   "customer": "ثلجه المهدي",
+   "salesperson": "محمد امام",
+   "due_debt_EGP": 161200.75,
+   "period_sales_EGP": 76117.5,
+   "credit_exposure_months": 1.84
+  },
+  {
+   "customer_code": "962",
+   "customer": "الدوليه",
+   "salesperson": "هانى",
+   "due_debt_EGP": 151628.8,
+   "period_sales_EGP": 114033.0,
+   "credit_exposure_months": 1.15
+  },
+  {
+   "customer_code": "802",
+   "customer": "شركة العل اسكندرية",
+   "salesperson": "ايمن فارس",
+   "due_debt_EGP": 130712.57,
+   "period_sales_EGP": 43381.5,
+   "credit_exposure_months": 2.61
+  },
+  {
+   "customer_code": "511",
+   "customer": "طارق سعيد السماعليه",
+   "salesperson": "ايمن فارس",
+   "due_debt_EGP": 104642.81,
+   "period_sales_EGP": 46211.1,
+   "credit_exposure_months": 1.96
+  },
+  {
+   "customer_code": "50",
+   "customer": "م اللفى",
+   "salesperson": "محمد بشرى",
+   "due_debt_EGP": 102037.25,
+   "period_sales_EGP": 174553.5,
+   "credit_exposure_months": 0.51
+  },
+  {
+   "customer_code": "884",
+   "customer": "ثلجه الوادي",
+   "salesperson": "ايمن فارس",
+   "due_debt_EGP": 92572.75,
+   "period_sales_EGP": 90880.0,
+   "credit_exposure_months": 0.88
+  },
+  {
+   "customer_code": "890",
+   "customer": "الحاج م حامد شرم الشيخ",
+   "salesperson": "ايمن فارس",
+   "due_debt_EGP": 83825.36,
+   "period_sales_EGP": 0.0,
+   "credit_exposure_months": 0.0
+  },
+  {
+   "customer_code": "729",
+   "customer": "حمادة شلبى",
+   "salesperson": "محمد امام الصعيد",
+   "due_debt_EGP": 79199.66,
+   "period_sales_EGP": 230214.6,
+   "credit_exposure_months": 0.3
+  },
+  {
+   "customer_code": "47",
+   "customer": "سامح توفيق",
+   "salesperson": "هانى",
+   "due_debt_EGP": 67393.0,
+   "period_sales_EGP": 19500.0,
+   "credit_exposure_months": 3.0
+  }
+ ],
+ "due_within_month": {
+  "total": 3369623.94,
+  "overdue": 0.0,
+  "later": 0.0,
+  "top": [
+   {
+    "customer_code": "710",
+    "customer": "احمد صلح المنيا",
+    "salesperson": "محمد امام الصعيد",
+    "invoices": 6.0,
+    "due_within_1_month_EGP": 303659.75,
+    "overdue_EGP": 0.0,
+    "first_due_date": "2026-07-03",
+    "last_due_date": "2026-07-21"
+   },
+   {
+    "customer_code": "677",
+    "customer": "ميكس فود",
+    "salesperson": "محمد امام الصعيد",
+    "invoices": 1.0,
+    "due_within_1_month_EGP": 266000.7,
+    "overdue_EGP": 0.0,
+    "first_due_date": "2026-07-09",
+    "last_due_date": "2026-07-09"
+   },
+   {
+    "customer_code": "729",
+    "customer": "حمادة شلبى",
+    "salesperson": "محمد امام الصعيد",
+    "invoices": 4.0,
+    "due_within_1_month_EGP": 230214.6,
+    "overdue_EGP": 0.0,
+    "first_due_date": "2026-07-08",
+    "last_due_date": "2026-07-21"
+   },
+   {
+    "customer_code": "532",
+    "customer": "محمود العمده الصعيد",
+    "salesperson": "محمد امام الصعيد",
+    "invoices": 2.0,
+    "due_within_1_month_EGP": 226945.2,
+    "overdue_EGP": 0.0,
+    "first_due_date": "2026-07-04",
+    "last_due_date": "2026-07-21"
+   },
+   {
+    "customer_code": "922",
+    "customer": "مصطفى عبدالمجيد",
+    "salesperson": "محمد امام الصعيد",
+    "invoices": 3.0,
+    "due_within_1_month_EGP": 216056.6,
+    "overdue_EGP": 0.0,
+    "first_due_date": "2026-07-15",
+    "last_due_date": "2026-07-15"
+   },
+   {
+    "customer_code": "50",
+    "customer": "م اللفى",
+    "salesperson": "محمد بشرى",
+    "invoices": 2.0,
+    "due_within_1_month_EGP": 174553.5,
+    "overdue_EGP": 0.0,
+    "first_due_date": "2026-07-11",
+    "last_due_date": "2026-07-21"
+   },
+   {
+    "customer_code": "624",
+    "customer": "هايبر العابد",
+    "salesperson": "محمد بشرى",
+    "invoices": 4.0,
+    "due_within_1_month_EGP": 129975.0,
+    "overdue_EGP": 0.0,
+    "first_due_date": "2026-07-03",
+    "last_due_date": "2026-07-18"
+   },
+   {
+    "customer_code": "714",
+    "customer": "مصطفى ابو الدهب بنى سويف",
+    "salesperson": "محمد امام",
+    "invoices": 3.0,
+    "due_within_1_month_EGP": 120214.2,
+    "overdue_EGP": 0.0,
+    "first_due_date": "2026-07-15",
+    "last_due_date": "2026-07-15"
+   },
+   {
+    "customer_code": "962",
+    "customer": "الدوليه",
+    "salesperson": "هانى",
+    "invoices": 3.0,
+    "due_within_1_month_EGP": 114033.0,
+    "overdue_EGP": 0.0,
+    "first_due_date": "2026-07-14",
+    "last_due_date": "2026-07-24"
+   },
+   {
+    "customer_code": "884",
+    "customer": "ثلجه الوادي",
+    "salesperson": "ايمن فارس",
+    "invoices": 1.0,
+    "due_within_1_month_EGP": 90880.0,
+    "overdue_EGP": 0.0,
+    "first_due_date": "2026-07-18",
+    "last_due_date": "2026-07-18"
+   },
+   {
+    "customer_code": "455",
+    "customer": "ثلجه المهدي",
+    "salesperson": "محمد امام",
+    "invoices": 1.0,
+    "due_within_1_month_EGP": 76117.5,
+    "overdue_EGP": 0.0,
+    "first_due_date": "2026-07-24",
+    "last_due_date": "2026-07-24"
+   },
+   {
+    "customer_code": "918",
+    "customer": "مصطفى قمر بنى سويف",
+    "salesperson": "محمد امام الصعيد",
+    "invoices": 1.0,
+    "due_within_1_month_EGP": 56255.25,
+    "overdue_EGP": 0.0,
+    "first_due_date": "2026-07-17",
+    "last_due_date": "2026-07-17"
+   },
+   {
+    "customer_code": "36",
+    "customer": "البوب",
+    "salesperson": "هانى",
+    "invoices": 1.0,
+    "due_within_1_month_EGP": 56008.2,
+    "overdue_EGP": 0.0,
+    "first_due_date": "2026-07-15",
+    "last_due_date": "2026-07-15"
+   },
+   {
+    "customer_code": "776",
+    "customer": "يوسف سعد الدايل مطروح",
+    "salesperson": "محمد امام",
+    "invoices": 1.0,
+    "due_within_1_month_EGP": 55351.05,
+    "overdue_EGP": 0.0,
+    "first_due_date": "2026-07-21",
+    "last_due_date": "2026-07-21"
+   },
+   {
+    "customer_code": "460",
+    "customer": "ثلجه المهندس",
+    "salesperson": "محمد امام",
+    "invoices": 3.0,
+    "due_within_1_month_EGP": 53397.0,
+    "overdue_EGP": 0.0,
+    "first_due_date": "2026-07-07",
+    "last_due_date": "2026-07-23"
+   }
+  ]
+ },
+ "items_top": [
+  {
+   "item_code": "13",
+   "item_name": "سجق شرقى 3 ك ابو هاشم",
+   "unit": "كيلو 3 كيس",
+   "total_qty": 1240.0,
+   "total_sales_EGP": 464650.0,
+   "avg_selling_price_EGP": 374.72,
+   "min_price_EGP": 305.0,
+   "max_price_EGP": 375.0
+  },
+  {
+   "item_code": "101",
+   "item_name": "كفته الهنا 800 جرام",
+   "unit": "طبق",
+   "total_qty": 7764.0,
+   "total_sales_EGP": 432270.6,
+   "avg_selling_price_EGP": 55.68,
+   "min_price_EGP": 67.0,
+   "max_price_EGP": 67.0
+  },
+  {
+   "item_code": "120",
+   "item_name": "برجر الهنا 900 جرام",
+   "unit": "طبق",
+   "total_qty": 5484.0,
+   "total_sales_EGP": 323652.0,
+   "avg_selling_price_EGP": 59.02,
+   "min_price_EGP": 70.0,
+   "max_price_EGP": 70.0
+  },
+  {
+   "item_code": "402",
+   "item_name": "كفته اسبيشيال عائلى",
+   "unit": "طبق",
+   "total_qty": 3982.0,
+   "total_sales_EGP": 240261.81,
+   "avg_selling_price_EGP": 60.34,
+   "min_price_EGP": 66.3,
+   "max_price_EGP": 80.0
+  },
+  {
+   "item_code": "404",
+   "item_name": "برجر اسبشيال عائلى",
+   "unit": "طبق",
+   "total_qty": 3544.0,
+   "total_sales_EGP": 238591.9,
+   "avg_selling_price_EGP": 67.32,
+   "min_price_EGP": 68.0,
+   "max_price_EGP": 80.0
+  },
+  {
+   "item_code": "346",
+   "item_name": "بانيه 800 جرام",
+   "unit": "طبق",
+   "total_qty": 2920.0,
+   "total_sales_EGP": 167286.0,
+   "avg_selling_price_EGP": 57.29,
+   "min_price_EGP": 55.0,
+   "max_price_EGP": 58.5
+  },
+  {
+   "item_code": "102",
+   "item_name": "كفته الهنا 350",
+   "unit": "طبق",
+   "total_qty": 7710.0,
+   "total_sales_EGP": 152592.0,
+   "avg_selling_price_EGP": 19.79,
+   "min_price_EGP": 32.0,
+   "max_price_EGP": 32.0
+  },
+  {
+   "item_code": "398",
+   "item_name": "بانيه 900 جرام اسباشيل",
+   "unit": "كيس",
+   "total_qty": 2340.0,
+   "total_sales_EGP": 145480.0,
+   "avg_selling_price_EGP": 62.17,
+   "min_price_EGP": 62.0,
+   "max_price_EGP": 64.0
+  },
+  {
+   "item_code": "439",
+   "item_name": "استربس الهنا 800 جرام",
+   "unit": "طبق",
+   "total_qty": 933.0,
+   "total_sales_EGP": 139800.0,
+   "avg_selling_price_EGP": 149.84,
+   "min_price_EGP": 150.0,
+   "max_price_EGP": 150.0
+  },
+  {
+   "item_code": "257",
+   "item_name": "سجق الهنا 5 كيلو",
+   "unit": "طبق",
+   "total_qty": 334.0,
+   "total_sales_EGP": 123605.0,
+   "avg_selling_price_EGP": 370.07,
+   "min_price_EGP": 370.0,
+   "max_price_EGP": 375.0
+  },
+  {
+   "item_code": "104",
+   "item_name": "برجر الهنا 400 جرام",
+   "unit": "طبق",
+   "total_qty": 4170.0,
+   "total_sales_EGP": 119212.5,
+   "avg_selling_price_EGP": 28.59,
+   "min_price_EGP": 34.0,
+   "max_price_EGP": 34.0
+  },
+  {
+   "item_code": "403",
+   "item_name": "برجر اسبشيال صغير",
+   "unit": "طبق",
+   "total_qty": 3197.0,
+   "total_sales_EGP": 94142.2,
+   "avg_selling_price_EGP": 29.45,
+   "min_price_EGP": 36.0,
+   "max_price_EGP": 36.0
+  },
+  {
+   "item_code": "108",
+   "item_name": "سجق الهنا 350",
+   "unit": "طبق",
+   "total_qty": 2985.0,
+   "total_sales_EGP": 91341.0,
+   "avg_selling_price_EGP": 30.6,
+   "min_price_EGP": 36.0,
+   "max_price_EGP": 36.0
+  },
+  {
+   "item_code": "399",
+   "item_name": "كفته اسبيشيال صغير",
+   "unit": "طبق",
+   "total_qty": 3304.0,
+   "total_sales_EGP": 87064.63,
+   "avg_selling_price_EGP": 26.35,
+   "min_price_EGP": 35.0,
+   "max_price_EGP": 35.0
+  },
+  {
+   "item_code": "435",
+   "item_name": "عجينة بقرى 5 ك",
+   "unit": "كيلو",
+   "total_qty": 160.0,
+   "total_sales_EGP": 73090.0,
+   "avg_selling_price_EGP": 456.81,
+   "min_price_EGP": 450.0,
+   "max_price_EGP": 460.0
+  }
+ ],
+ "customers_bonus": {
+  "total": 41957.2,
+  "top": [
+   {
+    "customer_code": "710",
+    "customer": "احمد صلح المنيا",
+    "salesperson": "محمد امام الصعيد",
+    "total_sales_EGP": 303659.75,
+    "outstanding_debt_EGP": 328970.85,
+    "bonus_pct": 2.0,
+    "bonus_amount_EGP": 6073.19
+   },
+   {
+    "customer_code": "677",
+    "customer": "ميكس فود",
+    "salesperson": "محمد امام الصعيد",
+    "total_sales_EGP": 266000.7,
+    "outstanding_debt_EGP": 351345.46,
+    "bonus_pct": 2.0,
+    "bonus_amount_EGP": 5320.01
+   },
+   {
+    "customer_code": "729",
+    "customer": "حمادة شلبى",
+    "salesperson": "محمد امام الصعيد",
+    "total_sales_EGP": 230214.6,
+    "outstanding_debt_EGP": 79199.66,
+    "bonus_pct": 1.5,
+    "bonus_amount_EGP": 3453.22
+   },
+   {
+    "customer_code": "532",
+    "customer": "محمود العمده الصعيد",
+    "salesperson": "محمد امام الصعيد",
+    "total_sales_EGP": 226945.2,
+    "outstanding_debt_EGP": 247452.62,
+    "bonus_pct": 1.5,
+    "bonus_amount_EGP": 3404.18
+   },
+   {
+    "customer_code": "922",
+    "customer": "مصطفى عبدالمجيد",
+    "salesperson": "محمد امام الصعيد",
+    "total_sales_EGP": 216056.6,
+    "outstanding_debt_EGP": 240875.5,
+    "bonus_pct": 1.5,
+    "bonus_amount_EGP": 3240.85
+   },
+   {
+    "customer_code": "50",
+    "customer": "م اللفى",
+    "salesperson": "محمد بشرى",
+    "total_sales_EGP": 174553.5,
+    "outstanding_debt_EGP": 102037.25,
+    "bonus_pct": 1.5,
+    "bonus_amount_EGP": 2618.3
+   },
+   {
+    "customer_code": "624",
+    "customer": "هايبر العابد",
+    "salesperson": "محمد بشرى",
+    "total_sales_EGP": 129975.0,
+    "outstanding_debt_EGP": 35242.86,
+    "bonus_pct": 1.5,
+    "bonus_amount_EGP": 1949.62
+   },
+   {
+    "customer_code": "714",
+    "customer": "مصطفى ابو الدهب بنى سويف",
+    "salesperson": "محمد امام",
+    "total_sales_EGP": 120214.2,
+    "outstanding_debt_EGP": 165939.79,
+    "bonus_pct": 1.5,
+    "bonus_amount_EGP": 1803.21
+   },
+   {
+    "customer_code": "962",
+    "customer": "الدوليه",
+    "salesperson": "هانى",
+    "total_sales_EGP": 114033.0,
+    "outstanding_debt_EGP": 151628.8,
+    "bonus_pct": 1.5,
+    "bonus_amount_EGP": 1710.49
+   },
+   {
+    "customer_code": "884",
+    "customer": "ثلجه الوادي",
+    "salesperson": "ايمن فارس",
+    "total_sales_EGP": 90880.0,
+    "outstanding_debt_EGP": 92572.75,
+    "bonus_pct": 1.0,
+    "bonus_amount_EGP": 908.8
+   },
+   {
+    "customer_code": "455",
+    "customer": "ثلجه المهدي",
+    "salesperson": "محمد امام",
+    "total_sales_EGP": 76117.5,
+    "outstanding_debt_EGP": 161200.75,
+    "bonus_pct": 1.0,
+    "bonus_amount_EGP": 761.17
+   },
+   {
+    "customer_code": "918",
+    "customer": "مصطفى قمر بنى سويف",
+    "salesperson": "محمد امام الصعيد",
+    "total_sales_EGP": 56255.25,
+    "outstanding_debt_EGP": 232542.31,
+    "bonus_pct": 1.0,
+    "bonus_amount_EGP": 562.55
+   },
+   {
+    "customer_code": "36",
+    "customer": "البوب",
+    "salesperson": "هانى",
+    "total_sales_EGP": 56008.2,
+    "outstanding_debt_EGP": 54442.9,
+    "bonus_pct": 1.0,
+    "bonus_amount_EGP": 560.08
+   },
+   {
+    "customer_code": "776",
+    "customer": "يوسف سعد الدايل مطروح",
+    "salesperson": "محمد امام",
+    "total_sales_EGP": 55351.05,
+    "outstanding_debt_EGP": 5836.27,
+    "bonus_pct": 1.0,
+    "bonus_amount_EGP": 553.51
+   },
+   {
+    "customer_code": "460",
+    "customer": "ثلجه المهندس",
+    "salesperson": "محمد امام",
+    "total_sales_EGP": 53397.0,
+    "outstanding_debt_EGP": -19.66,
+    "bonus_pct": 1.0,
+    "bonus_amount_EGP": 533.97
+   }
+  ]
+ },
+ "zero_invoices": {
+  "count": 40,
+  "qty": 3339.0
+ },
+ "model": {
+  "material_cogs": {
+   "model": 2039933.08,
+   "statement": 2039933.08
+  },
+  "operating_profit": {
+   "model": 418841.92,
+   "statement": 418841.92
+  },
+  "invoices": 311,
+  "skus": 33
+ },
+ "runs": [
+  {
+   "step": "analysis/analyze.py",
+   "status": "يعمل",
+   "detail": "",
+   "log": [
+    "  حسام حسن           debt=   272,280.71 sales=  302,838.44 exposure=0.78 mo",
+    "  محمد خليل          debt=    56,582.62 sales=   69,063.50 exposure=0.71 mo",
+    "  شعبان              debt=    14,999.87 sales=   78,511.60 exposure=0.17 mo",
+    "  محمود السيد        debt=    10,184.00 sales=   10,184.00 exposure=0.87 mo",
+    "Wrote outputs to …/abohashem_main/analysis/output",
+    "Wrote report.md"
+   ]
+  },
+  {
+   "step": "analysis/aging.py",
+   "status": "يعمل",
+   "detail": "",
+   "log": [
+    "  days_31_60_EGP                             0.00",
+    "  days_61_90_EGP                             0.00",
+    "  days_over_90_EGP                           0.00",
+    "  opening_carryover_undated_EGP      1,228,050.48",
+    "  total_debt_EGP                     3,738,018.90",
+    "wrote …/abohashem_main/analysis/output/aging_by_customer.csv"
+   ]
+  },
+  {
+   "step": "analysis/receivables_report.py",
+   "status": "يعمل",
+   "detail": "",
+   "log": [
+    "  مصطفى ابو سويف الدهب بنى      165,939.79  exp=1.2 mo  [محمد امام]",
+    "  ثلجه المهدي                   161,200.75  exp=1.84 mo  [محمد امام]",
+    "  الدوليه                       151,628.80  exp=1.15 mo  [هانى]",
+    "  شركة العل اسكندرية            130,712.57  exp=2.61 mo  [ايمن فارس]",
+    "  طارق سعيد السماعليه           104,642.81  exp=1.96 mo  [ايمن فارس]",
+    "wrote …/abohashem_main/analysis/output/receivables_by_customer.csv"
+   ]
+  },
+  {
+   "step": "analysis/due_within_month.py",
+   "status": "يعمل",
+   "detail": "",
+   "log": [
+    "  مصطفى عبدالمجيد          within=  216,056.60 due 2026-07-15..2026-07-15 [محمد امام الصعيد]",
+    "  م اللفى                  within=  174,553.50 due 2026-07-11..2026-07-21 [محمد بشرى]",
+    "  هايبر العابد             within=  129,975.00 due 2026-07-03..2026-07-18 [محمد بشرى]",
+    "  مصطفى ابو الدهب بنى سويف within=  120,214.20 due 2026-07-15..2026-07-15 [محمد امام]",
+    "  الدوليه                  within=  114,033.00 due 2026-07-14..2026-07-24 [هانى]",
+    "  ثلجه الوادي              within=   90,880.00 due 2026-07-18..2026-07-18 [ايمن فارس]"
+   ]
+  },
+  {
+   "step": "output/summary.json",
+   "status": "يطابق النسخة في الجذر",
+   "detail": "",
+   "log": []
+  },
+  {
+   "step": "output/items_summary.csv",
+   "status": "يطابق النسخة في الجذر",
+   "detail": "",
+   "log": []
+  },
+  {
+   "step": "output/customers_summary.csv",
+   "status": "يطابق النسخة في الجذر",
+   "detail": "",
+   "log": []
+  },
+  {
+   "step": "output/salespeople_summary.csv",
+   "status": "يطابق النسخة في الجذر",
+   "detail": "",
+   "log": []
+  },
+  {
+   "step": "output/zero_invoices.csv",
+   "status": "يطابق النسخة في الجذر",
+   "detail": "",
+   "log": []
+  },
+  {
+   "step": "output/aging_by_customer.csv",
+   "status": "يطابق النسخة في الجذر",
+   "detail": "",
+   "log": []
+  },
+  {
+   "step": "output/receivables_by_customer.csv",
+   "status": "يطابق النسخة في الجذر",
+   "detail": "",
+   "log": []
+  },
+  {
+   "step": "output/due_within_month_by_customer.csv",
+   "status": "يطابق النسخة في الجذر",
+   "detail": "",
+   "log": []
+  },
+  {
+   "step": "output/maturity_schedule_detail.csv",
+   "status": "يطابق النسخة في الجذر",
+   "detail": "",
+   "log": []
+  },
+  {
+   "step": "output/report.md",
+   "status": "يطابق النسخة في الجذر",
+   "detail": "",
+   "log": []
+  },
+  {
+   "step": "analysis/parse_invoices.py",
+   "status": "يطابق invoices.json",
+   "detail": "exit 0",
+   "log": [
+    "line items: 652",
+    "line items failing price*qty*(1-disc)=total: 0",
+    "invoices where sum(lines)!=invoice_total: 0",
+    "wrote invoices.json"
+   ]
+  },
+  {
+   "step": "analysis/parse_salespeople.py",
+   "status": "يطابق salespeople.json",
+   "detail": "9 تقارير مناديب — على مجلده كاملًا يقرأ كل ملفات PDF فيه، فيُشغَّل على التقارير التسعة فقط",
+   "log": [
+    "هانى 26-6.pdf                       customers= 22 debit=    425,587.53 credit=      0.20 net=    425,587.33",
+    "codes mapped to >1 salesperson: 0",
+    "total customer rows: 249",
+    "wrote salespeople.json"
+   ]
+  },
+  {
+   "step": "model/costing_pricing_model.py",
+   "status": "يطابق قائمة دخل يونيو",
+   "detail": "exit 0",
+   "log": [
+    "Invoices parsed: 311 | SKUs: 33",
+    "Total kg: 47226.0 | conversion/kg: 11.532",
+    "Std material COGS (recipe): 1740586.06 | imputed traded COGS: 299347.02",
+    "Σ actual material  = 2039933.08  (COGS 2039933.08)",
+    "Σ operating profit = 418841.92  (IS net profit 418,841.92)"
+   ]
+  },
+  {
+   "step": "model/build_workbook.py",
+   "status": "يعمل",
+   "detail": "exit 0",
+   "log": [
+    "Workbook saved: …/abohashem_main/ABOHASHEM_Costing_Pricing_Model_June2026.xlsx | sheets: 11"
+   ]
+  },
+  {
+   "step": "model/wac_august_2026.py",
+   "status": "يعيد WAC_AUGUST_2026_REPORT.md كما هو",
+   "detail": "exit 0",
+   "log": [
+    "purchases: 95 lines, total 2,727,152.34",
+    "opening value 2,016,665.64 (July file 2,016,665.61)",
+    "raw stock 31/8 2,699,872.00 | finished goods 435,605.75",
+    "max deviation re-deriving July FG prices from recipes: 0.0045 (كفته الهنا 350)",
+    "items priced: 115/149; flags 39"
+   ]
+  },
+  {
+   "step": "model/wac_september_2026.py",
+   "status": "يعيد WAC_SEPTEMBER_2026_REPORT.md كما هو",
+   "detail": "exit 0",
+   "log": [
+    "September purchases: 89 lines, 2,217,803.14; opening value 2,642,846.25 (file -2: 2,661,861.09)",
+    "raw 30/9 2,202,826.80 | finished goods 319,590.86 | prices written 172 | verified 165/165 | reconciliation not matching: []"
+   ]
+  }
+ ]
+}

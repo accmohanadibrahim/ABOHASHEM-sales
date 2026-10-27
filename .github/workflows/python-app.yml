@@ -42,3 +42,30 @@ jobs:
     - name: Test with pytest
       run: |
         pytest
+
+  # Runs the code of Abohashem-main.zip (unzipped in abohashem_main/) through
+  # executive_dashboard/src/abohashem_main.py and checks the result is the committed
+  # data/processed/abohashem_main.json. Switch off with the repository variable ABOHASHEM_MAIN=off.
+  # The zip's own workflows (abohashem_main/.github/, including the PyPI publish) are not enabled.
+  abohashem-main:
+    if: ${{ vars.ABOHASHEM_MAIN != 'off' }}
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.10"
+    - name: Install the tools its scripts need
+      run: |
+        sudo apt-get update && sudo apt-get install -y poppler-utils
+        python -m pip install --upgrade pip
+        pip install pymupdf openpyxl pytest
+    - name: Run the Abohashem-main code
+      working-directory: executive_dashboard
+      run: |
+        cp ../data/processed/abohashem_main.json /tmp/committed.json
+        python -m src.abohashem_main
+        cmp /tmp/committed.json ../data/processed/abohashem_main.json
+    - name: Test
+      run: pytest executive_dashboard/tests/test_abohashem_main.py -v

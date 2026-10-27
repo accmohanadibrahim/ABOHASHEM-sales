@@ -73,13 +73,18 @@ def test_kill_switch_and_fault_isolation(built):
 
 
 def test_only_the_standard_costs_are_added(built):
-    """The one new dataset is the standard costs (DASH_STD), exactly the committed JSON; the rest is read from the full file."""
+    """The new datasets are the standard costs (DASH_STD), the 2025 statements (DASH_IS25) and the
+    Abohashem-main results (DASH_ABM), each exactly its committed JSON; the rest is read from the full file."""
     original, out, _ins = built
     for var in ("DASH_DATA", "DASH_MARGIN", "DASH_FS", "DASH_OPS", "DASH_VAL", "DASH_BUILD", "DASH_IS26"):
         assert out.count(f"window.{var} =") == original.count(f"window.{var} ="), var
     if bm.STD_JSON.exists():
         m = re.search(r"window\.DASH_STD = (\{.*?\});</script>", out, re.S)
         assert m and json.loads(m.group(1).replace("<\\/", "</")) == json.loads(bm.STD_JSON.read_text(encoding="utf-8"))
+    for var, path in (("DASH_IS25", bm.IS25_JSON), ("DASH_ABM", bm.ABM_JSON)):
+        if path.exists():
+            m = re.search(rf"window\.{var} = (\{{.*?\}});</script>", out, re.S)
+            assert m and json.loads(m.group(1).replace("<\\/", "</")) == json.loads(path.read_text(encoding="utf-8")), var
 
 
 def test_committed_output_is_current(built):

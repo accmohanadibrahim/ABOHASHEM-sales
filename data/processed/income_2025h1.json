@@ -1,0 +1,253 @@
+{
+ "meta": {
+  "basis": "مستخرج من نص PDF — يحتاج مراجعة",
+  "note": "يناير–مايو 2025 من نص القوائم؛ يونيو لا قائمة؛ يوليو–ديسمبر من DASH_FS كما هي",
+  "invoice_series": "data/processed/eda_monthly_series.csv"
+ },
+ "months": [
+  {
+   "month": "2025-01",
+   "gross_sales": 3272205.26,
+   "returns": 73508.0,
+   "discount": 337354.15,
+   "net_sales": 2861343.12,
+   "inbound_freight": 231.27,
+   "cogs": 1803768.0,
+   "earned_discount": 743.42,
+   "gross_profit": 1058087.27,
+   "net_profit": 387739.27,
+   "net_sales_printed": true,
+   "sections": {
+    "commission": 49550.0,
+    "external_labour": 55180.0,
+    "salaries": 165580.0,
+    "rent": 87450.0,
+    "other": 312588.0
+   },
+   "expenses": 670348.0,
+   "basis": "مستخرج من نص PDF — يحتاج مراجعة",
+   "flags": [
+    "المصروفات بلا تقسيم إداري/بيعي في القائمة"
+   ],
+   "source": "data/raw/income_2025/income_statement_2025-01.txt",
+   "uploaded_as": "دخل شهر ١ سنة ٢٠٢٥.pdf.txt",
+   "sha256": "25ef690702d2d03be793329943db832366dd0c84bc21f29cf285464c491699e7",
+   "invoice_sales": 2928292.96
+  },
+  {
+   "month": "2025-02",
+   "gross_sales": 3069929.5,
+   "returns": 121981.5,
+   "discount": 269458.5,
+   "net_sales": 2678489.5,
+   "inbound_freight": 0.0,
+   "cogs": 1587910.48,
+   "earned_discount": 0.0,
+   "gross_profit": 1090579.02,
+   "net_profit": 290393.02,
+   "net_sales_printed": false,
+   "sections": {
+    "admin": 566990,
+    "selling": 233196
+   },
+   "expenses": 800186,
+   "basis": "مستخرج من نص PDF — يحتاج مراجعة",
+   "flags": [
+    "صافي المبيعات غير مطبوع في القائمة — محسوب: المبيعات − المردودات − الخصم"
+   ],
+   "source": "data/raw/income_2025/income_statement_2025-02.txt",
+   "uploaded_as": "دخل شهر ٢ سنة ٢٠٢٥.pdf.txt",
+   "sha256": "0c9a0a9dd5c0c32792e262e5dfd99ef45677531854bb4b2c527f28a52d5562a2",
+   "invoice_sales": 2152970.97
+  },
+  {
+   "month": "2025-03",
+   "gross_sales": 3069929.5,
+   "returns": 121981.5,
+   "discount": 269458.5,
+   "net_sales": 2678489.5,
+   "inbound_freight": 0.0,
+   "cogs": 1587910.48,
+   "earned_discount": 0.0,
+   "gross_profit": 1090579.02,
+   "net_profit": 394660.02,
+   "net_sales_printed": false,
+   "sections": {
+    "admin": 426464,
+    "selling": 269455
+   },
+   "expenses": 695919,
+   "basis": "مستخرج من نص PDF — يحتاج مراجعة",
+   "flags": [
+    "صافي المبيعات غير مطبوع في القائمة — محسوب: المبيعات − المردودات − الخصم",
+    "نفس مبيعات ومردودات وخصم وتكلفة فبراير بالقرش — يحتاج تأكيد"
+   ],
+   "source": "data/raw/income_2025/income_statement_2025-03.txt",
+   "uploaded_as": "دخل شهر ٣ سنة ٢٠٢٥.pdf.txt",
+   "sha256": "3dd4013f8dd414d714e8e452d894229602d23cef3dae2e3b2b68a8661770c506",
+   "invoice_sales": 3326914.5,
+   "needs_confirmation": true
+  },
+  {
+   "month": "2025-04",
+   "gross_sales": 2742183.0,
+   "returns": 60105.0,
+   "discount": 296388.0,
+   "net_sales": 2385690.0,
+   "inbound_freight": 0.0,
+   "cogs": 1107881.61,
+   "earned_discount": 0.0,
+   "gross_profit": 1277808.39,
+   "net_profit": 460563.39,
+   "net_sales_printed": true,
+   "sections": {
+    "admin": 554870,
+    "selling": 262375
+   },
+   "expenses": 817245,
+   "basis": "مستخرج من نص PDF — يحتاج مراجعة",
+   "flags": [],
+   "source": "data/raw/income_2025/income_statement_2025-04.txt",
+   "uploaded_as": "دخل شهر ٤ سنة ٢٠٢٥.pdf.txt",
+   "sha256": "2e0c99c9d93f182f7062264ba2e0e8a5e7011477ac7a6d0c895990fb78bb7925",
+   "invoice_sales": 2442991.52
+  },
+  {
+   "month": "2025-05",
+   "gross_sales": 3465258.0,
+   "returns": 96969.0,
+   "discount": 295051.0,
+   "net_sales": 3073238.0,
+   "inbound_freight": 0.0,
+   "cogs": 1480474.8,
+   "earned_discount": 0.0,
+   "gross_profit": 1592763.2,
+   "net_profit": 663950.2,
+   "net_sales_printed": true,
+   "sections": {
+    "admin": 639409,
+    "selling": 289404
+   },
+   "expenses": 928813,
+   "basis": "مستخرج من نص PDF — يحتاج مراجعة",
+   "flags": [],
+   "source": "data/raw/income_2025/income_statement_2025-05.txt",
+   "uploaded_as": "دخل شهر ٥ سنة ٢٠٢٥.pdf.txt",
+   "sha256": "fb6155f3d5cb8010dadd7385eac65d22b9124865c03edbee8bcb542c44ba9404",
+   "invoice_sales": 3163361.15
+  }
+ ],
+ "missing": [
+  {
+   "month": "2025-06",
+   "reason": "لا قائمة دخل لشهر يونيو 2025 في الملفات المرفوعة"
+  }
+ ],
+ "feb_mar": {
+  "months": [
+   "2025-02",
+   "2025-03"
+  ],
+  "net_sales": 5356979.0,
+  "invoice_sales": 5479885.47,
+  "ratio": -0.0224,
+  "other_months_ratio": {
+   "2025-01": -0.0229,
+   "2025-04": -0.0235,
+   "2025-05": -0.0285
+  },
+  "basis": "فرضية"
+ },
+ "h2": [
+  {
+   "month": "2025-07",
+   "net_sales": 2536929.0,
+   "cogs": 1289237.0,
+   "gross_profit": 1247692.0,
+   "sections": {
+    "admin": 463487.0,
+    "selling": 259384.0,
+    "finance": 126120.0
+   },
+   "net_profit": 398701.0,
+   "net_profit_basis": "قبل الإهلاك",
+   "source": "income_statement_detail_2025H2.xlsx",
+   "basis": "مُتحقَّق — DASH_FS"
+  },
+  {
+   "month": "2025-08",
+   "net_sales": 3005991.0,
+   "cogs": 1745079.0479000006,
+   "gross_profit": 1260911.95,
+   "sections": {
+    "admin": 413078.6666666666,
+    "selling": 324112.3333333334,
+    "finance": 0.0
+   },
+   "net_profit": 523720.9520999994,
+   "net_profit_basis": "قبل الإهلاك",
+   "source": "income_statement_detail_2025H2.xlsx",
+   "basis": "مُتحقَّق — DASH_FS"
+  },
+  {
+   "month": "2025-09",
+   "net_sales": 3850745.0,
+   "cogs": 2633584.3971000006,
+   "gross_profit": 1217160.6,
+   "sections": {
+    "admin": 466308.0,
+    "selling": 260120.0,
+    "finance": 50137.0
+   },
+   "net_profit": 440595.60289999936,
+   "net_profit_basis": "قبل الإهلاك",
+   "source": "income_statement_detail_2025H2.xlsx",
+   "basis": "مُتحقَّق — DASH_FS"
+  },
+  {
+   "month": "2025-10",
+   "net_sales": 3695204.0,
+   "cogs": 2317112.1926000006,
+   "gross_profit": 1378091.81,
+   "sections": {
+    "admin": 376638.0,
+    "selling": 255765.0,
+    "finance": 0.0
+   },
+   "net_profit": 745688.8073999994,
+   "net_profit_basis": "قبل الإهلاك",
+   "source": "income_statement_detail_2025H2.xlsx",
+   "basis": "مُتحقَّق — DASH_FS"
+  },
+  {
+   "month": "2025-11",
+   "net_sales": 3032555.14,
+   "cogs": 1726407.4994,
+   "gross_profit": 1306147.64,
+   "sections": {
+    "admin": 475596.0,
+    "selling": 223800.0,
+    "finance": 0.0
+   },
+   "net_profit": 606751.6406,
+   "net_profit_basis": "قبل الإهلاك",
+   "source": "income_statement_detail_2025H2.xlsx",
+   "basis": "مُتحقَّق — DASH_FS"
+  },
+  {
+   "month": "2025-12",
+   "net_sales": 3170826.0,
+   "cogs": 1795859.6779999998,
+   "gross_profit": 1374966.32,
+   "sections": {
+    "admin": 533003.0,
+    "selling": 278826.0,
+    "finance": 70512.0
+   },
+   "net_profit": 492625.32200000016,
+   "net_profit_basis": "قبل الإهلاك",
+   "source": "income_statement_detail_2025H2.xlsx",
+   "basis": "مُتحقَّق — DASH_FS"
+  }
+ ]
+}

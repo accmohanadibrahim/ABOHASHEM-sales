@@ -21,7 +21,7 @@ APP_DIR = Path(__file__).resolve().parents[1]
 FULL_HTML = APP_DIR / "mobile" / "Abu_Hashem_Mobile_full.html"
 BI_HTML = APP_DIR / "mobile" / "Abu_Hashem_Mobile_bi.html"
 OPS_JSON = APP_DIR.parent / "data" / "processed" / "ops_data.json"
-BI_KEYS = ("bi_exec", "bi_bridge", "bi_stock", "bi_std", "bi_alerts", "bi_kpis")
+BI_KEYS = ("bi_exec", "bi_bridge", "bi_stock", "bi_std", "bi_is25", "bi_abm", "bi_alerts", "bi_kpis")
 
 
 def _open(pg, path, query=""):
@@ -251,3 +251,37 @@ def test_monthly_standard(page):
     assert "2026-08" in {m["month"] for m in z["months"]}                # the existing table still lists it
     tabs = page.evaluate("() => window.__abhApp.exportTables().map(t => t.id)")
     assert "bi_std_monthly" in tabs
+
+
+def test_income_2025_full_year(page):
+    """12 months: January–May from the statement text, June «يحتاج بيانات», July–December as DASH_FS;
+    March flagged; the 2025-vs-2026 rows add the same months the 2026 statements cover."""
+    text = go(page, "bi_is25")
+    z = page.evaluate("() => window.__abhApp.biIs25()")
+    assert [r["month"] for r in z["rows"]] == [f"2025-{m:02d}" for m in range(1, 13)]
+    by = {r["month"]: r for r in z["rows"]}
+    assert by["2025-06"].get("need") and "net" not in by["2025-06"]
+    assert by["2025-03"]["confirm"] and not by["2025-02"].get("confirm")
+    fs = page.evaluate("() => window.DASH_FS.income")
+    for m in ("2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12"):
+        assert by[m]["net"] == fs[m]["net_sales"] and by[m]["np"] == fs[m]["net_profit_pre_dep"], m
+    assert by["2025-01"]["np"] == pytest.approx(387739.27) and by["2025-05"]["net"] == pytest.approx(3073238.0)
+    q1 = z["cmp"][0]
+    assert q1["label"] == "الربع الأول" and q1["confirm"]
+    assert q1["net25"] == pytest.approx(sum(by[m]["net"] for m in ("2025-01", "2025-02", "2025-03")))
+    jun = next(c for c in z["cmp"] if c["m25"] == ["2025-06"])
+    assert jun["net25"] is None
+    assert "يحتاج بيانات" in text and "يحتاج تأكيد" in text and "2025 مقابل 2026" in text
+    tabs = page.evaluate("() => window.__abhApp.exportTables().map(t => t.id)")
+    assert "bi_is25" in tabs and "bi_is25_vs_26" in tabs
+
+
+def test_abohashem_main_section(page):
+    """The zip's code results, labelled as the June snapshot; every tie-out holds."""
+    text = go(page, "bi_abm")
+    a = page.evaluate("() => window.DASH_ABM")
+    assert a["enabled"] and all(c["ok"] for c in a["checks"])
+    assert "لقطة يونيو 2026 من ملف Abohashem-main.zip" in text and "تشغيل الأكواد" in text and "المطابقات" in text
+    assert "3,376,570" in text or "3.38" in text
+    tabs = page.evaluate("() => window.__abhApp.exportTables().map(t => t.id)")
+    assert {"bi_abm_runs", "bi_abm_salespeople", "bi_abm_aging"} <= set(tabs)
