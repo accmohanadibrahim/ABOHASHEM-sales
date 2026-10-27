@@ -26,7 +26,10 @@ Nothing is estimated:
     cost, and the soya 400 g sheet is «مفروم صويا 400»). A confirmed item gets its recipe
     margin: its average selling price in August 2026 (the sheets' month; the whole snapshot
     when it sold nothing in August) less the pack cost, before and after commission;
-  * products and weights with no sheet (عجينة بقري, بانيه 700 جرام, …) are «يحتاج بيانات».
+  * the 700 g panée and 800 g strips packs are not printed: management costed them (27/10/2026)
+    as the sheet's kilo × weight + its packaging (``DECISION_PACKS``), checked against the
+    sheet; their commission was not given and stays «يحتاج بيانات»;
+  * products and weights with no sheet or decision (عجينة بقري, …) are «يحتاج بيانات».
 
     python3 -m src.recipes        # from executive_dashboard/
 """
@@ -55,7 +58,16 @@ DECISION = "مؤكد — قرار الإدارة 27/10/2026"
 # Management decision 27/10/2026: «براند الهنا واسبشيال نفس السعر والصويا ٤٠٠ هو مفروم صويا ٤٠٠».
 CONFIRMED = {"panee": {"brands": {"الهنا", "اسبشيال"}}, "strips": {"brands": {"الهنا", "اسبشيال"}},
              "soya": {"codes": {"10"}}}
-CONFIRMED_NOTE = "الهنا واسبشيال نفس تكلفة الوصفة · وصفة الصويا 400 جرام = «مفروم صويا 400»"
+CONFIRMED_NOTE = ("الهنا واسبشيال نفس تكلفة الوصفة في البانيه والاستربس فقط · وصفة الصويا 400 جرام = «مفروم صويا 400»"
+                  " · بانيه 700 واستربس 800 = كيلو الوصفة × الوزن + التغليف")
+# Packs the sheets do not print, costed by management (27/10/2026): «تكلفة كيلو البانيه هى 51.86 وقيمة
+# تغليف هى 6.25 اذن تكلفة البانيه ٧٠٠ هى 42.552 … تكلفة كيلو الاستربس هى 137.12 وتكلفة تغليف هى 3.2
+# اذن تكلفة الاستربس ٨٠٠ هى 112.896». The kilo cost management used must be the sheet's within 0.01;
+# no commission was given for these packs, so it stays «يحتاج بيانات» and the margin is before commission.
+DECISION_PACKS = {"panee": [{"grams": 700, "kilo": 51.86, "packaging": 6.25, "cost": 42.552}],
+                  "strips": [{"grams": 800, "kilo": 137.12, "packaging": 3.2, "cost": 112.896}]}
+PACK_DECISION = "قرار الإدارة 27/10/2026 — غير مطبوع في الورقة"
+KILO_TOL = 0.01
 PRICE_MONTH = "2026-08"
 
 # As printed. qty/price are None where the sheet prints only a total.
@@ -131,6 +143,13 @@ def check(r: dict, nums: set[float]) -> list[str]:
             errs.append(f"{k}: {r['total']} ÷ {r['batch_kg']} ≠ {r['per_kg']}")
     if abs(r["per_kg"] + sum(v for _, v in r["kg_add"]) - r["per_kg_loaded"]) > 1e-4:
         errs.append(f"{k}: kilo cost + additions ≠ {r['per_kg_loaded']}")
+    for p in DECISION_PACKS.get(k, ()):
+        if abs(p["kilo"] - r["per_kg_loaded"]) > KILO_TOL:
+            errs.append(f"{k}: management kilo {p['kilo']} is not the sheet's {r['per_kg_loaded']}")
+        if abs(p["kilo"] * p["grams"] / 1000 + p["packaging"] - p["cost"]) > 1e-6:
+            errs.append(f"{k}: {p['grams']} g {p['kilo']} × {p['grams'] / 1000} + {p['packaging']} ≠ {p['cost']}")
+        if not any(abs(p["packaging"] - q["packaging"]) < 1e-9 for q in r["packs"]):
+            errs.append(f"{k}: packaging {p['packaging']} is not on the sheet")
     for p in r["packs"]:
         for x in (p["base"], p["packaging"], p["commission"], p["total"]):
             seen(x)
@@ -216,8 +235,10 @@ def link(recipe: str, pack: dict, it: dict) -> dict:
     out = {**it, "status": DECISION, "price": price, "price_basis": basis}
     if price:
         out["margin_ex_commission"] = round(price - pack["cost_ex_commission"], 4)
-        out["margin"] = round(price - pack["total"], 4)
-        out["margin_pct"] = round(out["margin"] / price, 4)
+        out["margin_ex_pct"] = round(out["margin_ex_commission"] / price, 4)
+        if pack["total"] is not None:                       # commission known
+            out["margin"] = round(price - pack["total"], 4)
+            out["margin_pct"] = round(out["margin"] / price, 4)
     return out
 
 
@@ -235,7 +256,10 @@ def build() -> dict:
             "output_kg": out_kg, "output_kg_basis": "مطبوع" if "batch_kg" in r else "محسوب: الإجمالي ÷ سعر الكيلو — غير مطبوع",
             "kg_add": [{"name": n, "value": v} for n, v in r["kg_add"]], "per_kg_loaded": round(r["per_kg_loaded"], 5),
             "packs": [{**p, "base": round(p["base"], 5), "total": round(p["total"], 5),
-                       "cost_ex_commission": round(p["base"] + p["packaging"], 5)} for p in r["packs"]],
+                       "cost_ex_commission": round(p["base"] + p["packaging"], 5), "basis": BASIS} for p in r["packs"]]
+            + [{"grams": p["grams"], "base": round(p["kilo"] * p["grams"] / 1000, 5), "packaging": p["packaging"],
+                "commission": None, "total": None, "cost_ex_commission": p["cost"], "kilo_used": p["kilo"],
+                "basis": PACK_DECISION} for p in DECISION_PACKS.get(r["key"], ())],
             "basis": BASIS, "source": f"data/raw/recipes/{r['file']}", "uploaded_as": r["uploaded_as"],
             "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
     if errs:
@@ -246,7 +270,7 @@ def build() -> dict:
     mc = model_cost(margin)
     for it in items.values():
         it["model_cost"] = mc.get(it["code"])
-    priced = {(r["family"], p["grams"]) for r in RECIPES for p in r["packs"]}
+    priced = {(r["family"], p["grams"]) for r in recipes for p in r["packs"]}
     candidates = []
     for r in recipes:
         for p in r["packs"]:
@@ -276,7 +300,7 @@ def main() -> int:
     data = build()
     OUT_JSON.write_text(json.dumps(data, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     for r in data["recipes"]:
-        packs = " | ".join(f"{p['grams']} g {p['total']:.2f}" for p in r["packs"])
+        packs = " | ".join(f"{p['grams']} g {p['cost_ex_commission']:.3f}" for p in r["packs"])
         print(f"{r['name']}: batch {r['total']:,.2f} · kilo {r['per_kg_loaded']:.4f} · {packs}")
     for c in data["candidates"]:
         print(f"  {c['recipe']} {c['grams']} g → candidates: {', '.join(i['code'] for i in c['items']) or '—'}")

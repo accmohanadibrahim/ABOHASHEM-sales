@@ -327,6 +327,7 @@ def test_recipes_section(page):
     for x in c["candidates"]:
         for i in x["items"]:
             if i["status"].startswith("مؤكد"):
-                assert f"{i['margin']:.2f}" in text, i["code"]
+                assert f"{i.get('margin', i['margin_ex_commission']):.2f}" in text, i["code"]
+    assert "42.55" in text and "112.90" in text and "قرار الإدارة: 51.86 × 0.7" in text
     tabs = page.evaluate("() => window.__abhApp.exportTables().map(t => t.id)")
     assert {"bi_recipes", "bi_recipe_packs", "bi_recipe_candidates"} <= set(tabs)

@@ -8,7 +8,7 @@
   "decision": {
    "date": "2026-10-27",
    "status": "مؤكد — قرار الإدارة 27/10/2026",
-   "note": "الهنا واسبشيال نفس تكلفة الوصفة · وصفة الصويا 400 جرام = «مفروم صويا 400»"
+   "note": "الهنا واسبشيال نفس تكلفة الوصفة في البانيه والاستربس فقط · وصفة الصويا 400 جرام = «مفروم صويا 400» · بانيه 700 واستربس 800 = كيلو الوصفة × الوزن + التغليف"
   },
   "price_month": "2026-08",
   "model_cost_note": "تكلفة الوحدة في نموذج التكاليف (يونيو 2026) من DASH_MARGIN كما هي — تاريخ مختلف عن الوصفة"
@@ -124,7 +124,8 @@
      "packaging": 6.25,
      "commission": 1.375,
      "total": 49.1199,
-     "cost_ex_commission": 47.7449
+     "cost_ex_commission": 47.7449,
+     "basis": "مطبوع في ورقة الوصفة — المجاميع متحقَّقة"
     },
     {
      "grams": 900,
@@ -132,7 +133,18 @@
      "packaging": 6.25,
      "commission": 1.5,
      "total": 54.43176,
-     "cost_ex_commission": 52.93176
+     "cost_ex_commission": 52.93176,
+     "basis": "مطبوع في ورقة الوصفة — المجاميع متحقَّقة"
+    },
+    {
+     "grams": 700,
+     "base": 36.302,
+     "packaging": 6.25,
+     "commission": null,
+     "total": null,
+     "cost_ex_commission": 42.552,
+     "kilo_used": 51.86,
+     "basis": "قرار الإدارة 27/10/2026 — غير مطبوع في الورقة"
     }
    ],
    "basis": "مطبوع في ورقة الوصفة — المجاميع متحقَّقة",
@@ -218,7 +230,18 @@
      "packaging": 3.2,
      "commission": 4.125,
      "total": 130.7381,
-     "cost_ex_commission": 126.6131
+     "cost_ex_commission": 126.6131,
+     "basis": "مطبوع في ورقة الوصفة — المجاميع متحقَّقة"
+    },
+    {
+     "grams": 800,
+     "base": 109.696,
+     "packaging": 3.2,
+     "commission": null,
+     "total": null,
+     "cost_ex_commission": 112.896,
+     "kilo_used": 137.12,
+     "basis": "قرار الإدارة 27/10/2026 — غير مطبوع في الورقة"
     }
    ],
    "basis": "مطبوع في ورقة الوصفة — المجاميع متحقَّقة",
@@ -283,7 +306,8 @@
      "commission": 0.0,
      "total": 65.33116,
      "base_printed_as": "الطبق",
-     "cost_ex_commission": 65.33116
+     "cost_ex_commission": 65.33116,
+     "basis": "مطبوع في ورقة الوصفة — المجاميع متحقَّقة"
     }
    ],
    "basis": "مطبوع في ورقة الوصفة — المجاميع متحقَّقة",
@@ -322,6 +346,7 @@
      "price": 55.0,
      "price_basis": "2026-08",
      "margin_ex_commission": 7.2551,
+     "margin_ex_pct": 0.1319,
      "margin": 5.8801,
      "margin_pct": 0.1069
     },
@@ -344,6 +369,7 @@
      "price": 51.5095,
      "price_basis": "كل اللقطة",
      "margin_ex_commission": 3.7646,
+     "margin_ex_pct": 0.0731,
      "margin": 2.3896,
      "margin_pct": 0.0464
     }
@@ -378,6 +404,7 @@
      "price": 60.065,
      "price_basis": "2026-08",
      "margin_ex_commission": 7.1332,
+     "margin_ex_pct": 0.1188,
      "margin": 5.6332,
      "margin_pct": 0.0938
     },
@@ -400,8 +427,39 @@
      "price": 56.2424,
      "price_basis": "كل اللقطة",
      "margin_ex_commission": 3.3106,
+     "margin_ex_pct": 0.0589,
      "margin": 1.8106,
      "margin_pct": 0.0322
+    }
+   ]
+  },
+  {
+   "recipe": "panee",
+   "grams": 700,
+   "pack_total": null,
+   "cost_ex_commission": 42.552,
+   "status": "مؤكد — قرار الإدارة 27/10/2026",
+   "items": [
+    {
+     "qty": 1680.0,
+     "bonus_qty": 0.0,
+     "revenue": 80994.0,
+     "paid_qty": 1680.0,
+     "m_revenue": 0.0,
+     "code": "422",
+     "name": "بانيه 700 جرام طبق",
+     "family": "بانيه",
+     "grams": 700,
+     "brand": "الهنا",
+     "avg_price": 48.2107,
+     "month_price": null,
+     "month_qty": 0.0,
+     "model_cost": null,
+     "status": "مؤكد — قرار الإدارة 27/10/2026",
+     "price": 48.2107,
+     "price_basis": "كل اللقطة",
+     "margin_ex_commission": 5.6587,
+     "margin_ex_pct": 0.1174
     }
    ]
   },
@@ -434,6 +492,7 @@
      "price": 164.1795,
      "price_basis": "2026-08",
      "margin_ex_commission": 37.5664,
+     "margin_ex_pct": 0.2288,
      "margin": 33.4414,
      "margin_pct": 0.2037
     },
@@ -459,8 +518,43 @@
      "price": 155.137,
      "price_basis": "2026-08",
      "margin_ex_commission": 28.5239,
+     "margin_ex_pct": 0.1839,
      "margin": 24.3989,
      "margin_pct": 0.1573
+    }
+   ]
+  },
+  {
+   "recipe": "strips",
+   "grams": 800,
+   "pack_total": null,
+   "cost_ex_commission": 112.896,
+   "status": "مؤكد — قرار الإدارة 27/10/2026",
+   "items": [
+    {
+     "qty": 935.0,
+     "bonus_qty": 0.0,
+     "revenue": 140100.0,
+     "paid_qty": 935.0,
+     "m_revenue": 0.0,
+     "code": "439",
+     "name": "استربس الهنا 800 جرام",
+     "family": "استربس",
+     "grams": 800,
+     "brand": "الهنا",
+     "avg_price": 149.8396,
+     "month_price": null,
+     "month_qty": 0.0,
+     "model_cost": {
+      "gross": 58.506,
+      "op": 105.2459,
+      "month": "2026-06"
+     },
+     "status": "مؤكد — قرار الإدارة 27/10/2026",
+     "price": 149.8396,
+     "price_basis": "كل اللقطة",
+     "margin_ex_commission": 36.9436,
+     "margin_ex_pct": 0.2466
     }
    ]
   },
@@ -489,6 +583,7 @@
      "price": 71.8297,
      "price_basis": "2026-08",
      "margin_ex_commission": 6.4985,
+     "margin_ex_pct": 0.0905,
      "margin": 6.4985,
      "margin_pct": 0.0905
     }
@@ -496,28 +591,6 @@
   }
  ],
  "no_sheet": [
-  {
-   "qty": 935.0,
-   "bonus_qty": 0.0,
-   "revenue": 140100.0,
-   "paid_qty": 935.0,
-   "m_revenue": 0.0,
-   "code": "439",
-   "name": "استربس الهنا 800 جرام",
-   "family": "استربس",
-   "grams": 800,
-   "brand": "الهنا",
-   "avg_price": 149.8396,
-   "month_price": null,
-   "month_qty": 0.0,
-   "model_cost": {
-    "gross": 58.506,
-    "op": 105.2459,
-    "month": "2026-06"
-   },
-   "reason": "لا ورقة وصفة لوزن 800 جرام",
-   "status": "يحتاج بيانات"
-  },
   {
    "qty": 32.25,
    "bonus_qty": 0.0,
@@ -554,24 +627,6 @@
    "month_qty": 10.0,
    "model_cost": null,
    "reason": "لا ورقة وصفة لوزن 1000 جرام",
-   "status": "يحتاج بيانات"
-  },
-  {
-   "qty": 1680.0,
-   "bonus_qty": 0.0,
-   "revenue": 80994.0,
-   "paid_qty": 1680.0,
-   "m_revenue": 0.0,
-   "code": "422",
-   "name": "بانيه 700 جرام طبق",
-   "family": "بانيه",
-   "grams": 700,
-   "brand": "الهنا",
-   "avg_price": 48.2107,
-   "month_price": null,
-   "month_qty": 0.0,
-   "model_cost": null,
-   "reason": "لا ورقة وصفة لوزن 700 جرام",
    "status": "يحتاج بيانات"
   },
   {
