@@ -24,15 +24,128 @@
   /* مفتاح التعطيل: ?nobi أو #nobi في الرابط يخفي كل إضافات ذكاء الأعمال. */
   biOn(){ return !/[?&#]nobi\b/.test(String(location.search)+String(location.hash)); }
   /* قوائم الدخل 2025 داخل قسم «قائمة الدخل» (القوائم المالية) — دمج القسمين بطلب الإدارة 27/10/2026. */
-  biIs25InIncome(T){
+  biIs25InIncome(T,opt){
     if(!window.DASH_IS25||!this.biOn()) return [];
     let body;
-    try{ body=this.biIs25Body(null,T,null); }
+    try{ body=this.biIs25Body(null,T,null,opt); }
     catch(e){ body=[this.advNote("bi25err","تعذّر عرض قوائم الدخل 2025 ("+String(e&&e.message||e)+"). باقي القسم يعمل كما هو.","warn")]; }
     return [React.createElement("div",{key:"bi25h","data-bi-is25":"1",style:{marginTop:8,paddingTop:10,
         borderTop:"1px solid var(--abh-rgba-255-255-255-14,rgba(255,255,255,.14))",fontSize:13,fontWeight:700,color:"var(--abh-e2e8f0,#e2e8f0)"}},
       "قوائم الدخل 2025 كاملة",React.createElement("span",{style:{fontSize:10.5,fontWeight:400,color:"#64748b",marginInlineStart:8}},
-        "12 شهرًا: يناير–مايو من نص القوائم · يونيو يحتاج بيانات · يوليو–ديسمبر المعتمدة · مقارنة بنفس أشهر 2026"))].concat(body);
+        (opt&&opt.noTable?"المؤشرات والملاحظات والمقارنة بنفس أشهر 2026 · الأرقام الشهرية في قائمة الدخل الموحدة أعلاه"
+          :"12 شهرًا: يناير–مايو من نص القوائم · يونيو يحتاج بيانات · يوليو–ديسمبر المعتمدة · مقارنة بنفس أشهر 2026")))].concat(body);
+  }
+
+  /* قائمة الدخل الموحدة يناير 2025 – يوليو 2026 (طلب الإدارة 27/10/2026): تحل محل جداول
+     «يوليو–ديسمبر 2025» و«2026» و«2025 الشهري» في قسم «قائمة الدخل»؛ باقي القسم كما هو.
+     ?nobi (أو أي خطأ هنا) يعيد القسم الأصلي كما هو. */
+  biIncomeMerged(body,F,T){
+    if(!this.biOn()||!window.DASH_IS25||!window.DASH_IS26||!F||!F.income) return body;
+    let card;
+    try{ card=this.biPlCard(F,T); }
+    catch(e){ return body.concat([this.advNote("biplerr","تعذّر عرض قائمة الدخل الموحدة ("+String(e&&e.message||e)+"). الجداول الأصلية معروضة كما هي.","warn")])
+      .concat(this.biIs25InIncome(T)); }
+    const i=body.findIndex(e=>e&&e.key==="fi1");
+    const out=body.filter(e=>!(e&&(e.key==="fi1"||e.key==="fi26")));
+    out.splice(i<0?0:i,0,card);
+    return out.concat(this.biIs25InIncome(T,{noTable:true}));
+  }
+  /* عمود لكل شهر. القيمة رقم، أو null = البند غير مطبوع في قائمة الشهر («—»)، أو "adm" = ضمن الإدارية،
+     أو "na" = لا ينطبق (لا يدخل الإجمالي). لا يُحسب بند لا تطبعه القائمة. */
+  biPl(){
+    const I=window.DASH_IS25, F=window.DASH_FS, cols=[], FI=F.income||{};
+    const m25=new Map(I.months.map(r=>[r.month,r])), miss=new Map(I.missing.map(r=>[r.month,r]));
+    for(let k=1;k<=12;k++){
+      const m="2025-"+String(k).padStart(2,"0"), r=m25.get(m), h=FI[m];
+      if(r){ const s=r.sections||{}, split=s.admin!=null;
+        cols.push({m,year:"2025",tag:r.needs_confirmation?"يحتاج تأكيد":"نص PDF",warn:!!r.needs_confirmation,
+          v:{net:r.net_sales,cogs:r.cogs,gp:r.gross_profit,op:split?"adm":null,admin:split?s.admin:null,selling:split?s.selling:null,
+             lump:split?"na":r.expenses,ebitda:split?r.gross_profit-s.admin-s.selling:null,fin:null,other:null,
+             np:r.net_profit,dep:null,npa:r.net_profit}}); }
+      else if(h) cols.push({m,year:"2025",tag:"معتمدة",
+          v:{net:h.net_sales,cogs:h.cogs,gp:h.gross_profit,op:"adm",admin:h.admin,selling:h.selling,lump:"na",ebitda:h.ebitda,
+             fin:h.finance,other:h.other_items,np:h.net_profit_pre_dep,dep:h.depreciation_booked,npa:h.net_profit_after_dep}});
+      else cols.push({m,year:"2025",need:(miss.get(m)||{}).reason||"لا قائمة دخل لهذا الشهر",tag:"لا قائمة",v:{}});
+    }
+    this.fs26Cols().forEach(c=>{ const p=c.p, S=p.sections, f=c.f, x=k=>S[k]==null?null:S[k]*f;
+      const op=S.operating==null?"adm":S.operating*f, gp=p.gross_profit*f;
+      cols.push({m:c.month,year:String(c.month).slice(0,4),est:c.est,tag:c.est?"تقدير":"كما صدرت",
+        v:{net:p.net_sales*f,cogs:p.cogs*f,gp,op,admin:x("admin"),selling:x("selling"),lump:"na",
+           ebitda:gp-(op==="adm"?0:op)-(S.admin||0)*f-(S.selling||0)*f,fin:x("financing"),other:null,
+           np:p.net_profit*f,dep:null,npa:p.net_profit*f}}); });
+    const ROWS=[["net","صافي المبيعات"],["cogs","تكلفة المبيعات"],["gp","مجمل الربح",1],["gpm","هامش مجمل الربح","pct"],
+      ["op","مصروفات تشغيلية"],["admin","مصروفات إدارية وعمومية"],["selling","مصروفات بيعية وتسويقية"],["lump","مصروفات بلا تقسيم"],
+      ["ebitda","EBITDA",1],["ebm","هامش EBITDA","pct"],["fin","تمويلية / فروق عملة"],["other","بنود أخرى"],
+      ["np","صافي الربح قبل الإهلاك",1],["npm","هامش صافي الربح","pct"],["dep","الإهلاك المحمّل"],["npa","صافي الربح بعد الإهلاك (كما بالقوائم)",1]];
+    const RATIO={gpm:["gp","net"],ebm:["ebitda","net"],npm:["np","net"]};
+    const years=[...new Set(cols.map(c=>c.year))];
+    const tot=years.map(y=>{ const cs=cols.filter(c=>c.year===y&&!c.need), t={}, part={};
+      ["net","cogs","gp","op","admin","selling","lump","ebitda","fin","other","np","dep","npa"].forEach(k=>{
+        let sum=0, n=0, gap=false, adm=0;
+        cs.forEach(c=>{ const v=c.v[k]; if(typeof v==="number"){sum+=v;n++;} else if(v==="adm") adm++; else if(v!=="na") gap=true; });
+        t[k]=n?sum:(adm?"adm":null); part[k]=n>0&&gap; });
+      return {year:y,label:"إجمالي "+y,months:cs.length,of:cols.filter(c=>c.year===y).length,t,part}; });
+    const val=(o,k)=>{ if(RATIO[k]){ const [a,b]=RATIO[k], x=o[a], z=o[b]; return typeof x==="number"&&typeof z==="number"&&z?x/z:null; } return o[k]; };
+    const rows=ROWS.map(([k,label,kind])=>({k,label,bold:kind===1,pct:kind==="pct",
+      vals:cols.map(c=>c.need?null:val(c.v,k)),
+      /* نسبة على إجمالي جزئي تخلط شهورًا مختلفة، فلا تُعرض. */
+      tots:tot.map(t=>{ const r=RATIO[k], part=r?(t.part[r[0]]||t.part[r[1]]):t.part[k];
+        return {v:r&&part?null:val(t.t,k),part:r?false:part}; })}));
+    return {cols,tot,rows};
+  }
+  biPlCard(F,T){
+    const P=this.biPl(), MS=m=>this.fsMon(m).split(" ")[0];
+    const bd="var(--abh-rgba-255-255-255-14,rgba(255,255,255,.14))", bg="var(--abh-111827,#111827)";
+    const th={padding:"6px 8px",fontSize:10.5,fontWeight:700,color:"var(--abh-94a3b8,#94a3b8)",whiteSpace:"nowrap",textAlign:"center",
+      background:bg,borderBottom:"1px solid "+bd};
+    const td={padding:"6px 8px",fontSize:11,whiteSpace:"nowrap",textAlign:"end",fontFamily:"'JetBrains Mono',monospace",
+      borderBottom:"1px solid var(--abh-rgba-255-255-255-05,rgba(255,255,255,.05))"};
+    const stick={position:"sticky",insetInlineStart:0,zIndex:2,background:bg,textAlign:"start",minWidth:150,whiteSpace:"normal",
+      fontFamily:"inherit",borderInlineEnd:"1px solid "+bd};
+    const sep={borderInlineStart:"2px solid "+bd};
+    const cellOf=(x,pct)=>x==="adm"?{v:"ضمن الإدارية",c:"var(--abh-64748b,#64748b)",t:1}:x==="na"?{v:"—"}:this.fsC(x,pct?"pct":undefined);
+    /* ترتيب الأعمدة: أشهر 2025، إجمالي 2025، أشهر 2026، إجمالي 2026. */
+    const seq=[]; P.tot.forEach((t,ti)=>{ P.cols.forEach((c,ci)=>{ if(c.year===t.year) seq.push({c,ci}); }); seq.push({t,ti}); });
+    const h1=[React.createElement("th",{key:"b",style:{...th,...stick,zIndex:3}},"")].concat(P.tot.map((t,i)=>
+      React.createElement("th",{key:"y"+t.year,colSpan:t.of+1,style:{...th,...sep,fontSize:12,color:"var(--abh-e2e8f0,#e2e8f0)",
+        textAlign:"start",background:i%2?"var(--abh-rgba-16-185-129-10,rgba(16,185,129,.10))":"var(--abh-rgba-59-130-246-10,rgba(59,130,246,.10))"}},
+        React.createElement("span",{style:{position:"sticky",insetInlineStart:160,padding:"0 6px"}},"سنة "+t.year))));
+    const h2=[React.createElement("th",{key:"l",style:{...th,...stick,zIndex:3}},"البند")].concat(seq.map((x,j)=>{
+      const first=j===0||(x.c&&seq[j-1].t);
+      if(x.t) return React.createElement("th",{key:"t"+x.t.year,style:{...th,...sep,color:"var(--abh-e2e8f0,#e2e8f0)"}},x.t.label,
+        React.createElement("div",{style:{fontSize:9,fontWeight:400,color:"#64748b"}},x.t.months+" شهرًا"+(x.t.months<x.t.of?" من "+x.t.of:"")));
+      const c=x.c;
+      return React.createElement("th",{key:"c"+c.m,style:{...th,...(first?sep:{})}},MS(c.m),
+        React.createElement("div",{style:{fontSize:9,fontWeight:400,color:c.need?"#c4b5fd":c.warn?"#fcd34d":c.est?"#f59e0b":"#64748b"}},c.tag));
+    }));
+    const body=P.rows.map(r=>React.createElement("tr",{key:r.k,style:r.bold?{background:"var(--abh-rgba-255-255-255-035,rgba(255,255,255,.035))"}:null},
+      [React.createElement("td",{key:"l",style:{...td,...stick,fontWeight:r.bold?800:r.pct?400:500,fontSize:r.pct?10.5:11,
+        color:r.pct?"var(--abh-94a3b8,#94a3b8)":"var(--abh-e2e8f0,#e2e8f0)",background:r.bold?"var(--abh-1a2232,#1a2232)":bg}},r.label)]
+      .concat(seq.map((x,j)=>{
+        const first=j===0||(x.c&&seq[j-1].t);
+        if(x.t){ const o=r.tots[x.ti], cv=cellOf(o.v,r.pct);
+          return React.createElement("td",{key:"t"+x.t.year,style:{...td,...sep,fontWeight:800,color:cv.c||"var(--abh-e2e8f0,#e2e8f0)",
+            background:"var(--abh-rgba-255-255-255-05,rgba(255,255,255,.05))"}},cv.v,o.part&&o.v!=null&&o.v!=="adm"?" *":""); }
+        const c=x.c, v=r.vals[x.ci];
+        if(c.need) return React.createElement("td",{key:"c"+c.m,style:{...td,...(first?sep:{}),background:"rgba(167,139,250,.06)",
+          color:"#c4b5fd",fontFamily:"inherit",fontSize:10}},r.k==="net"?"يحتاج بيانات":"—");
+        const cv=cellOf(v,r.pct);
+        return React.createElement("td",{key:"c"+c.m,style:{...td,...(first?sep:{}),fontWeight:r.bold?800:400,
+          fontStyle:c.est?"italic":null,fontSize:r.pct?10.5:11,fontFamily:cv.t?"inherit":td.fontFamily,
+          color:cv.c||(r.pct?"var(--abh-94a3b8,#94a3b8)":"var(--abh-cbd5e1,#cbd5e1)"),
+          background:c.est?"rgba(245,158,11,.05)":null}},cv.v);
+      }))));
+    const table=React.createElement("div",{key:"t","data-bi-pl":"1",style:{overflowX:"auto",maxWidth:"100%",borderRadius:10,border:"1px solid "+bd}},
+      React.createElement("table",{style:{borderCollapse:"separate",borderSpacing:0,width:"100%"}},
+        React.createElement("thead",null,React.createElement("tr",{key:"h1"},h1),React.createElement("tr",{key:"h2"},h2)),
+        React.createElement("tbody",null,body)));
+    const note=React.createElement("div",{key:"n",style:{fontSize:10.5,lineHeight:1.85,color:"var(--abh-94a3b8,#94a3b8)"}},
+      "يناير–مايو 2025 من نص القوائم المرفوع (يحتاج مراجعة بالـPDF، ومارس مطابق لفبراير بالقرش — يحتاج تأكيد) · يونيو 2025 لا قائمة: يحتاج بيانات · "
+      +"يوليو–ديسمبر 2025 من القوائم المعتمدة (إهلاك السنة محمّل في ديسمبر) · قائمة الربع الأول 2026 صدرت واحدة، وأعمدة يناير–مارس موزعة بأوزان المبيعات (تقدير) ومجموعها = القائمة · "
+      +"أبريل–يوليو 2026 كما صدرت · «—» بند لا تطبعه قائمة الشهر، ولا يُحسب · «ضمن الإدارية» قبل فصل المصروفات التشغيلية (مايو 2026) · "
+      +"قوائم يناير–مايو 2025 و2026 لا تطبع إهلاكًا، فالصافي كما بالقائمة · * إجمالي الشهور التي تطبع البند فقط.");
+    return this.card("قائمة الدخل الشهرية — يناير 2025 إلى يوليو 2026",[table,note],
+      {k:"bipl",sub:P.cols.filter(c=>!c.need).length+" شهرًا لها قائمة من "+P.cols.length+" · اسحب أفقيًا، وعمود البنود ثابت"});
   }
 
   /* ---- مساعدات ------------------------------------------------------------- */
@@ -480,7 +593,7 @@
         confirm:a.some(r=>r&&r.confirm),missing:a.filter(r=>!r||r.net==null).map((r,i)=>ms[i])}; });
     return {rows,Y,cmp};
   }
-  biIs25Body(X,T,api){
+  biIs25Body(X,T,api,opt){
     if(!window.DASH_IS25) return [this.biNeed("bi25n","قوائم دخل 2025 غير مضمنة في هذا الملف.")];
     const Z=this.biIs25(), out=[], Y=Z.Y, need=Z.rows.filter(r=>r.need), conf=Z.rows.filter(r=>r.confirm);
     out.push(this.kpiTiles([
@@ -491,7 +604,7 @@
     out.push(this.advNote("bi25a","يناير–مايو 2025 من نص قوائم الدخل المرفوع (ملفات .pdf.txt — لم تُرفع ملفات PDF نفسها): كل رقم موجود حرفيًا في نص شهره، "
       +"والمبيعات − المردودات − الخصم = الصافي، والصافي − التكلفة = مجمل الربح، ومجمل الربح − المصروفات = صافي الربح. "
       +"تبقى «يحتاج مراجعة» حتى تُقارن بالـPDF. يوليو–ديسمبر من القوائم المالية المعتمدة (DASH_FS) كما هي، وصافي ربحها قبل الإهلاك (إهلاك السنة كله في ديسمبر)."));
-    out.push(this.card("قائمة الدخل الشهرية — 2025",[
+    if(!(opt&&opt.noTable)) out.push(this.card("قائمة الدخل الشهرية — 2025",[
       this.fsTable("bi25t",["الشهر","صافي المبيعات","تكلفة المبيعات","مجمل الربح","هامش المجمل","المصروفات","نسبة المصروفات","صافي الربح","هامش الصافي","مبيعات الفواتير","الأساس"],
         Z.rows.map(r=>r.need?[this.fsMon(r.month),{v:"يحتاج بيانات",c:"#c4b5fd"},"—","—","—","—","—","—","—","—",{v:r.need,c:"#c4b5fd"}]
           :[this.fsMon(r.month),this.fsC(r.net),this.fsC(r.cogs),this.fsC(r.gp),this.fsC(r.gpm,"pct"),this.fsC(r.exp),this.fsC(r.expr,"pct"),
@@ -978,6 +1091,14 @@
           col("الفترة","label"), col("صافي المبيعات 2025",null,r=>r.net25==null?"يحتاج بيانات":num(r.net25)), col("صافي المبيعات 2026",null,r=>num(r.net26)),
           col("مجمل الربح 2025",null,r=>r.gp25==null?"":num(r.gp25)), col("مجمل الربح 2026",null,r=>num(r.gp26)),
           col("صافي الربح 2025",null,r=>r.np25==null?"":num(r.np25)), col("صافي الربح 2026",null,r=>num(r.np26)), col("يحتاج تأكيد",null,r=>r.confirm?"نعم":"")]});
+    }
+    if(window.DASH_IS25&&window.DASH_IS26&&window.DASH_FS){
+      const P=this.biPl(), seq=[];
+      P.tot.forEach((t,ti)=>{ P.cols.forEach((c,ci)=>{ if(c.year===t.year) seq.push({c,ci}); }); seq.push({t,ti}); });
+      const cv=(x,pct)=>x==="adm"?"ضمن الإدارية":x==="na"||x==null?"":num(x);
+      out.push({id:"bi_pl_2025_2026",label:"ذكاء الأعمال — قائمة الدخل يناير 2025 – يوليو 2026",rows:P.rows,columns:[col("البند","label")].concat(
+        seq.map(x=>x.t?col(x.t.label,null,r=>cv(r.tots[x.ti].v)+(r.tots[x.ti].part&&r.tots[x.ti].v!=null?" *":""))
+          :col(this.fsMon(x.c.m)+" — "+x.c.tag,null,r=>x.c.need?(r.k==="net"?"يحتاج بيانات":""):cv(r.vals[x.ci]))))});
     }
     if(window.DASH_ARH){
       const Z=this.biArh(), per=p=>p.from+" ← "+p.to;

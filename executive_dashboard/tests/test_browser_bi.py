@@ -24,6 +24,7 @@ BI_HTML = APP_DIR / "mobile" / "Abu_Hashem_Mobile_bi.html"
 OPS_JSON = APP_DIR.parent / "data" / "processed" / "ops_data.json"
 BI_KEYS = ("bi_exec", "bi_bridge", "bi_stock", "bi_std", "bi_arh", "bi_recipes", "bi_abm", "bi_alerts", "bi_kpis")
 IS25_HEAD = "قوائم الدخل 2025 كاملة"
+PL_HEAD = "قائمة الدخل الشهرية — يناير 2025 إلى يوليو 2026"
 
 
 def _open(pg, path, query=""):
@@ -86,10 +87,9 @@ def test_existing_sections_render_identically(browser):
             b = b.replace(f"— {n_full + n_bi} جدولًا", f"— {n_full} جدولًا").replace(f" من {n_full + n_bi}\n", f" من {n_full}\n")
             b = b.replace(f"ذكاء الأعمال\n{n_bi} جدول\n", "")
         if k == "fs_income":
-            # Declared: the 2025 statements follow the section's own content, unchanged above them.
-            head = a.rstrip()
-            if b.startswith(head) and IS25_HEAD in b[len(head):]:
-                b = a
+            # Declared: one income statement Jan 2025 – Jul 2026 replaces the section's statement
+            # tables; with ?nobi the section is the full file's exactly (test_income_merged).
+            continue
         if a != b:
             changed.append(k)
     assert full.errors == [] and bi.errors == [], (full.errors, bi.errors)
@@ -194,7 +194,9 @@ def test_kill_switch_hides_the_group(browser):
     _open(pg, BI_HTML, "?nobi")
     reg = pg.evaluate("() => window.__abhApp.registry().map(s => s.key)")
     assert not [k for k in reg if k.startswith("bi_")] and len(reg) >= 40
-    assert IS25_HEAD not in go(pg, "fs_income")
+    text = go(pg, "fs_income")
+    assert IS25_HEAD not in text and PL_HEAD not in text
+    assert "قائمة الدخل (شهري + إجمالي الفترة)" in text and "قائمة الدخل 2026 (" in text
     assert pg.errors == []
     pg.close()
 
@@ -283,6 +285,51 @@ def test_income_2025_full_year(page):
     assert "يحتاج بيانات" in text and "يحتاج تأكيد" in text and "2025 مقابل 2026" in text
     tabs = page.evaluate("() => window.__abhApp.exportTables().map(t => t.id)")
     assert "bi_is25" in tabs and "bi_is25_vs_26" in tabs
+
+
+def test_income_merged(browser, page):
+    """One statement Jan 2025 – Jul 2026 in place of the section's statement tables; every figure
+    is its source's; June 2025 «يحتاج بيانات»; Q1 2026 the quarter split; ?nobi = the full file."""
+    text = go(page, "fs_income")
+    assert text.count(PL_HEAD) == 1 and text.index(PL_HEAD) < text.index(IS25_HEAD)
+    for gone in ("قائمة الدخل (شهري + إجمالي الفترة)", "قائمة الدخل 2026 (", "قائمة الدخل الشهرية — 2025\n"):
+        assert gone not in text, gone
+    assert "2025 مقابل 2026" in text and "بنود المصروفات الإدارية" in text and "سيناريو التكلفة والسعر" in text
+    assert page.locator("[data-bi-pl]").count() == 1
+    P = page.evaluate("() => window.__abhApp.biPl()")
+    months = [c["m"] for c in P["cols"]]
+    assert months == [f"2025-{m:02d}" for m in range(1, 13)] + [f"2026-{m:02d}" for m in range(1, 8)]
+    by = {c["m"]: c for c in P["cols"]}
+    assert by["2025-06"].get("need") and by["2025-03"]["warn"]
+    I25 = page.evaluate("() => window.DASH_IS25")
+    for r in I25["months"]:
+        assert by[r["month"]]["v"]["net"] == r["net_sales"] and by[r["month"]]["v"]["np"] == r["net_profit"]
+    fs = page.evaluate("() => window.DASH_FS.income")
+    for m in ("2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12"):
+        v = by[m]["v"]
+        assert (v["net"], v["ebitda"], v["np"], v["npa"]) == (fs[m]["net_sales"], fs[m]["ebitda"],
+                                                             fs[m]["net_profit_pre_dep"], fs[m]["net_profit_after_dep"]), m
+    P26 = {p["period"]: p for p in page.evaluate("() => window.DASH_IS26.periods")}
+    q1 = [by[m] for m in ("2026-01", "2026-02", "2026-03")]
+    assert all(c["est"] for c in q1)
+    for k, src in (("net", "net_sales"), ("gp", "gross_profit"), ("np", "net_profit")):
+        assert sum(c["v"][k] for c in q1) == pytest.approx(P26["2026-Q1"][src])
+    for m in ("2026-04", "2026-05", "2026-06", "2026-07"):
+        assert by[m]["v"]["net"] == P26[m]["net_sales"] and by[m]["v"]["np"] == P26[m]["net_profit"] and not by[m].get("est")
+    rows = {r["k"]: r for r in P["rows"]}
+    assert rows["net"]["tots"][0]["v"] == pytest.approx(sum(r["net_sales"] for r in I25["months"]) + sum(fs[m]["net_sales"] for m in fs))
+    assert rows["net"]["tots"][1]["v"] == pytest.approx(sum(p["net_sales"] for p in P26.values()))
+    assert rows["ebitda"]["tots"][0]["part"] and rows["ebm"]["tots"][0]["v"] is None   # January 2025 prints no split
+    assert "4,784,135" in text and "2,861,343" in text and "يحتاج بيانات" in text and "تقدير" in text
+    tabs = page.evaluate("() => window.__abhApp.exportTables().map(t => t.id)")
+    assert "bi_pl_2025_2026" in tabs
+    full, off = _page(browser), _page(browser)
+    _open(full, FULL_HTML)
+    _open(off, BI_HTML, "?nobi")
+    assert go(off, "fs_income") == go(full, "fs_income")
+    assert full.errors == [] and off.errors == [] and page.errors == []
+    full.close()
+    off.close()
 
 
 def test_abohashem_main_section(page):

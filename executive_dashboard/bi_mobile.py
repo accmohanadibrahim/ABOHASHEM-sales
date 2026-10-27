@@ -28,9 +28,11 @@ recipe sheets, src/recipes.py); the rest is read from what the full file already
     commission is a selling expense, never in a cost —, candidate sales items «يحتاج تأكيد الربط») and «تحليل Abohashem-main»
     (the zip's scripts run, their tie-outs, salespeople, aging, maturities, items — a
     June 2026 snapshot).
-  * «قوائم الدخل 2025» (12 months, June «يحتاج بيانات», and 2025 against the same 2026
-    months) inside the existing «قائمة الدخل» section of «القوائم المالية», after its own
-    content — the two income-statement sections merged, as management asked (27/10/2026).
+  * inside the existing «قائمة الدخل» section of «القوائم المالية»: one income statement,
+    January 2025 – July 2026 (June 2025 «يحتاج بيانات», January–March 2026 the quarter split
+    by sales weight «تقدير»), in place of the section's July–December 2025 and 2026 tables,
+    then the 2025 tiles, notes and 2025-against-2026 table — management, 27/10/2026. With
+    ?nobi the section is the full file's, unchanged.
   * their tables in «التقارير» and the Excel export, under their own group.
   * a kill switch: opening the file with ?nobi (or #nobi) hides the group.
 
@@ -115,7 +117,7 @@ def edits(methods: str, std: dict | None = None, is25: dict | None = None, abm: 
         ("section-bi", '    if(s.slice(0,4)==="ops_"||s.slice(0,4)==="dec_"||s==="dq_clean") return this.opsSectionBody(s,X,T,api)||[];\n', "",
          '    if(s.slice(0,3)==="bi_") return this.biSectionBody(s,X,T,api)||[];\n'),
         ("income25-bi", "    else body=this.fsExec(F,T);\n", '    body=[React.createElement("div",{key:"sub"',
-         '    if(s==="fs_income") body=body.concat(this.biIs25InIncome(T));\n'),
+         '    if(s==="fs_income") body=this.biIncomeMerged(body,F,T);\n'),
         ("export-bi", "    this.opsExport(out,col,num);\n", "",
          "    this.biExport(out,col,num);\n"),
         ("repgroup-bi", '      ["dq","جودة وتنظيف","#64748b",id=>/^dq_/.test(id)],\n', "",
