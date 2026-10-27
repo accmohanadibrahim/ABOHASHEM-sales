@@ -5,6 +5,12 @@
   "snapshot": "snap-dash-2026-09-04.json",
   "snapshot_as_of": null,
   "link_rule": "الصنف المرشح: اسمه يحوي كلمة المنتج ووزن العبوة نفسه — الماركة ونوع العبوة غير مطبوعين في ورقة الوصفة",
+  "decision": {
+   "date": "2026-10-27",
+   "status": "مؤكد — قرار الإدارة 27/10/2026",
+   "note": "الهنا واسبشيال نفس تكلفة الوصفة · وصفة الصويا 400 جرام = «مفروم صويا 400»"
+  },
+  "price_month": "2026-08",
   "model_cost_note": "تكلفة الوحدة في نموذج التكاليف (يونيو 2026) من DASH_MARGIN كما هي — تاريخ مختلف عن الوصفة"
  },
  "recipes": [
@@ -292,7 +298,7 @@
    "grams": 800,
    "pack_total": 49.1199,
    "cost_ex_commission": 47.7449,
-   "status": "يحتاج تأكيد الربط",
+   "status": "مؤكد — قرار الإدارة 27/10/2026",
    "items": [
     {
      "qty": 26694.0,
@@ -305,26 +311,41 @@
      "grams": 800,
      "brand": "الهنا",
      "avg_price": 54.2506,
+     "month_price": 55.0,
+     "month_qty": 1529.0,
      "model_cost": {
       "gross": 22.254,
       "op": 45.749,
       "month": "2026-06"
      },
-     "status": "يحتاج تأكيد الربط"
+     "status": "مؤكد — قرار الإدارة 27/10/2026",
+     "price": 55.0,
+     "price_basis": "2026-08",
+     "margin_ex_commission": 7.2551,
+     "margin": 5.8801,
+     "margin_pct": 0.1069
     },
     {
      "qty": 3935.0,
      "bonus_qty": 0.0,
      "revenue": 202690.0,
      "paid_qty": 3935.0,
+     "m_revenue": 0.0,
      "code": "397",
      "name": "بانيه 800 جرام اسباشيل كيس",
      "family": "بانيه",
      "grams": 800,
      "brand": "اسبشيال",
      "avg_price": 51.5095,
+     "month_price": null,
+     "month_qty": 0.0,
      "model_cost": null,
-     "status": "يحتاج تأكيد الربط"
+     "status": "مؤكد — قرار الإدارة 27/10/2026",
+     "price": 51.5095,
+     "price_basis": "كل اللقطة",
+     "margin_ex_commission": 3.7646,
+     "margin": 2.3896,
+     "margin_pct": 0.0464
     }
    ]
   },
@@ -333,7 +354,7 @@
    "grams": 900,
    "pack_total": 54.43176,
    "cost_ex_commission": 52.93176,
-   "status": "يحتاج تأكيد الربط",
+   "status": "مؤكد — قرار الإدارة 27/10/2026",
    "items": [
     {
      "qty": 17548.0,
@@ -346,26 +367,41 @@
      "grams": 900,
      "brand": "اسبشيال",
      "avg_price": 59.8437,
+     "month_price": 60.065,
+     "month_qty": 3849.0,
      "model_cost": {
       "gross": 24.2393,
       "op": 50.1604,
       "month": "2026-06"
      },
-     "status": "يحتاج تأكيد الربط"
+     "status": "مؤكد — قرار الإدارة 27/10/2026",
+     "price": 60.065,
+     "price_basis": "2026-08",
+     "margin_ex_commission": 7.1332,
+     "margin": 5.6332,
+     "margin_pct": 0.0938
     },
     {
      "qty": 1310.0,
      "bonus_qty": 0.0,
      "revenue": 73677.5,
      "paid_qty": 1310.0,
+     "m_revenue": 0.0,
      "code": "262",
      "name": "بانيه 900 جرام طبق",
      "family": "بانيه",
      "grams": 900,
      "brand": "الهنا",
      "avg_price": 56.2424,
+     "month_price": null,
+     "month_qty": 0.0,
      "model_cost": null,
-     "status": "يحتاج تأكيد الربط"
+     "status": "مؤكد — قرار الإدارة 27/10/2026",
+     "price": 56.2424,
+     "price_basis": "كل اللقطة",
+     "margin_ex_commission": 3.3106,
+     "margin": 1.8106,
+     "margin_pct": 0.0322
     }
    ]
   },
@@ -374,7 +410,7 @@
    "grams": 900,
    "pack_total": 130.7381,
    "cost_ex_commission": 126.6131,
-   "status": "يحتاج تأكيد الربط",
+   "status": "مؤكد — قرار الإدارة 27/10/2026",
    "items": [
     {
      "qty": 2571.0,
@@ -387,12 +423,19 @@
      "grams": 900,
      "brand": "اسبشيال",
      "avg_price": 164.4899,
+     "month_price": 164.1795,
+     "month_qty": 1036.0,
      "model_cost": {
       "gross": 64.2689,
       "op": 115.8572,
       "month": "2026-06"
      },
-     "status": "يحتاج تأكيد الربط"
+     "status": "مؤكد — قرار الإدارة 27/10/2026",
+     "price": 164.1795,
+     "price_basis": "2026-08",
+     "margin_ex_commission": 37.5664,
+     "margin": 33.4414,
+     "margin_pct": 0.2037
     },
     {
      "qty": 795.0,
@@ -405,12 +448,19 @@
      "grams": 900,
      "brand": "الهنا",
      "avg_price": 155.3145,
+     "month_price": 155.137,
+     "month_qty": 73.0,
      "model_cost": {
       "gross": 60.5209,
       "op": 109.706,
       "month": "2026-06"
      },
-     "status": "يحتاج تأكيد الربط"
+     "status": "مؤكد — قرار الإدارة 27/10/2026",
+     "price": 155.137,
+     "price_basis": "2026-08",
+     "margin_ex_commission": 28.5239,
+     "margin": 24.3989,
+     "margin_pct": 0.1573
     }
    ]
   },
@@ -419,7 +469,7 @@
    "grams": 400,
    "pack_total": 65.33116,
    "cost_ex_commission": 65.33116,
-   "status": "يحتاج تأكيد الربط",
+   "status": "مؤكد — قرار الإدارة 27/10/2026",
    "items": [
     {
      "qty": 4053.0,
@@ -432,8 +482,15 @@
      "grams": 400,
      "brand": "ابوهاشم",
      "avg_price": 70.3134,
+     "month_price": 71.8297,
+     "month_qty": 599.0,
      "model_cost": null,
-     "status": "يحتاج تأكيد الربط"
+     "status": "مؤكد — قرار الإدارة 27/10/2026",
+     "price": 71.8297,
+     "price_basis": "2026-08",
+     "margin_ex_commission": 6.4985,
+     "margin": 6.4985,
+     "margin_pct": 0.0905
     }
    ]
   }
@@ -444,12 +501,15 @@
    "bonus_qty": 0.0,
    "revenue": 140100.0,
    "paid_qty": 935.0,
+   "m_revenue": 0.0,
    "code": "439",
    "name": "استربس الهنا 800 جرام",
    "family": "استربس",
    "grams": 800,
    "brand": "الهنا",
    "avg_price": 149.8396,
+   "month_price": null,
+   "month_qty": 0.0,
    "model_cost": {
     "gross": 58.506,
     "op": 105.2459,
@@ -469,6 +529,8 @@
    "grams": 1000,
    "brand": "الهنا",
    "avg_price": 107.7519,
+   "month_price": 102.4615,
+   "month_qty": 16.25,
    "model_cost": {
     "gross": 46.8549,
     "op": 88.4305,
@@ -488,6 +550,8 @@
    "grams": 1000,
    "brand": "غير مصنف",
    "avg_price": 145.0,
+   "month_price": 145.0,
+   "month_qty": 10.0,
    "model_cost": null,
    "reason": "لا ورقة وصفة لوزن 1000 جرام",
    "status": "يحتاج بيانات"
@@ -497,12 +561,15 @@
    "bonus_qty": 0.0,
    "revenue": 80994.0,
    "paid_qty": 1680.0,
+   "m_revenue": 0.0,
    "code": "422",
    "name": "بانيه 700 جرام طبق",
    "family": "بانيه",
    "grams": 700,
    "brand": "الهنا",
    "avg_price": 48.2107,
+   "month_price": null,
+   "month_qty": 0.0,
    "model_cost": null,
    "reason": "لا ورقة وصفة لوزن 700 جرام",
    "status": "يحتاج بيانات"
@@ -512,12 +579,15 @@
    "bonus_qty": 0.0,
    "revenue": 145405.0,
    "paid_qty": 2237.0,
+   "m_revenue": 0.0,
    "code": "27",
    "name": "مفروم صويا 350 جم طبق",
    "family": "صويا",
    "grams": 350,
    "brand": "ابوهاشم",
    "avg_price": 65.0,
+   "month_price": null,
+   "month_qty": 0.0,
    "model_cost": null,
    "reason": "لا ورقة وصفة لوزن 350 جرام",
    "status": "يحتاج بيانات"
@@ -527,12 +597,15 @@
    "bonus_qty": 0.0,
    "revenue": 0.0,
    "paid_qty": 1.0,
+   "m_revenue": 0.0,
    "code": "436",
    "name": "عجينة بقري 500 جرام كيلو",
    "family": "عجينة بقري",
    "grams": 500,
    "brand": "اسبشيال",
    "avg_price": 0.0,
+   "month_price": null,
+   "month_qty": 0.0,
    "model_cost": null,
    "reason": "لا ورقة وصفة لعجينة البقري في الملفات المرفوعة",
    "status": "يحتاج بيانات"
@@ -542,12 +615,15 @@
    "bonus_qty": 0.0,
    "revenue": 900.0,
    "paid_qty": 12.0,
+   "m_revenue": 0.0,
    "code": "433",
    "name": "عجينة بقري 1 ك كيلو",
    "family": "عجينة بقري",
    "grams": 1000,
    "brand": "اسبشيال",
    "avg_price": 75.0,
+   "month_price": null,
+   "month_qty": 0.0,
    "model_cost": null,
    "reason": "لا ورقة وصفة لعجينة البقري في الملفات المرفوعة",
    "status": "يحتاج بيانات"
@@ -563,6 +639,8 @@
    "grams": 5000,
    "brand": "اسبشيال",
    "avg_price": 454.7012,
+   "month_price": 457.4286,
+   "month_qty": 175.0,
    "model_cost": {
     "gross": 178.4109,
     "op": 350.4685,

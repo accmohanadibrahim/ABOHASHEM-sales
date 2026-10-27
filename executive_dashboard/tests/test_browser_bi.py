@@ -317,11 +317,16 @@ def test_ar_history_section(page):
 
 
 def test_recipes_section(page):
-    """The sheets as printed; every candidate item «يحتاج تأكيد الربط»; no sheet → «يحتاج بيانات»."""
+    """The sheets as printed; links as management confirmed them, each with its recipe margin;
+    no sheet → «يحتاج بيانات»."""
     text = go(page, "bi_recipes")
     c = page.evaluate("() => window.DASH_RCP")
     assert "49.12" in text and "54.43" in text and "130.74" in text and "65.33" in text
-    assert "يحتاج تأكيد الربط" in text and "يحتاج بيانات" in text and "عجينة بقري" in text
-    assert all(i["status"] == "يحتاج تأكيد الربط" for x in c["candidates"] for i in x["items"])
+    assert "مؤكد — قرار الإدارة 27/10/2026" in text and "هامش بعد العمولة" in text
+    assert "يحتاج بيانات" in text and "عجينة بقري" in text
+    for x in c["candidates"]:
+        for i in x["items"]:
+            if i["status"].startswith("مؤكد"):
+                assert f"{i['margin']:.2f}" in text, i["code"]
     tabs = page.evaluate("() => window.__abhApp.exportTables().map(t => t.id)")
     assert {"bi_recipes", "bi_recipe_packs", "bi_recipe_candidates"} <= set(tabs)

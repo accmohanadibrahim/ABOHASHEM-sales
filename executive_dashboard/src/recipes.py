@@ -21,7 +21,11 @@ Nothing is estimated:
   * the commission is kept apart from the material + packaging cost;
   * the sheets do not name the sales item. Items of the latest sales snapshot with the same
     product word and weight are listed as candidates, each «يحتاج تأكيد الربط» — the brand
-    and pack (طبق / كيس / اسباشيل) are not on the sheet, so no link is asserted;
+    and pack (طبق / كيس / اسباشيل) are not on the sheet, so no link is asserted — unless
+    management confirmed it (``CONFIRMED``, 27/10/2026: الهنا and اسبشيال share one recipe
+    cost, and the soya 400 g sheet is «مفروم صويا 400»). A confirmed item gets its recipe
+    margin: its average selling price in August 2026 (the sheets' month; the whole snapshot
+    when it sold nothing in August) less the pack cost, before and after commission;
   * products and weights with no sheet (عجينة بقري, بانيه 700 جرام, …) are «يحتاج بيانات».
 
     python3 -m src.recipes        # from executive_dashboard/
@@ -47,6 +51,12 @@ TOL = 0.01
 BIDI = re.compile("[‎‏‪-‮⁦-⁩]")
 BASIS = "مطبوع في ورقة الوصفة — المجاميع متحقَّقة"
 LINK = "يحتاج تأكيد الربط"
+DECISION = "مؤكد — قرار الإدارة 27/10/2026"
+# Management decision 27/10/2026: «براند الهنا واسبشيال نفس السعر والصويا ٤٠٠ هو مفروم صويا ٤٠٠».
+CONFIRMED = {"panee": {"brands": {"الهنا", "اسبشيال"}}, "strips": {"brands": {"الهنا", "اسبشيال"}},
+             "soya": {"codes": {"10"}}}
+CONFIRMED_NOTE = "الهنا واسبشيال نفس تكلفة الوصفة · وصفة الصويا 400 جرام = «مفروم صويا 400»"
+PRICE_MONTH = "2026-08"
 
 # As printed. qty/price are None where the sheet prints only a total.
 RECIPES = [
@@ -156,7 +166,8 @@ def embedded(html: str) -> tuple[dict, dict]:
 
 def sales_items(snap: dict, families: list[str]) -> dict[str, dict]:
     """Items of the snapshot whose name holds a recipe's product word (or a no-sheet product)."""
-    out = defaultdict(lambda: {"qty": 0.0, "bonus_qty": 0.0, "revenue": 0.0, "paid_qty": 0.0})
+    out = defaultdict(lambda: {"qty": 0.0, "bonus_qty": 0.0, "revenue": 0.0, "paid_qty": 0.0,
+                               "m_revenue": 0.0, "m_paid_qty": 0.0})
     for ln in snap["lines"]:
         name = ln["item_name"]
         fam = next((f for f in families if f in name), None)
@@ -171,8 +182,13 @@ def sales_items(snap: dict, families: list[str]) -> dict[str, dict]:
         else:
             r["paid_qty"] += q
             r["revenue"] += float(ln.get("line_total") or 0)
+            if ln.get("month") == PRICE_MONTH:
+                r["m_paid_qty"] += q
+                r["m_revenue"] += float(ln.get("line_total") or 0)
     for r in out.values():
         r["avg_price"] = round(r["revenue"] / r["paid_qty"], 4) if r["paid_qty"] else None
+        r["month_price"] = round(r.pop("m_revenue") / r["m_paid_qty"], 4) if r["m_paid_qty"] else None
+        r["month_qty"] = round(r.pop("m_paid_qty"), 2)
         for k in ("qty", "bonus_qty", "paid_qty", "revenue"):
             r[k] = round(r[k], 2)
     return dict(out)
@@ -187,6 +203,21 @@ def model_cost(margin: dict) -> dict[str, dict]:
                 "gross": round((r["revenue_costed"] - r["gross_profit"]) / r["qty"], 4),
                 "op": round((r["revenue_costed"] - r["op_profit"]) / r["qty"], 4),
                 "month": margin.get("meta", {}).get("cost_month")}
+    return out
+
+
+def link(recipe: str, pack: dict, it: dict) -> dict:
+    """The candidate item, confirmed (with its recipe margin) when management's decision covers it."""
+    c = CONFIRMED.get(recipe, {})
+    if it["brand"] not in c.get("brands", ()) and it["code"] not in c.get("codes", ()):
+        return {**it, "status": LINK}
+    price, basis = ((it["month_price"], PRICE_MONTH) if it["month_price"] is not None
+                    else (it["avg_price"], "كل اللقطة"))
+    out = {**it, "status": DECISION, "price": price, "price_basis": basis}
+    if price:
+        out["margin_ex_commission"] = round(price - pack["cost_ex_commission"], 4)
+        out["margin"] = round(price - pack["total"], 4)
+        out["margin_pct"] = round(out["margin"] / price, 4)
     return out
 
 
@@ -221,9 +252,11 @@ def build() -> dict:
         for p in r["packs"]:
             its = sorted((it for it in items.values() if it["family"] == r["family"] and it["grams"] == p["grams"]),
                          key=lambda x: -x["qty"])
+            linked = [link(r["key"], p, it) for it in its]
             candidates.append({"recipe": r["key"], "grams": p["grams"], "pack_total": p["total"],
-                               "cost_ex_commission": p["cost_ex_commission"], "status": LINK,
-                               "items": [{**it, "status": LINK} for it in its]})
+                               "cost_ex_commission": p["cost_ex_commission"],
+                               "status": DECISION if linked and all(i["status"] == DECISION for i in linked) else LINK,
+                               "items": linked})
     no_sheet = []
     for it in sorted(items.values(), key=lambda x: (x["family"], x["grams"] or 0)):
         if (it["family"], it["grams"]) in priced:
@@ -233,6 +266,8 @@ def build() -> dict:
     return {
         "meta": {"basis": BASIS, "as_of": "2026-08-28", "snapshot": SNAPSHOT, "snapshot_as_of": snap.get("as_of"),
                  "link_rule": "الصنف المرشح: اسمه يحوي كلمة المنتج ووزن العبوة نفسه — الماركة ونوع العبوة غير مطبوعين في ورقة الوصفة",
+                 "decision": {"date": "2026-10-27", "status": DECISION, "note": CONFIRMED_NOTE},
+                 "price_month": PRICE_MONTH,
                  "model_cost_note": "تكلفة الوحدة في نموذج التكاليف (يونيو 2026) من DASH_MARGIN كما هي — تاريخ مختلف عن الوصفة"},
         "recipes": recipes, "candidates": candidates, "no_sheet": no_sheet}
 
