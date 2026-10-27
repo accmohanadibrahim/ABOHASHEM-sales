@@ -39,8 +39,14 @@
   /* قائمة الدخل الموحدة يناير 2025 – يوليو 2026 (طلب الإدارة 27/10/2026): تحل محل جداول
      «يوليو–ديسمبر 2025» و«2026» و«2025 الشهري» في قسم «قائمة الدخل»؛ باقي القسم كما هو.
      ?nobi (أو أي خطأ هنا) يعيد القسم الأصلي كما هو. */
+  biPlOn(F){ return this.biOn()&&!!window.DASH_IS25&&!!window.DASH_IS26&&!!F&&!!F.income; }
+  /* شارة الفترة أعلى القسم: من أول شهر في القائمة الموحدة إلى آخره. */
+  biPlSpan(){
+    try{ const c=this.biPl().cols; return this.fsMon(c[0].m)+" – "+this.fsMon(c[c.length-1].m); }
+    catch(e){ return "يناير 2025 – يوليو 2026"; }
+  }
   biIncomeMerged(body,F,T){
-    if(!this.biOn()||!window.DASH_IS25||!window.DASH_IS26||!F||!F.income) return body;
+    if(!this.biPlOn(F)) return body;
     let card;
     try{ card=this.biPlCard(F,T); }
     catch(e){ return body.concat([this.advNote("biplerr","تعذّر عرض قائمة الدخل الموحدة ("+String(e&&e.message||e)+"). الجداول الأصلية معروضة كما هي.","warn")])

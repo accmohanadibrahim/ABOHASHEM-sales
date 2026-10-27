@@ -64,6 +64,7 @@ def test_sections_and_exports_are_wired(built):
     assert out.count("    this.biExport(out,col,num);\n") == 1
     # «قوائم الدخل 2025» merged into «قائمة الدخل» (القوائم المالية), not a BI section of its own.
     assert out.count('    if(s==="fs_income") body=this.biIncomeMerged(body,F,T);\n') == 1
+    assert out.count('      : s==="fs_income"&&this.biPlOn(F)?this.biPlSpan()\n') == 1
     assert '"dash","bi_is25"' not in out
     assert out.count('["bi","ذكاء الأعمال","#14b8a6",id=>/^bi_/.test(id)],') == 1
 

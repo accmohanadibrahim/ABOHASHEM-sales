@@ -32,7 +32,7 @@ recipe sheets, src/recipes.py); the rest is read from what the full file already
     January 2025 – July 2026 (June 2025 «يحتاج بيانات», January–March 2026 the quarter split
     by sales weight «تقدير»), in place of the section's July–December 2025 and 2026 tables,
     then the 2025 tiles, notes and 2025-against-2026 table — management, 27/10/2026. With
-    ?nobi the section is the full file's, unchanged.
+    ?nobi the section is the full file's, unchanged; its period chip reads the same span.
   * their tables in «التقارير» and the Excel export, under their own group.
   * a kill switch: opening the file with ?nobi (or #nobi) hides the group.
 
@@ -116,6 +116,8 @@ def edits(methods: str, std: dict | None = None, is25: dict | None = None, abm: 
          '      "ذكاء الأعمال":"الملخص · جسر الربح · دوران المخزون · التكلفة المعيارية · تاريخ المديونية · الوصفات · Abohashem-main · سجل التنبيهات · قاموس المؤشرات",\n'),
         ("section-bi", '    if(s.slice(0,4)==="ops_"||s.slice(0,4)==="dec_"||s==="dq_clean") return this.opsSectionBody(s,X,T,api)||[];\n', "",
          '    if(s.slice(0,3)==="bi_") return this.biSectionBody(s,X,T,api)||[];\n'),
+        ("income-chip-bi", '      : s==="fs_quality"?"كل الفترات"\n', "      : span;\n",
+         '      : s==="fs_income"&&this.biPlOn(F)?this.biPlSpan()\n'),
         ("income25-bi", "    else body=this.fsExec(F,T);\n", '    body=[React.createElement("div",{key:"sub"',
          '    if(s==="fs_income") body=this.biIncomeMerged(body,F,T);\n'),
         ("export-bi", "    this.opsExport(out,col,num);\n", "",

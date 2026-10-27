@@ -197,6 +197,7 @@ def test_kill_switch_hides_the_group(browser):
     text = go(pg, "fs_income")
     assert IS25_HEAD not in text and PL_HEAD not in text
     assert "قائمة الدخل (شهري + إجمالي الفترة)" in text and "قائمة الدخل 2026 (" in text
+    assert "قائمة الدخل الشهرية\nيوليو 2025 – ديسمبر 2025\n" in pg.inner_text("body")
     assert pg.errors == []
     pg.close()
 
@@ -296,6 +297,8 @@ def test_income_merged(browser, page):
         assert gone not in text, gone
     assert "2025 مقابل 2026" in text and "بنود المصروفات الإدارية" in text and "سيناريو التكلفة والسعر" in text
     assert page.locator("[data-bi-pl]").count() == 1
+    chip = page.inner_text("body")                                     # the period chip, above the scroll area
+    assert "قائمة الدخل الشهرية\nيناير 2025 – يوليو 2026\n" in chip
     P = page.evaluate("() => window.__abhApp.biPl()")
     months = [c["m"] for c in P["cols"]]
     assert months == [f"2025-{m:02d}" for m in range(1, 13)] + [f"2026-{m:02d}" for m in range(1, 8)]
