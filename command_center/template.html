@@ -1,0 +1,797 @@
+<title>مركز قيادة أبو هاشم</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@600;800&display=swap">
+<style>
+/* Layout: سجل جزّار — شريط علوي ثابت، تبويبات أقسام، ثم صفوف بطاقات مرنة تتكدس عمودًا على الهاتف */
+:root {
+  --bg: #f4f3f1;          /* ورق دافئ محايد يميل قليلًا للأحمر */
+  --card: #fcfcfb;        /* سطح الرسم (palette surface-1) */
+  --fg: #1c1a19;
+  --fg2: #55504c;
+  --muted: #8a837e;
+  --line: #e4e0dc;
+  --grid: #ece9e6;
+  --accent: #8e1f2f;      /* أحمر لحمي داكن — للتنقل فقط، لا للبيانات */
+  --accent-soft: #f3e5e6;
+  --on-strong: #ffffff;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s0: #a39e98;
+  --pos: #2a78d6; --neg: #e34948; --neutral-bar: #6f6a65;
+  --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
+  --good-ink: #0a6e0a; --warning-ink: #8a5a00; --serious-ink: #a14a24; --critical-ink: #b02a2a;
+  --font-display: "Noto Kufi Arabic", "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+  --font-body: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, "Noto Sans Arabic", sans-serif;
+  --r: 10px;
+  --shadow: 0 1px 2px rgba(40, 20, 20, .05);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121111; --card: #1a1a19; --fg: #f0efec; --fg2: #c3c2b7; --muted: #8f8b85;
+    --line: #2f2d2b; --grid: #262523; --accent: #e57d8b; --accent-soft: #3a1e22; --on-strong: #ffffff;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s0: #77736d;
+    --pos: #3987e5; --neg: #e66767; --neutral-bar: #9a958e;
+    --good-ink: #5fd35f; --warning-ink: #fac454; --serious-ink: #f2a27f; --critical-ink: #ef7b7b;
+    --shadow: none; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121111; --card: #1a1a19; --fg: #f0efec; --fg2: #c3c2b7; --muted: #8f8b85;
+  --line: #2f2d2b; --grid: #262523; --accent: #e57d8b; --accent-soft: #3a1e22; --on-strong: #ffffff;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s0: #77736d;
+  --pos: #3987e5; --neg: #e66767; --neutral-bar: #9a958e;
+  --good-ink: #5fd35f; --warning-ink: #fac454; --serious-ink: #f2a27f; --critical-ink: #ef7b7b;
+  --shadow: none; color-scheme: dark;
+}
+/* نفس إعادة الضبط التي يضيفها هيكل النشر، لتتطابق الصفحة محليًا ومنشورة */
+html, body { margin: 0; }
+[hidden] { display: none !important; }
+img { max-width: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px; line-height: 1.55; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--card); }
+.app { min-height: 100%; }
+.wrap { max-width: 1320px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; font-weight: 800; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+/* الشريط العلوي */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 9; background: var(--card); border-bottom: 1px solid var(--line); }
+.top .wrap { display: flex; align-items: center; gap: 14px; padding-block: 10px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1 1 260px; }
+.brand img { width: 44px; height: 44px; object-fit: contain; border-radius: 8px; background: #fff; }
+.brand h1 { font-size: 19px; line-height: 1.25; }
+.brand p { margin: 0; color: var(--fg2); font-size: 12.5px; }
+.top-actions { display: flex; gap: 8px; align-items: center; }
+.btn { border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: 13px; }
+.btn:hover { border-color: var(--fg2); }
+nav.tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; border-top: 1px solid var(--line); }
+nav.tabs::-webkit-scrollbar { display: none; }
+nav.tabs a { flex: none; padding: 10px 14px; color: var(--fg2); text-decoration: none; font-weight: 600; font-size: 13.5px; border-bottom: 2px solid transparent; white-space: nowrap; }
+nav.tabs a:hover { color: var(--fg); }
+nav.tabs a[aria-current="page"] { color: var(--accent); border-bottom-color: var(--accent); }
+
+main { padding-block: 20px 48px; }
+.sec { display: grid; gap: 16px; }
+.sec-head { display: flex; justify-content: space-between; align-items: end; gap: 12px; flex-wrap: wrap; }
+.sec-head h2 { font-size: 22px; }
+.sec-head p { margin: 4px 0 0; color: var(--fg2); max-width: 70ch; }
+
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(12, minmax(0, 1fr)); }
+.c12 { grid-column: span 12; } .c8 { grid-column: span 8; } .c7 { grid-column: span 7; } .c6 { grid-column: span 6; } .c5 { grid-column: span 5; } .c4 { grid-column: span 4; }
+@media (max-width: 980px) { .c8, .c7, .c6, .c5, .c4 { grid-column: span 12; } }
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); padding: 16px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.card-h { display: flex; justify-content: space-between; align-items: start; gap: 10px; }
+.card-h h3 { font-size: 15px; font-family: var(--font-body); font-weight: 700; }
+.card-h .sub { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }
+.tbl-btn { flex: none; border: 1px solid var(--line); background: transparent; border-radius: 6px; padding: 3px 9px; font-size: 12px; color: var(--fg2); cursor: pointer; }
+.tbl-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.note { margin: 0; color: var(--muted); font-size: 12px; }
+.plot { width: 100%; min-height: 60px; position: relative; }
+.plot svg { display: block; overflow: visible; }
+
+/* المؤشرات */
+.kpis { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.kpi { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.kpi .lbl { color: var(--fg2); font-size: 12.5px; font-weight: 600; letter-spacing: .01em; }
+.kpi .val { font-family: var(--font-display); font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.kpi .val small { font-family: var(--font-body); font-size: 13px; font-weight: 600; color: var(--fg2); margin-inline-start: 4px; }
+.kpi .meta { color: var(--muted); font-size: 12px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
+/* الحالة: أيقونة + نص + لون، لا لون وحده */
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 700; white-space: nowrap; border: 1px solid currentColor; }
+.chip::before { font-size: 10px; }
+.chip.good { color: var(--good-ink); } .chip.good::before { content: "✓"; }
+.chip.warning { color: var(--warning-ink); } .chip.warning::before { content: "!"; }
+.chip.serious { color: var(--serious-ink); } .chip.serious::before { content: "▲"; }
+.chip.critical { color: var(--critical-ink); } .chip.critical::before { content: "✕"; }
+.chip.info { color: var(--fg2); }
+
+.insights { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.insights li { display: grid; grid-template-columns: 92px 1fr; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); align-items: start; }
+.insights li:first-child { border-top: 0; }
+.insights .area { color: var(--muted); font-size: 12px; display: block; margin-top: 4px; }
+.insights p { margin: 0; max-width: 80ch; }
+
+/* الجداول */
+.tw { overflow-x: auto; max-width: 100%; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 13px; }
+th, td { padding: 7px 10px; text-align: start; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { color: var(--fg2); font-weight: 600; font-size: 12px; position: sticky; top: 0; background: var(--card); }
+td.n, th.n { text-align: end; }
+tr.click { cursor: pointer; } tr.click:hover td { background: var(--accent-soft); }
+
+/* أشرطة أفقية */
+.hb { display: grid; gap: 2px; }
+.hb-row { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 2fr) auto; gap: 10px; align-items: center; background: none; border: 0; padding: 5px 4px; border-radius: 6px; text-align: start; cursor: default; width: 100%; }
+.hb-row.clickable { cursor: pointer; } .hb-row.clickable:hover { background: var(--accent-soft); }
+.hb-l { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.hb-l small { color: var(--muted); margin-inline-start: 6px; font-size: 11.5px; }
+.hb-track { position: relative; height: 12px; }
+.hb-bar { position: absolute; top: 0; height: 12px; border-radius: 0 4px 4px 0; }
+.hb-track.rtl .hb-bar { right: 0; border-radius: 4px 0 0 4px; }
+.hb-zero { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--fg2); }
+.hb-v { font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--fg2); min-width: 72px; text-align: end; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--fg2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.legend i.ln { height: 2px; width: 14px; border-radius: 1px; }
+.legend i.dash { background: none !important; border-top: 2px dashed; height: 0; }
+
+.filters { display: flex; gap: 10px 18px; flex-wrap: wrap; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 14px; }
+.filters .lbl { color: var(--fg2); font-size: 12.5px; font-weight: 600; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: none; padding: 5px 12px; cursor: pointer; font-size: 13px; }
+.seg button + button { border-inline-start: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--fg); color: var(--card); }
+.fchip { border: 1px solid var(--line); background: none; border-radius: 999px; padding: 3px 10px 3px 12px; cursor: pointer; font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }
+.fchip i { width: 10px; height: 10px; border-radius: 3px; }
+.fchip[aria-pressed="false"] { opacity: .45; text-decoration: line-through; }
+input[type="search"] { font: inherit; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 8px; padding: 6px 10px; width: min(260px, 100%); }
+
+/* خريطة حرارية */
+.heat td { text-align: center; font-size: 12px; padding: 8px 6px; border: 2px solid var(--card); border-radius: 4px; }
+.heat td.lab { text-align: start; font-weight: 600; background: none; }
+.heat td.na { background: repeating-linear-gradient(45deg, var(--line) 0 2px, transparent 2px 7px); color: var(--muted); }
+
+.drill { border: 1px solid var(--accent); }
+.drill-h { display: flex; justify-content: space-between; gap: 10px; align-items: start; flex-wrap: wrap; }
+.facts { display: flex; gap: 8px 18px; flex-wrap: wrap; color: var(--fg2); font-size: 13px; }
+.facts b { color: var(--fg); font-variant-numeric: tabular-nums; }
+
+.tip { position: fixed; z-index: 50; pointer-events: none; background: var(--fg); color: var(--card); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; line-height: 1.5; max-width: 280px; box-shadow: 0 6px 20px rgba(0,0,0,.18); font-variant-numeric: tabular-nums; }
+.tip b { display: block; margin-bottom: 2px; }
+.tip .row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.tip .row span:first-child { display: inline-flex; align-items: center; gap: 6px; }
+.tip i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+
+svg .grid { stroke: var(--grid); stroke-width: 1; }
+svg .axis { stroke: var(--line); stroke-width: 1; }
+svg text { fill: var(--muted); font-size: 11px; font-family: var(--font-body); }
+svg text.val { fill: var(--fg2); font-size: 11px; font-weight: 600; }
+svg .cross { stroke: var(--fg2); stroke-width: 1; }
+
+footer { color: var(--muted); font-size: 12px; padding-block: 24px; border-top: 1px solid var(--line); }
+@media (prefers-reduced-motion: no-preference) { .sec { animation: rise .25s ease-out; } @keyframes rise { from { transform: translateY(4px); } to { transform: none; } } }
+@media (max-width: 560px) {
+  .kpi .val { font-size: 22px; }
+  .insights li { grid-template-columns: 1fr; gap: 4px; }
+  .hb-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+}
+</style>
+
+<div class="app" dir="rtl" lang="ar">
+  <header class="top">
+    <div class="wrap">
+      <div class="brand">
+        <img src="__LOGO__" alt="شعار أبو هاشم">
+        <div>
+          <h1>مركز قيادة أبو هاشم للحوم</h1>
+          <p id="asof"></p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button class="btn" id="themeBtn" type="button" aria-label="تبديل المظهر">المظهر</button>
+      </div>
+    </div>
+    <div class="wrap"><nav class="tabs" id="tabs" aria-label="أقسام اللوحة"></nav></div>
+  </header>
+  <main class="wrap" id="main"></main>
+  <div class="wrap"><footer id="foot"></footer></div>
+  <div class="tip" id="tip" hidden></div>
+</div>
+
+<script>
+"use strict";
+const D = /*__DATA__*/null;
+
+/* ───────── أدوات ───────── */
+const NS = "http://www.w3.org/2000/svg";
+const MONTHS = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+const BRAND_VAR = { "الهنا": "--s1", "ابوهاشم": "--s2", "اسبشيال": "--s3", "غير مصنف": "--s0" };
+const BRANDS = Object.keys(D.sales.brands);
+const v = n => `var(${n})`;
+const fmt = (x, d = 0) => x == null ? "—" : Number(x).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmtC = x => {
+  if (x == null) return "—";
+  const a = Math.abs(x);
+  if (a >= 1e6) return (x / 1e6).toFixed(a >= 1e7 ? 1 : 2) + " م";
+  if (a >= 1e3) return Math.round(x / 1e3) + " ألف";
+  return fmt(x);
+};
+const pct = (x, d = 1) => x == null ? "—" : Number(x).toFixed(d) + "%";
+const mLabel = k => {
+  if (/Q\d/.test(k)) return "ر" + k.slice(-1) + " " + k.slice(2, 4);
+  const p = String(k).split("-");
+  if (p.length === 3) return Number(p[2]) + " " + MONTHS[+p[1] - 1].slice(0, 5);
+  return MONTHS[+p[1] - 1] + " " + p[0].slice(2);
+};
+const dLabel = k => { const p = k.split("-"); return Number(p[2]) + "/" + Number(p[1]); };
+const h = (tag, attrs = {}, html) => { const e = document.createElement(tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (html != null) e.innerHTML = html; return e; };
+const s = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const sum = a => a.reduce((t, x) => t + (x || 0), 0);
+const LEVEL = { good: "جيد", warning: "انتباه", serious: "مرتفع", critical: "حرج", info: "معلومة" };
+/* رقم يبدأ بإشارة يُعزل اتجاهه يسارًا كي لا تنتقل الإشارة لآخره داخل النص العربي */
+const B = x => String(x).replace(/^([+-][\d.,]+%?)/, '<bdi dir="ltr">$1</bdi>');
+const chip = (lvl, text) => `<span class="chip ${lvl}">${esc(text || LEVEL[lvl])}</span>`;
+
+function nice(x) { const e = Math.pow(10, Math.floor(Math.log10(x))); const f = x / e; return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * e; }
+function ticks(min, max, n = 4) {
+  if (max === min) max = min + 1;
+  const st = nice((max - min) / n), lo = Math.floor(min / st) * st, hi = Math.ceil(max / st) * st, out = [];
+  for (let x = lo; x <= hi + st / 2; x += st) out.push(+x.toFixed(10));
+  return out;
+}
+
+/* ───────── التلميح ───────── */
+const tip = document.getElementById("tip");
+function showTip(html, ev) {
+  tip.innerHTML = html; tip.hidden = false;
+  const r = tip.getBoundingClientRect(), pad = 14;
+  let x = ev.clientX + pad, y = ev.clientY + pad;
+  if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - pad;
+  if (y + r.height > innerHeight - 8) y = ev.clientY - r.height - pad;
+  tip.style.left = Math.max(8, x) + "px"; tip.style.top = Math.max(8, y) + "px";
+}
+const hideTip = () => { tip.hidden = true; };
+const tipRow = (color, name, val) => `<div class="row"><span>${color ? `<i style="background:${color}"></i>` : ""}${esc(name)}</span><span>${val}</span></div>`;
+
+/* ───────── المخططات (SVG بلا مكتبات) ───────── */
+function frame(plot, H, m) {
+  plot.innerHTML = "";
+  const W = Math.max(260, Math.floor(plot.clientWidth));
+  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "img" }, plot);
+  svg.style.direction = "ltr";
+  const defs = s("defs", {}, svg);
+  const pat = s("pattern", { id: "hatch" + plot.id, width: 6, height: 6, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" }, defs);
+  s("rect", { width: 6, height: 6, style: "fill:var(--card)" }, pat);
+  s("line", { x1: 0, y1: 0, x2: 0, y2: 6, style: "stroke:var(--muted);stroke-width:2" }, pat);
+  return { svg, W, H, m, iw: W - m.l - m.r, ih: H - m.t - m.b };
+}
+function yAxis(f, mn, mx, fmtY) {
+  const tk = ticks(mn, mx, 4); mn = tk[0]; mx = tk[tk.length - 1];
+  const y = val => f.m.t + (mx - val) / (mx - mn) * f.ih;
+  tk.forEach(t => {
+    s("line", { x1: f.m.l, x2: f.W - f.m.r, y1: y(t), y2: y(t), class: t === 0 ? "axis" : "grid" }, f.svg);
+    s("text", { x: f.m.l - 8, y: y(t) + 4, "text-anchor": "end" }, f.svg).textContent = fmtY(t);
+  });
+  return y;
+}
+function xLabels(f, n, xAt, label, every) {
+  const step = every || Math.max(1, Math.ceil(n / Math.max(1, Math.floor(f.iw / 62))));
+  for (let i = 0; i < n; i += step) s("text", { x: xAt(i), y: f.H - 8, "text-anchor": "middle" }, f.svg).textContent = label(i);
+}
+
+/* خط زمني مع تقاطع وتلميح؛ القيم الغائبة تقطع الخط ولا تُستكمل */
+function lineChart(plot, o) {
+  const f = frame(plot, o.height || 250, { l: 58, r: 18, t: 14, b: 28 });
+  const n = o.labels.length, vals = [];
+  o.series.forEach(se => se.values.forEach(x => x != null && vals.push(x)));
+  if (o.band) [...o.band.lo, ...o.band.hi].forEach(x => x != null && vals.push(x));
+  let mn = Math.min(...vals), mx = Math.max(...vals);
+  if (o.zero !== false) mn = Math.min(0, mn);
+  const fy = o.yfmt || fmtC, y = yAxis(f, mn, mx, fy);
+  const x = i => f.m.l + (n === 1 ? f.iw / 2 : i * f.iw / (n - 1));
+  xLabels(f, n, x, i => (o.xfmt || mLabel)(o.labels[i]));
+  if (o.band) {
+    const idx = o.labels.map((_, i) => i).filter(i => o.band.lo[i] != null && o.band.hi[i] != null);
+    if (idx.length) {
+      const d = idx.map((i, k) => (k ? "L" : "M") + x(i) + " " + y(o.band.hi[i])).join(" ") + " " + idx.slice().reverse().map(i => "L" + x(i) + " " + y(o.band.lo[i])).join(" ") + " Z";
+      s("path", { d, style: `fill:${o.band.color};opacity:.14` }, f.svg);
+    }
+  }
+  o.series.forEach(se => {
+    let d = "", pen = false;
+    se.values.forEach((val, i) => { if (val == null) { pen = false; return; } d += (pen ? "L" : "M") + x(i) + " " + y(val) + " "; pen = true; });
+    s("path", { d, style: `fill:none;stroke:${se.color};stroke-width:${se.width || 2};stroke-linejoin:round;stroke-linecap:round${se.dash ? ";stroke-dasharray:5 4" : ""}` }, f.svg);
+    if (se.dots) se.values.forEach((val, i) => val != null && s("circle", { cx: x(i), cy: y(val), r: 3.5, style: `fill:${se.color};stroke:var(--card);stroke-width:2` }, f.svg));
+    const last = se.values.map((val, i) => [val, i]).filter(p => p[0] != null).pop();
+    if (last && !se.dash) s("circle", { cx: x(last[1]), cy: y(last[0]), r: 4.5, style: `fill:${se.color};stroke:var(--card);stroke-width:2` }, f.svg);
+  });
+  (o.marks || []).forEach(mk => {
+    s("line", { x1: x(mk.i), x2: x(mk.i), y1: f.m.t, y2: f.m.t + f.ih, class: "grid" }, f.svg);
+    s("text", { x: x(mk.i) + 4, y: f.m.t + 10 }, f.svg).textContent = mk.text;
+  });
+  const cross = s("line", { y1: f.m.t, y2: f.m.t + f.ih, class: "cross", visibility: "hidden" }, f.svg);
+  const hit = s("rect", { x: f.m.l - 10, y: 0, width: f.iw + 20, height: f.H, style: "fill:transparent" }, f.svg);
+  const move = ev => {
+    const r = f.svg.getBoundingClientRect(), px = (ev.clientX - r.left) * f.W / r.width;
+    const i = Math.max(0, Math.min(n - 1, Math.round((px - f.m.l) / (f.iw / Math.max(1, n - 1)))));
+    cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("visibility", "visible");
+    let html = `<b>${esc((o.tipLabel || o.xfmt || mLabel)(o.labels[i]))}</b>`;
+    o.series.forEach(se => { if (se.values[i] != null) html += tipRow(se.color, se.name, fy(se.values[i]) === fmtC(se.values[i]) ? fmt(se.values[i]) : fy(se.values[i])); });
+    if (o.band && o.band.lo[i] != null) html += tipRow(null, "نطاق الثقة 95%", fmtC(o.band.lo[i]) + " – " + fmtC(o.band.hi[i]));
+    if (o.tipExtra) html += o.tipExtra(i) || "";
+    showTip(html, ev);
+  };
+  hit.addEventListener("pointermove", move); hit.addEventListener("pointerdown", move);
+  hit.addEventListener("pointerleave", () => { cross.setAttribute("visibility", "hidden"); hideTip(); });
+}
+
+/* أعمدة رأسية مكدسة: فجوة 2px بين المقاطع، رأس مستدير 4px، تهشير للبيانات الجزئية */
+function barChart(plot, o) {
+  const f = frame(plot, o.height || 250, { l: 58, r: 12, t: o.topPad || 18, b: 28 });
+  const n = o.labels.length;
+  const tot = o.labels.map((_, i) => sum(o.series.map(se => se.values[i])));
+  const y = yAxis(f, 0, Math.max(...tot, 1), o.yfmt || fmtC);
+  const band = f.iw / n, bw = Math.min(o.maxBar || 40, band * 0.64);
+  const x = i => f.m.l + band * i + band / 2;
+  xLabels(f, n, x, i => (o.xfmt || mLabel)(o.labels[i]), o.every);
+  for (let i = 0; i < n; i++) {
+    let cum = 0;
+    const segs = o.series.map(se => se.values[i] || 0).map((val, k) => ({ val, k })).filter(p => p.val > 0);
+    segs.forEach((p, j) => {
+      const top = y(cum + p.val), bot = y(cum) - (j ? 2 : 0), hh = Math.max(0, bot - top), x0 = x(i) - bw / 2;
+      cum += p.val;
+      const color = o.series[p.k].color;
+      if (j === segs.length - 1 && hh > 4) {
+        const r = 4;
+        s("path", { d: `M${x0} ${bot} V${top + r} Q${x0} ${top} ${x0 + r} ${top} H${x0 + bw - r} Q${x0 + bw} ${top} ${x0 + bw} ${top + r} V${bot} Z`, style: `fill:${color}` }, f.svg);
+      } else s("rect", { x: x0, y: top, width: bw, height: hh, style: `fill:${color}` }, f.svg);
+      if (o.partial && o.partial[i]) s("rect", { x: x0, y: top, width: bw, height: hh, fill: `url(#hatch${plot.id})`, opacity: .55 }, f.svg);
+    });
+    if (o.flags && o.flags[i]) s("text", { x: x(i), y: y(tot[i]) - 6, "text-anchor": "middle", class: "val" }, f.svg).textContent = o.flags[i];
+    else if (o.valueLabels) s("text", { x: x(i), y: y(tot[i]) - 6, "text-anchor": "middle", class: "val" }, f.svg).textContent = fmtC(tot[i]);
+    const hit = s("rect", { x: f.m.l + band * i, y: 0, width: band, height: f.H, style: "fill:transparent" }, f.svg);
+    const show = ev => {
+      let html = `<b>${esc((o.tipLabel || o.xfmt || mLabel)(o.labels[i]))}</b>`;
+      o.series.slice().reverse().forEach(se => { if (se.values[i] != null) html += tipRow(se.color, se.name, fmt(se.values[i])); });
+      if (o.series.length > 1) html += tipRow(null, "الإجمالي", fmt(tot[i]));
+      if (o.tipExtra) html += o.tipExtra(i) || "";
+      showTip(html, ev);
+    };
+    hit.addEventListener("pointermove", show); hit.addEventListener("pointerdown", show); hit.addEventListener("pointerleave", hideTip);
+  }
+}
+
+/* جسر الحركة: افتتاحي + مبيعات − تحصيل − مرتجعات ± فجوة = ختامي */
+function waterfall(plot, steps) {
+  const f = frame(plot, 270, { l: 58, r: 12, t: 22, b: 30 });
+  let run = 0; const bars = steps.map(st => {
+    if (st.kind === "total") { run = st.value; return { ...st, a: 0, b: st.value }; }
+    const a = run; run += st.value; return { ...st, a, b: run };
+  });
+  const lo = Math.min(0, ...bars.map(b => Math.min(b.a, b.b))), hi = Math.max(...bars.map(b => Math.max(b.a, b.b)));
+  const y = yAxis(f, lo, hi, fmtC);
+  const band = f.iw / bars.length, bw = Math.min(56, band * 0.6), x = i => f.m.l + band * i + band / 2;
+  xLabels(f, bars.length, x, i => bars[i].label, 1);
+  bars.forEach((b, i) => {
+    const top = y(Math.max(b.a, b.b)), hh = Math.max(1, Math.abs(y(b.a) - y(b.b)));
+    const color = b.kind === "total" ? v("--neutral-bar") : b.kind === "gap" ? v("--muted") : b.value >= 0 ? v("--pos") : v("--neg");
+    s("rect", { x: x(i) - bw / 2, y: top, width: bw, height: hh, rx: 3, style: `fill:${color}` }, f.svg);
+    if (b.kind === "gap") s("rect", { x: x(i) - bw / 2, y: top, width: bw, height: hh, fill: `url(#hatch${plot.id})` }, f.svg);
+    if (i < bars.length - 1) s("line", { x1: x(i) + bw / 2, x2: x(i + 1) - bw / 2, y1: y(b.b), y2: y(b.b), class: "grid" }, f.svg);
+    s("text", { x: x(i), y: top - 6, "text-anchor": "middle", class: "val" }, f.svg).textContent = (b.kind !== "total" && b.value > 0 ? "+" : "") + fmtC(b.value);
+    const hit = s("rect", { x: f.m.l + band * i, y: 0, width: band, height: f.H, style: "fill:transparent" }, f.svg);
+    const show = ev => showTip(`<b>${esc(b.label)}</b>${tipRow(color, b.kind === "total" ? "الرصيد" : "الحركة", fmt(b.value))}${b.hint ? `<div>${esc(b.hint)}</div>` : ""}`, ev);
+    hit.addEventListener("pointermove", show); hit.addEventListener("pointerdown", show); hit.addEventListener("pointerleave", hideTip);
+  });
+}
+
+/* أشرطة أفقية HTML — تدعم القيم السالبة حول صفر واضح */
+function hbars(box, rows, o = {}) {
+  const fv = o.fmt || fmtC, signed = rows.some(r => r.value < 0);
+  const pos = Math.max(0, ...rows.map(r => r.value)), neg = Math.max(0, ...rows.map(r => -r.value)), span = pos + neg || 1;
+  const z = neg / span * 100;
+  box.innerHTML = ""; const wrap = h("div", { class: "hb" });
+  rows.forEach(r => {
+    const b = h(r.onClick ? "button" : "div", { class: "hb-row" + (r.onClick ? " clickable" : ""), type: r.onClick ? "button" : undefined });
+    if (!r.onClick) b.removeAttribute("type");
+    const w = Math.abs(r.value) / span * 100;
+    const bar = signed
+      ? `<span class="hb-track" style="direction:ltr"><span class="hb-zero" style="left:${z}%"></span><span class="hb-bar" style="left:${r.value < 0 ? z - w : z}%;width:${w}%;background:${r.color};border-radius:${r.value < 0 ? "4px 0 0 4px" : "0 4px 4px 0"}"></span></span>`
+      : `<span class="hb-track rtl"><span class="hb-bar" style="width:${w}%;background:${r.color}"></span></span>`;
+    b.innerHTML = `<span class="hb-l" title="${esc(r.label)}">${esc(r.label)}${r.sub ? `<small>${esc(r.sub)}</small>` : ""}</span>${bar}<span class="hb-v">${B(fv(r.value))}</span>`;
+    if (r.onClick) b.addEventListener("click", r.onClick);
+    if (r.tip) { b.addEventListener("pointermove", ev => showTip(r.tip, ev)); b.addEventListener("pointerleave", hideTip); }
+    wrap.appendChild(b);
+  });
+  box.appendChild(wrap);
+}
+
+function sparkline(values, color) {
+  const w = 96, hgt = 26, ok = values.filter(x => x != null);
+  if (ok.length < 2) return "";
+  const mn = Math.min(...ok), mx = Math.max(...ok), n = values.length;
+  const X = i => 3 + i * (w - 6) / (n - 1), Y = val => hgt - 3 - (mx === mn ? .5 : (val - mn) / (mx - mn)) * (hgt - 6);
+  let d = "", pen = false;
+  values.forEach((val, i) => { if (val == null) { pen = false; return; } d += (pen ? "L" : "M") + X(i).toFixed(1) + " " + Y(val).toFixed(1) + " "; pen = true; });
+  const li = values.map((val, i) => [val, i]).filter(p => p[0] != null).pop();
+  return `<svg width="${w}" height="${hgt}" viewBox="0 0 ${w} ${hgt}" style="direction:ltr" aria-hidden="true"><path d="${d}" style="fill:none;stroke:${color};stroke-width:1.6"/><circle cx="${X(li[1])}" cy="${Y(li[0])}" r="2.6" style="fill:${color}"/></svg>`;
+}
+
+function table(cols, rows, o = {}) {
+  const head = cols.map(c => `<th class="${c.n ? "n" : ""}">${esc(c.t)}</th>`).join("");
+  const body = rows.map((r, i) => `<tr${o.click ? ` class="click" data-i="${i}"` : ""}>${r.map((cell, j) => `<td class="${cols[j].n ? "n" : ""}">${B(cell)}</td>`).join("")}</tr>`).join("");
+  return `<div class="tw"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
+/* ───────── البطاقات والأقسام ───────── */
+const CHARTS = []; let uid = 0;
+function card(parent, o) {
+  const c = h("section", { class: "card " + (o.span || "c12") });
+  const id = "p" + (++uid);
+  c.innerHTML = `<div class="card-h"><div><h3>${esc(o.title)}</h3>${o.sub ? `<p class="sub">${o.sub}</p>` : ""}</div>${o.table ? `<button class="tbl-btn" type="button" aria-pressed="false">جدول</button>` : ""}</div>${o.legend ? `<div class="legend">${o.legend}</div>` : ""}<div class="plot" id="${id}"></div>${o.table ? `<div class="tblv" hidden></div>` : ""}${o.note ? `<p class="note">${o.note}</p>` : ""}`;
+  parent.appendChild(c);
+  const plot = c.querySelector(".plot");
+  const entry = { plot, render: o.render, sec: parent.closest(".sec") };
+  if (o.render) CHARTS.push(entry);
+  if (o.table) {
+    const btn = c.querySelector(".tbl-btn"), tv = c.querySelector(".tblv");
+    btn.addEventListener("click", () => {
+      const on = btn.getAttribute("aria-pressed") !== "true";
+      btn.setAttribute("aria-pressed", on); btn.textContent = on ? "مخطط" : "جدول";
+      plot.hidden = on; tv.hidden = !on;
+      if (on) { const t = o.table(); tv.innerHTML = table(t.cols, t.rows); }
+      else o.render && o.render(plot);
+    });
+  }
+  return { el: c, plot, rerender: () => o.render && !plot.hidden && o.render(plot) };
+}
+const legend = items => items.map(([name, color, kind]) => `<span><i class="${kind || ""}" style="background:${color};border-color:${color}"></i>${esc(name)}</span>`).join("");
+function kpis(parent, items) {
+  const box = h("div", { class: "kpis" });
+  box.innerHTML = items.map(k => `<div class="kpi"><span class="lbl">${esc(k.label)}</span><span class="val">${B(k.value)}${k.unit ? `<small>${esc(k.unit)}</small>` : ""}</span><span class="meta">${k.meta || ""}</span></div>`).join("");
+  parent.appendChild(box);
+}
+function section(id, title, lead) {
+  const sec = h("div", { class: "sec", id: "sec-" + id, hidden: "" });
+  sec.innerHTML = `<div class="sec-head"><div><h2>${esc(title)}</h2>${lead ? `<p>${lead}</p>` : ""}</div></div>`;
+  document.getElementById("main").appendChild(sec);
+  return sec;
+}
+const grid = parent => { const g = h("div", { class: "grid" }); parent.appendChild(g); return g; };
+
+/* ───────── البيانات المشتقة ───────── */
+const S = D.sales, P = D.pnl, A = D.ar, C = D.costing, F = D.forecast, Q = D.quality;
+const lastHist = S.months.length - 1;
+const allLabels = S.months.concat(F.rows.map(r => r.month));
+const pad = (arr, len) => arr.concat(Array(len - arr.length).fill(null));
+const fcAt = key => S.months.map((_, i) => i === lastHist ? S.revenue[lastHist] : null).concat(F.rows.map(r => r[key]));
+
+/* ═════════ 1. نظرة عامة ═════════ */
+{
+  const sec = section("overview", "نظرة عامة", "أهم المؤشرات من كل مصادر الشركة في مكان واحد، وكل رقم مطابق لملفه المصدري قبل العرض.");
+  const h1_25 = sum(S.revenue.slice(0, 6)), h1_26 = sum(S.revenue.slice(12, 18)), g = (h1_26 / h1_25 - 1) * 100;
+  const inv = C.inventory, invL = inv[inv.length - 1];
+  const neg = C.margins.filter(m => m.margin < 0).length;
+  kpis(sec, [
+    { label: "إيراد الفواتير — 18 شهرًا", value: fmtC(S.totals.revenue), unit: "ج", meta: `${fmt(S.totals.invoices)} فاتورة · ${S.totals.customers} عميل` },
+    { label: "النصف الأول 2026 مقابل 2025", value: (g >= 0 ? "+" : "") + g.toFixed(1) + "%", meta: chip(g >= 0 ? "good" : "serious", g >= 0 ? "نمو" : "تراجع") + ` ${fmtC(h1_26)} ج` },
+    { label: `صافي الربح — يناير إلى ${MONTHS[+P.ytd_2026.through.slice(5) - 1]} 2026`, value: fmtC(P.ytd_2026.net_profit), unit: "ج", meta: `هامش ${pct(P.ytd_2026.nm_pct)} · مجمل ${pct(P.ytd_2026.gm_pct)}` },
+    { label: `المديونية — آخر لقطة مكتملة ${dLabel(A.latest_complete.date)}`, value: fmtC(A.latest_complete.net), unit: "ج", meta: `أعلى 10 عملاء ${pct(A.top10_concentration)}` },
+    { label: `قيمة المخزون — ${dLabel(invL.date)}`, value: fmtC(invL.total), unit: "ج", meta: `خامات ${fmtC(invL.raw)} · تام ${fmtC(invL.fg)}` },
+    { label: "أصناف بهامش وصفة سالب", value: String(neg), meta: neg ? chip("critical", "يحتاج قرار تسعير") : chip("good", "لا يوجد") },
+  ]);
+  const g1 = grid(sec);
+  const ins = card(g1, { span: "c5", title: "ملاحظات تنفيذية", sub: "تُحسب آليًا من البيانات عند كل بناء" });
+  ins.plot.innerHTML = `<ul class="insights">${D.insights.map(i => `<li><div>${chip(i.level)}<span class="area">${esc(i.area)}</span></div><p>${esc(i.text)}</p></li>`).join("")}</ul>`;
+  card(g1, {
+    span: "c7", title: "الإيراد الشهري والتوقع حتى يناير 2027", sub: `النموذج المختار: ${esc(F.best_model)} (أقل خطأ في التحقق المتدحرج)`,
+    legend: legend([["الإيراد الفعلي", v("--s1"), "ln"], ["التوقع الأساسي", v("--s2"), "ln dash"], ["نطاق الثقة 95%", v("--s2")]]),
+    render: p => lineChart(p, { labels: allLabels, height: 280, series: [
+      { name: "الإيراد الفعلي", values: pad(S.revenue, allLabels.length), color: v("--s1") },
+      { name: "التوقع الأساسي", values: fcAt("base_case"), color: v("--s2"), dash: true }],
+      band: { lo: fcAt("ci95_lower"), hi: fcAt("ci95_upper"), color: v("--s2") }, marks: [{ i: lastHist + 1, text: "توقع" }] }),
+    table: () => ({ cols: [{ t: "الشهر" }, { t: "فعلي", n: 1 }, { t: "توقع أساسي", n: 1 }, { t: "أدنى 95%", n: 1 }, { t: "أعلى 95%", n: 1 }],
+      rows: allLabels.map((m, i) => [mLabel(m), fmt(S.revenue[i]), i > lastHist ? fmt(F.rows[i - lastHist - 1].base_case) : "", i > lastHist ? fmt(F.rows[i - lastHist - 1].ci95_lower) : "", i > lastHist ? fmt(F.rows[i - lastHist - 1].ci95_upper) : ""]) }),
+  });
+  const g2 = grid(sec);
+  card(g2, {
+    span: "c6", title: "صافي المبيعات وصافي الربح حسب قوائم الدخل", sub: "الربع الأول 2026 معروض كمتوسط شهري؛ يونيو 2025 بلا قائمة",
+    legend: legend([["صافي المبيعات", v("--s1"), "ln"], ["صافي الربح", v("--s3"), "ln"]]),
+    render: p => lineChart(p, { labels: P.rows.map(r => r.period), series: [
+      { name: "صافي المبيعات", values: P.rows.map(r => r.net_sales == null ? null : r.net_sales / r.months), color: v("--s1"), dots: true },
+      { name: "صافي الربح", values: P.rows.map(r => r.net_profit == null ? null : r.net_profit / r.months), color: v("--s3"), dots: true }],
+      tipExtra: i => P.rows[i].months > 1 ? "<div>متوسط شهري لربع مجمّع</div>" : P.rows[i].status !== "معتمد" ? `<div>${esc(P.rows[i].status)}</div>` : "" }),
+  });
+  card(g2, {
+    span: "c6", title: "إجمالي المديونية في كل لقطة", sub: "التاريخ المطبوع في تقارير المناديب",
+    render: p => barChart(p, { labels: A.totals.map(t => t.date), xfmt: dLabel, series: [{ name: "المديونية", values: A.totals.map(t => t.net), color: v("--s1") }],
+      partial: A.totals.map(t => !t.complete), flags: A.totals.map(t => t.complete ? fmtC(t.net) : "جزئي"), maxBar: 54,
+      tipExtra: i => A.totals[i].complete ? "" : `<div>ينقص: ${esc(A.totals[i].missing.join("، "))}</div>` }),
+    note: "العمود المهشَّر جزئي: تقارير بعض المناديب غائبة عن ذلك التاريخ، ولا تُقدَّر.",
+  });
+}
+
+/* ═════════ 2. المبيعات ═════════ */
+{
+  const sec = section("sales", "المبيعات", `فواتير البيع من ${S.period.from} إلى ${S.period.to}. الفلاتر تُطبَّق على كل مخططات هذا القسم ما عدا ما يُذكر خلاف ذلك.`);
+  const state = { brands: new Set(BRANDS), period: "all" };
+  const fl = h("div", { class: "filters" });
+  fl.innerHTML = `<span class="lbl">الفترة</span><span class="seg" id="perSeg"><button type="button" data-p="all" aria-pressed="true">كل الفترة</button><button type="button" data-p="2025" aria-pressed="false">2025</button><button type="button" data-p="2026" aria-pressed="false">2026</button></span><span class="lbl">العلامة</span><span id="brandChips" style="display:flex;gap:6px;flex-wrap:wrap">${BRANDS.map(b => `<button type="button" class="fchip" data-b="${esc(b)}" aria-pressed="true"><i style="background:${v(BRAND_VAR[b])}"></i>${esc(b)}</button>`).join("")}</span>`;
+  sec.appendChild(fl);
+  const idx = () => S.months.map((m, i) => i).filter(i => state.period === "all" || S.months[i].startsWith(state.period));
+  const g1 = grid(sec);
+  const cards = [];
+  cards.push(card(g1, {
+    span: "c8", title: "الإيراد الشهري حسب العلامة", sub: "كل لون علامة ثابت لا يتغير مع الفلترة",
+    legend: legend(BRANDS.map(b => [b, v(BRAND_VAR[b])])),
+    render: p => { const ix = idx(); barChart(p, { labels: ix.map(i => S.months[i]), series: BRANDS.filter(b => state.brands.has(b)).map(b => ({ name: b, values: ix.map(i => S.brands[b][i]), color: v(BRAND_VAR[b]) })) }); },
+    table: () => { const ix = idx(), bs = BRANDS.filter(b => state.brands.has(b)); return { cols: [{ t: "الشهر" }, ...bs.map(b => ({ t: b, n: 1 })), { t: "الإجمالي", n: 1 }], rows: ix.map(i => [mLabel(S.months[i]), ...bs.map(b => fmt(S.brands[b][i])), fmt(sum(bs.map(b => S.brands[b][i])))]) }; },
+  }));
+  cards.push(card(g1, {
+    span: "c4", title: "حصة كل علامة في الفترة",
+    render: p => { const ix = idx(), bs = BRANDS.filter(b => state.brands.has(b)); const tots = bs.map(b => sum(ix.map(i => S.brands[b][i]))), T = sum(tots);
+      hbars(p, bs.map((b, k) => ({ label: b, sub: pct(tots[k] / T * 100), value: tots[k], color: v(BRAND_VAR[b]) }))); },
+    note: "«غير مصنف»: أصناف بلا علامة في ملف التصنيف.",
+  }));
+  const g2 = grid(sec);
+  cards.push(card(g2, {
+    span: "c4", title: "عدد الفواتير شهريًا", sub: "كل العلامات",
+    render: p => { const ix = idx(); barChart(p, { labels: ix.map(i => S.months[i]), height: 210, yfmt: x => fmt(x), series: [{ name: "الفواتير", values: ix.map(i => S.invoices[i]), color: v("--s1") }] }); },
+  }));
+  cards.push(card(g2, {
+    span: "c4", title: "العملاء النشطون شهريًا", sub: "عملاء لهم فاتورة واحدة على الأقل",
+    render: p => { const ix = idx(); barChart(p, { labels: ix.map(i => S.months[i]), height: 210, yfmt: x => fmt(x), series: [{ name: "عملاء", values: ix.map(i => S.active_customers[i]), color: v("--s1") }] }); },
+  }));
+  cards.push(card(g2, {
+    span: "c4", title: "متوسط سعر بيع الوحدة", sub: "الإيراد ÷ الكمية، ج للوحدة",
+    render: p => { const ix = idx(); lineChart(p, { labels: ix.map(i => S.months[i]), height: 210, zero: false, yfmt: x => fmt(x, 1), series: [{ name: "متوسط السعر", values: ix.map(i => S.asp[i]), color: v("--s1"), dots: true }] }); },
+  }));
+  const rerun = () => cards.forEach(c => c.rerender());
+  fl.querySelector("#perSeg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; state.period = b.dataset.p; fl.querySelectorAll("#perSeg button").forEach(x => x.setAttribute("aria-pressed", x === b)); rerun(); });
+  fl.querySelector("#brandChips").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; const k = b.dataset.b;
+    if (state.brands.has(k) && state.brands.size > 1) state.brands.delete(k); else state.brands.add(k);
+    b.setAttribute("aria-pressed", state.brands.has(k)); rerun(); });
+}
+
+/* ═════════ 3. العملاء والمنتجات ═════════ */
+{
+  const sec = section("customers", "العملاء والمنتجات", "اضغط أي عميل لعرض إيراده الشهري وتوزيع علاماته ومسار رصيد مديونيته.");
+  const ac = S.abc_counts;
+  kpis(sec, [
+    { label: "عملاء الفئة A", value: String(ac.A || 0), meta: "يحققون 80% من الإيراد" },
+    { label: "حصة أعلى 10 عملاء", value: pct(S.totals.top10_share), meta: chip(S.totals.top10_share > 40 ? "warning" : "good", S.totals.top10_share > 40 ? "تركّز مرتفع" : "متوازن") },
+    { label: "مؤشر هيرفندال للعملاء", value: fmt(S.totals.hhi_customers, 0), meta: "أقل من 1500 = سوق غير مركّز" },
+    { label: "الأصناف المباعة", value: String(S.totals.items), meta: `${S.item_abc_counts.A || 0} صنفًا في الفئة A` },
+  ]);
+  const drillBox = h("section", { class: "card drill", hidden: "" });
+  const g1 = grid(sec);
+  const cc = card(g1, { span: "c7", title: "أعلى 25 عميلًا بالإيراد", sub: "إجمالي 18 شهرًا · اضغط للتفاصيل" });
+  const search = h("input", { type: "search", id: "custSearch", placeholder: "ابحث باسم العميل أو الكود", "aria-label": "بحث العملاء" });
+  cc.el.insertBefore(search, cc.plot);
+  const drawCust = () => { const q = search.value.trim();
+    hbars(cc.plot, S.customers.filter(c => !q || c.name.includes(q) || c.code.includes(q)).map(c => ({ label: c.name, sub: `${c.abc}${c.xyz} · ${pct(c.share)}`, value: c.revenue, color: v("--s1"), onClick: () => openDrill(c) }))); };
+  search.addEventListener("input", drawCust); drawCust();
+  card(g1, {
+    span: "c5", title: "منحنى باريتو للعملاء", sub: "نسبة العملاء (مرتبين تنازليًا) مقابل نسبة الإيراد التراكمية",
+    render: p => lineChart(p, { labels: S.pareto_curve.map(r => r[0]), height: 300, xfmt: x => Math.round(x) + "%", yfmt: x => x + "%", tipLabel: x => "أعلى " + x.toFixed(1) + "% من العملاء",
+      series: [{ name: "نسبة الإيراد", values: S.pareto_curve.map(r => r[1]), color: v("--s1") }],
+      marks: [{ i: S.pareto_curve.findIndex(r => r[1] >= 80), text: "80% من الإيراد" }] }),
+    table: () => ({ cols: [{ t: "% العملاء", n: 1 }, { t: "% الإيراد التراكمي", n: 1 }], rows: S.pareto_curve.filter((_, i) => i % 5 === 0).map(r => [pct(r[0]), pct(r[1])]) }),
+  });
+  g1.parentNode.insertBefore(drillBox, g1);
+  function openDrill(c) {
+    drillBox.hidden = false;
+    const bs = Object.entries(c.brands).filter(e => e[1] > 0);
+    drillBox.innerHTML = `<div class="drill-h"><div><h3 style="font-size:17px">${esc(c.name)}</h3><div class="facts"><span>الكود <b>${esc(c.code)}</b></span><span>المندوب <b>${esc(c.rep || "—")}</b></span><span>الإيراد <b>${fmt(c.revenue)}</b></span><span>الحصة <b>${pct(c.share)}</b></span><span>تصنيف <b>${c.abc}${c.xyz}</b></span></div></div><button class="btn" type="button" id="drillClose">إغلاق</button></div><div class="grid"><div class="c7" style="min-width:0"><div class="plot" id="drillPlot"></div></div><div class="c5" style="min-width:0;display:grid;gap:12px"><div id="drillBrands"></div><div><p class="note">مسار رصيد المديونية في لقطات المناديب</p><div class="plot" id="drillAr"></div></div></div></div>`;
+    const draw = () => {
+      barChart(drillBox.querySelector("#drillPlot"), { labels: S.months, height: 220, series: [{ name: "الإيراد", values: c.monthly, color: v("--s1") }] });
+      hbars(drillBox.querySelector("#drillBrands"), bs.map(([b, val]) => ({ label: b, value: val, color: v(BRAND_VAR[b]), sub: pct(val / c.revenue * 100) })));
+      const ar = drillBox.querySelector("#drillAr");
+      if (c.ar_path && c.ar_path.some(x => x != null)) lineChart(ar, { labels: A.dates, xfmt: dLabel, height: 150, series: [{ name: "الرصيد", values: c.ar_path, color: v("--s2"), dots: true }] });
+      else ar.innerHTML = `<p class="note">لا رصيد مسجّل لهذا العميل في تقارير المناديب.</p>`;
+    };
+    draw(); drillBox._draw = draw;
+    drillBox.querySelector("#drillClose").addEventListener("click", () => { drillBox.hidden = true; });
+    drillBox.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest" });
+  }
+  CHARTS.push({ plot: drillBox, sec, render: () => !drillBox.hidden && drillBox._draw && drillBox._draw() });
+  const g2 = grid(sec);
+  card(g2, {
+    span: "c12", title: "أعلى 25 صنفًا بالإيراد", sub: "لون الشريط = علامة الصنف",
+    legend: legend(BRANDS.map(b => [b, v(BRAND_VAR[b])])),
+    render: p => hbars(p, S.items.map(it => ({ label: it.name, sub: `${it.abc}${it.xyz}`, value: it.revenue, color: v(BRAND_VAR[it.brand] || "--s0"),
+      tip: `<b>${esc(it.name)}</b>${tipRow(null, "الإيراد", fmt(it.revenue))}${tipRow(null, "الكمية", fmt(it.qty))}${tipRow(null, "متوسط السعر", fmt(it.revenue / it.qty, 2))}` }))),
+    table: () => ({ cols: [{ t: "الصنف" }, { t: "العلامة" }, { t: "الإيراد", n: 1 }, { t: "الكمية", n: 1 }, { t: "ABC/XYZ" }], rows: S.items.map(it => [esc(it.name), esc(it.brand), fmt(it.revenue), fmt(it.qty), it.abc + it.xyz]) }),
+    note: "ABC: ترتيب الإيراد (A = أعلى 80%). XYZ: ثبات الكمية الشهرية (X = الأكثر ثباتًا).",
+  });
+}
+
+/* ═════════ 4. الربحية ═════════ */
+{
+  const sec = section("pnl", "الربحية وقوائم الدخل", "من قوائم الدخل المرفوعة: 2025 شهريًا، والربع الأول 2026 مجمّعًا ثم شهريًا حتى يوليو.");
+  const y = P.ytd_2026, h2 = P.h2_2025;
+  kpis(sec, [
+    { label: `صافي المبيعات 2026 (${y.months} أشهر)`, value: fmtC(y.net_sales), unit: "ج" },
+    { label: "هامش مجمل الربح 2026", value: pct(y.gm_pct), meta: `مجمل ${fmtC(y.gross_profit)} ج` },
+    { label: "صافي الربح 2026", value: fmtC(y.net_profit), unit: "ج", meta: `هامش ${pct(y.nm_pct)}` },
+    { label: "صافي الربح يوليو–ديسمبر 2025", value: fmtC(h2.net_profit), unit: "ج", meta: `هامش ${pct(h2.net_profit / h2.net_sales * 100)}` },
+  ]);
+  const g = grid(sec);
+  card(g, {
+    span: "c7", title: "المبيعات ومجمل الربح وصافي الربح (متوسط شهري)", sub: "وحدة واحدة (ج) على محور واحد",
+    legend: legend([["صافي المبيعات", v("--s1"), "ln"], ["مجمل الربح", v("--s2"), "ln"], ["صافي الربح", v("--s3"), "ln"]]),
+    render: p => lineChart(p, { labels: P.rows.map(r => r.period), height: 280, series: [
+      { name: "صافي المبيعات", values: P.rows.map(r => r.net_sales == null ? null : r.net_sales / r.months), color: v("--s1"), dots: true },
+      { name: "مجمل الربح", values: P.rows.map(r => r.gross_profit == null ? null : r.gross_profit / r.months), color: v("--s2"), dots: true },
+      { name: "صافي الربح", values: P.rows.map(r => r.net_profit == null ? null : r.net_profit / r.months), color: v("--s3"), dots: true }],
+      tipExtra: i => `<div>${esc(P.rows[i].months > 1 ? "متوسط شهري لربع مجمّع" : P.rows[i].status)}</div>` }),
+    note: "يناير–مايو 2025 بلا صافي ربح في المصدر (القوائم تقف عند مجمل الربح).",
+  });
+  card(g, {
+    span: "c5", title: "هوامش الربح", sub: "مجمل الربح ÷ صافي المبيعات، وصافي الربح ÷ صافي المبيعات",
+    legend: legend([["هامش مجمل الربح", v("--s2"), "ln"], ["هامش صافي الربح", v("--s3"), "ln"]]),
+    render: p => lineChart(p, { labels: P.rows.map(r => r.period), height: 280, yfmt: x => x + "%", series: [
+      { name: "هامش مجمل الربح", values: P.rows.map(r => r.gm_pct ?? null), color: v("--s2"), dots: true },
+      { name: "هامش صافي الربح", values: P.rows.map(r => r.nm_pct ?? null), color: v("--s3"), dots: true }] }),
+  });
+  const r26 = P.rows.filter(r => r.expenses);
+  const EXP = [["operating", "تشغيل", "--s1"], ["admin", "إدارية", "--s2"], ["selling", "بيعية وتسويقية", "--s3"], ["financing", "تمويلية", "--s4"]];
+  const g2 = grid(sec);
+  card(g2, {
+    span: "c5", title: "مصروفات 2026 حسب البند", sub: "متوسط شهري · الربع الأول مقسوم على 3",
+    legend: legend(EXP.map(e => [e[1], v(e[2])])),
+    render: p => barChart(p, { labels: r26.map(r => r.period), series: EXP.map(e => ({ name: e[1], values: r26.map(r => (r.expenses[e[0]] || 0) / r.months), color: v(e[2]) })) }),
+    table: () => ({ cols: [{ t: "الفترة" }, ...EXP.map(e => ({ t: e[1], n: 1 })), { t: "الإجمالي", n: 1 }], rows: r26.map(r => [mLabel(r.period), ...EXP.map(e => fmt(r.expenses[e[0]])), fmt(r.expenses_total)]) }),
+    note: "تشغيل الربع الأول غير مفصول في المصدر، فيظهر صفرًا.",
+  });
+  const st = r => r.status === "معتمد" ? chip("good", "معتمد") : r.status === "يحتاج بيانات" ? chip("critical", "يحتاج بيانات") : r.status === "يحتاج تأكيد" ? chip("warning", "يحتاج تأكيد") : chip("info", r.status);
+  const tc = card(g2, { span: "c7", title: "قائمة الدخل المختصرة", sub: "الأرقام كما في المصدر (غير مقسومة)" });
+  tc.plot.innerHTML = table([{ t: "الفترة" }, { t: "صافي المبيعات", n: 1 }, { t: "التكلفة", n: 1 }, { t: "مجمل الربح", n: 1 }, { t: "مجمل %", n: 1 }, { t: "صافي الربح", n: 1 }, { t: "صافي %", n: 1 }, { t: "الحالة" }],
+    P.rows.map(r => [r.months > 1 ? "الربع الأول 2026" : mLabel(r.period), fmt(r.net_sales), fmt(r.cogs), fmt(r.gross_profit), pct(r.gm_pct), fmt(r.net_profit), pct(r.nm_pct), st(r)]));
+}
+
+/* ═════════ 5. المديونية ═════════ */
+{
+  const sec = section("ar", "المديونية والتحصيل", "تقارير «حسابات العملاء» لكل مندوب في ستة تواريخ، وجسر الحركة بين كل تاريخين.");
+  const last = A.rollforward[A.rollforward.length - 1];
+  kpis(sec, [
+    { label: `آخر لقطة مكتملة — ${dLabel(A.latest_complete.date)}`, value: fmtC(A.latest_complete.net), unit: "ج", meta: chip("good", "كل المناديب") },
+    { label: `آخر لقطة — ${dLabel(A.latest.date)}`, value: fmtC(A.latest.net), unit: "ج", meta: A.latest.complete ? chip("good", "مكتملة") : chip("warning", "جزئي") + " ينقص " + esc(A.latest.missing.join("، ")) },
+    { label: "تركّز أعلى 10 عملاء", value: pct(A.top10_concentration), meta: chip(A.top10_concentration > 35 ? "warning" : "good", A.top10_concentration > 35 ? "تركّز مرتفع" : "مقبول") },
+    { label: `تحصيل الفترة ${dLabel(last.from)}→${dLabel(last.to)}`, value: fmtC(last.receipts), unit: "ج", meta: `${pct(last.collection_rate)} من الافتتاحي + المبيعات` },
+  ]);
+  const g = grid(sec);
+  const maxV = Math.max(...A.matrix.flatMap(r => r.values.filter(x => x != null)));
+  const hc = card(g, { span: "c7", title: "رصيد كل مندوب في كل تاريخ", sub: "كلما زادت درجة اللون زاد الرصيد · الخلية المهشّرة = تقرير غائب",
+    table: () => ({ cols: [{ t: "المندوب" }, ...A.dates.map(d => ({ t: dLabel(d), n: 1 }))], rows: A.matrix.map(r => [esc(r.rep), ...r.values.map(x => x == null ? "يحتاج بيانات" : fmt(x))]) }),
+    render: p => {
+      p.innerHTML = `<div class="tw"><table class="heat"><thead><tr><th>المندوب</th>${A.dates.map(d => `<th class="n">${dLabel(d)}</th>`).join("")}</tr></thead><tbody>${A.matrix.map(r => `<tr><td class="lab">${esc(r.rep)}</td>${r.values.map((x, j) => {
+        if (x == null) return `<td class="na" title="يحتاج بيانات">—</td>`;
+        const t = Math.max(0, x) / maxV, pc = Math.round(10 + t * 85);
+        return `<td title="${esc(r.rep)} · ${A.dates[j]} · ${fmt(x)} ج · ${r.customers[j] ?? ""} عميل" style="background:color-mix(in srgb, var(--s1) ${pc}%, var(--card));color:${pc > 55 ? "var(--on-strong)" : "var(--fg)"}">${fmtC(x)}</td>`; }).join("")}</tr>`).join("")}</tbody></table></div>`;
+    } });
+  const pick = h("div", { class: "seg", id: "rfSeg", role: "group", "aria-label": "اختر الفترة" });
+  pick.innerHTML = A.rollforward.map((p, i) => `<button type="button" data-i="${i}" aria-pressed="${i === A.rollforward.length - 1}">${dLabel(p.from)}→${dLabel(p.to)}</button>`).join("");
+  let rfI = A.rollforward.length - 1;
+  const wc = card(g, { span: "c5", title: "جسر حركة المديونية", sub: "افتتاحي + فواتير − تحصيل − مرتجعات، والفجوة حتى الرصيد المطبوع",
+    render: p => { const r = A.rollforward[rfI];
+      waterfall(p, [{ label: "افتتاحي", value: r.opening, kind: "total" }, { label: "فواتير", value: r.sales }, { label: "تحصيل", value: -r.receipts }, { label: "مرتجعات", value: -r.returns },
+        { label: "فجوة", value: r.gap, kind: "gap", hint: `${r.tied} من ${r.customers} عميل متطابقون حسابيًا` }, { label: "ختامي", value: r.closing, kind: "total" }]); },
+    note: "الفجوة لا يُدّعى سببها؛ الفترة الأخيرة تتجاوز تاريخ استخراج الحركة وتنقصها تقارير مندوبين." });
+  const swrap = h("div", { class: "tw" }); swrap.appendChild(pick); wc.el.insertBefore(swrap, wc.plot);
+  pick.addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; rfI = +b.dataset.i; pick.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b)); wc.rerender(); });
+  const g2 = grid(sec);
+  const tc = card(g2, { span: "c12", title: `أعلى 20 عميلًا رصيدًا في ${dLabel(A.latest_complete.date)}`, sub: "مع مسار الرصيد عبر اللقطات الست" });
+  tc.plot.innerHTML = table([{ t: "#" }, { t: "العميل" }, { t: "الكود" }, { t: "المندوب" }, { t: "الرصيد", n: 1 }, { t: "الحصة", n: 1 }, { t: "المسار" }],
+    A.top_customers.map((c, i) => [i + 1, esc(c.name), esc(c.code), esc(c.rep), fmt(c.net), pct(c.net / A.latest_complete.net * 100), sparkline(c.path, v("--s1"))]));
+}
+
+/* ═════════ 6. التكلفة والمخزون ═════════ */
+{
+  const sec = section("costing", "التكلفة والمخزون والمشتريات", "هامش الوصفة = سعر البيع − تكلفة العبوة (خامة وتشغيل وتغليف). عمولة البيع 2.5% مصروف بيعي خارج التكلفة.");
+  const lastInv = C.inventory[C.inventory.length - 1];
+  kpis(sec, [
+    { label: "أعلى هامش وصفة", value: pct(C.margins[0].margin_pct), meta: esc(C.margins[0].name) },
+    { label: "أدنى هامش وصفة", value: pct(C.margins[C.margins.length - 1].margin_pct), meta: (C.margins[C.margins.length - 1].margin < 0 ? chip("critical", "سالب") + " " : "") + esc(C.margins[C.margins.length - 1].name) },
+    { label: `مخزون تام — ${dLabel(lastInv.date)}`, value: fmtC(lastInv.fg), unit: "ج", meta: `من ${fmtC(C.inventory[0].fg)} في ${dLabel(C.inventory[0].date)}` },
+    { label: `صافي دائنية الموردين — ${dLabel(C.suppliers.as_of)}`, value: fmtC(C.suppliers.net_credit), unit: "ج" },
+  ]);
+  const g = grid(sec);
+  card(g, { span: "c6", title: "هامش الوصفة لكل صنف", sub: "% من سعر البيع · الصفر خط فاصل",
+    legend: legend([["هامش موجب", v("--pos")], ["هامش سالب", v("--neg")]]),
+    render: p => hbars(p, C.margins.map(m => ({ label: m.name, sub: m.brand, value: m.margin_pct, color: m.margin < 0 ? v("--neg") : v("--pos"),
+      tip: `<b>${esc(m.name)}</b>${tipRow(null, "سعر البيع", fmt(m.price, 2))}${tipRow(null, "تكلفة العبوة", fmt(m.cost, 2))}${tipRow(null, "الهامش", fmt(m.margin, 2))}${m.commission ? tipRow(null, "عمولة بيع (مصروف)", fmt(m.commission, 2)) : ""}<div>السعر: ${esc(m.price_basis === "كل اللقطة" ? "متوسط كل اللقطة" : "متوسط " + m.price_basis)}</div>` })), { fmt: x => pct(x) }),
+    table: () => ({ cols: [{ t: "الصنف" }, { t: "العلامة" }, { t: "التكلفة", n: 1 }, { t: "السعر", n: 1 }, { t: "الهامش", n: 1 }, { t: "الهامش %", n: 1 }, { t: "العمولة", n: 1 }, { t: "الكمية المباعة", n: 1 }],
+      rows: C.margins.map(m => [esc(m.name), esc(m.brand), fmt(m.cost, 2), fmt(m.price, 2), fmt(m.margin, 2), pct(m.margin_pct), m.commission == null ? "—" : fmt(m.commission, 2), fmt(m.qty)]) }) });
+  card(g, { span: "c6", title: "قيمة المخزون آخر كل شهر", sub: "خامات وتام بتكلفة متوسط الشهر",
+    legend: legend([["خامات", v("--s1")], ["إنتاج تام", v("--s2")]]),
+    render: p => barChart(p, { labels: C.inventory.map(i => i.date), xfmt: k => mLabel(k.slice(0, 7)), valueLabels: true, maxBar: 54, series: [
+      { name: "خامات", values: C.inventory.map(i => i.raw), color: v("--s1") }, { name: "إنتاج تام", values: C.inventory.map(i => i.fg), color: v("--s2") }] }),
+    table: () => ({ cols: [{ t: "التاريخ" }, { t: "خامات", n: 1 }, { t: "تام", n: 1 }, { t: "الإجمالي", n: 1 }], rows: C.inventory.map(i => [i.date, fmt(i.raw), fmt(i.fg), fmt(i.total)]) }) });
+  const g2 = grid(sec);
+  let pI = C.purchases.length - 1;
+  card(g2, { span: "c5", title: "المشتريات الشهرية", sub: "اضغط عمودًا لتفاصيل أكبر الأصناف",
+    render: p => { barChart(p, { labels: C.purchases.map(x => x.month), valueLabels: true, maxBar: 60, height: 230, series: [{ name: "المشتريات", values: C.purchases.map(x => x.total), color: v("--s1") }], tipExtra: i => `<div>${C.purchases[i].lines} سطر</div>` });
+      p.querySelectorAll("svg > rect[style*='transparent']").forEach((r, i) => { r.style.cursor = "pointer"; r.addEventListener("click", () => { pI = i; drawTop(); }); }); } });
+  const topC = card(g2, { span: "c7", title: "أكبر بنود المشتريات", sub: "الشهر المختار" });
+  function drawTop() { const pm = C.purchases[pI]; topC.el.querySelector(".sub").textContent = `${mLabel(pm.month)} · إجمالي ${fmt(pm.total)} ج`;
+    hbars(topC.plot, pm.top.map(t => ({ label: t.name, sub: pct(t.share), value: t.total, color: v("--s1") }))); }
+  drawTop();
+  const g3 = grid(sec);
+  const rc = card(g3, { span: "c12", title: "مرتجعات الأصناف", sub: "من كشوف المرتجعات الشهرية" });
+  rc.plot.innerHTML = table([{ t: "الشهر" }, { t: "القيمة", n: 1 }, { t: "عدد السطور", n: 1 }], C.returns.map(r => [mLabel(r.month), fmt(r.value), r.lines]));
+}
+
+/* ═════════ 7. التنبؤ ═════════ */
+{
+  const sec = section("forecast", "التنبؤ بالإيراد", esc(F.note));
+  const g = grid(sec);
+  card(g, { span: "c8", title: "سيناريوهات الإيراد لسبعة أشهر", sub: "متحفظ وأساسي ومتفائل، مع نطاق ثقة 95%",
+    legend: legend([["فعلي", v("--s1"), "ln"], ["أساسي", v("--s2"), "ln dash"], ["متحفظ", v("--s4"), "ln dash"], ["متفائل", v("--s3"), "ln dash"]]),
+    render: p => lineChart(p, { labels: allLabels, height: 300, series: [
+      { name: "فعلي", values: pad(S.revenue, allLabels.length), color: v("--s1") },
+      { name: "متفائل", values: fcAt("optimistic_case"), color: v("--s3"), dash: true },
+      { name: "أساسي", values: fcAt("base_case"), color: v("--s2"), dash: true },
+      { name: "متحفظ", values: fcAt("conservative_case"), color: v("--s4"), dash: true }],
+      band: { lo: fcAt("ci95_lower"), hi: fcAt("ci95_upper"), color: v("--s2") }, marks: [{ i: lastHist + 1, text: "توقع" }] }),
+    table: () => ({ cols: [{ t: "الشهر" }, { t: "متحفظ", n: 1 }, { t: "أساسي", n: 1 }, { t: "متفائل", n: 1 }], rows: F.rows.map(r => [mLabel(r.month), fmt(r.conservative_case), fmt(r.base_case), fmt(r.optimistic_case)]) }) });
+  const models = Object.entries(F.cv).sort((a, b) => a[1].rmse - b[1].rmse);
+  const mc = card(g, { span: "c4", title: "مقارنة النماذج", sub: `تحقق متدحرج (${models[0][1].n_folds} طيّات) · مرتّبة بالخطأ` });
+  mc.plot.innerHTML = table([{ t: "النموذج" }, { t: "RMSE", n: 1 }, { t: "MAPE", n: 1 }],
+    models.map(([k, m]) => [k === F.best_model ? `<b>${esc(k)}</b> ${chip("good", "المختار")}` : esc(k), fmtC(m.rmse), pct(m.mape)]));
+}
+
+/* ═════════ 8. الجودة والمطابقة ═════════ */
+{
+  const sec = section("quality", "جودة البيانات والمطابقة", "كل فحص يقارن رقمًا معروضًا بإجمالي مصدره؛ أي فشل يوقف البناء فلا تُنشر اللوحة.");
+  const ok = D.checks.filter(c => c.ok).length;
+  kpis(sec, [
+    { label: "فحوص المطابقة", value: `${ok}/${D.checks.length}`, meta: chip(ok === D.checks.length ? "good" : "critical", ok === D.checks.length ? "كلها ناجحة" : "يوجد فشل") },
+    { label: "سطور الفواتير", value: fmt(Q.rows), meta: `${fmt(Q.invoices)} فاتورة · ${Q.duplicates} مكرر` },
+    { label: "سطور بسعر صفر", value: fmt(Q.zero_price_lines), meta: `منها ${fmt(Q.bonus_lines)} سطر بونص` },
+    { label: "اختبار ADF للاستقرارية", value: "p = " + Q.adf_p, meta: `KPSS p = ${Q.kpss_p} · Durbin-Watson ${Q.dw}` },
+  ]);
+  const g = grid(sec);
+  const cc = card(g, { span: "c12", title: "سجل فحوص البناء", sub: `بُنيت في ${D.meta.generated}` });
+  cc.plot.innerHTML = `<div class="tw" style="max-height:460px;overflow:auto">${table([{ t: "الفحص" }, { t: "المعروض", n: 1 }, { t: "المصدر", n: 1 }, { t: "النتيجة" }],
+    D.checks.map(c => [esc(c.check), fmt(c.a, 2), fmt(c.b, 2), c.ok ? chip("good", "مطابق") : chip("critical", "غير مطابق")]))}</div>`;
+  const nc = card(g, { span: "c12", title: "حدود البيانات المعلنة" });
+  nc.plot.innerHTML = `<ul class="insights">${[
+    ["warning", "قوائم الدخل", "لا قائمة ليونيو 2025، ومارس 2025 يطبع نفس مبيعات فبراير فهو «يحتاج تأكيد»."],
+    ["warning", "المديونية", `لقطات ${A.totals.filter(t => !t.complete).map(t => dLabel(t.date)).join("، ")} جزئية، والتقرير الغائب لا يُرحَّل ولا يُقدَّر.`],
+    ["info", "الإسناد", "تقارير التحصيل والمرتجعات لا تحمل كود عميل، فالإسناد بالاسم المُطبَّع."],
+    ["info", "الوصفات", "ربط الوصفة بصنف المبيعات بقرار الإدارة 27/10/2026؛ الأصناف بلا ورقة وصفة «تحتاج بيانات» ولا تظهر في الهوامش."],
+  ].map(([l, a, t]) => `<li><div>${chip(l)}<span class="area">${a}</span></div><p>${t}</p></li>`).join("")}</ul>`;
+}
+
+/* ───────── التنقل والمظهر ───────── */
+const TABS = [["overview", "نظرة عامة"], ["sales", "المبيعات"], ["customers", "العملاء والمنتجات"], ["pnl", "الربحية"], ["ar", "المديونية"], ["costing", "التكلفة والمخزون"], ["forecast", "التنبؤ"], ["quality", "الجودة"]];
+const nav = document.getElementById("tabs");
+nav.innerHTML = TABS.map(([id, t]) => `<a href="#${id}" data-id="${id}">${t}</a>`).join("");
+function show(id) {
+  if (!TABS.some(t => t[0] === id)) id = "overview";
+  TABS.forEach(([k]) => { document.getElementById("sec-" + k).hidden = k !== id; });
+  nav.querySelectorAll("a").forEach(a => a.dataset.id === id ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
+  hideTip(); renderVisible();
+}
+function renderVisible() { CHARTS.forEach(c => { if (c.sec && !c.sec.hidden && !c.plot.hidden && c.render) c.render(c.plot); }); }
+addEventListener("hashchange", () => show(location.hash.slice(1)));
+let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(renderVisible, 120); });
+
+const root = document.documentElement;
+const themeBtn = document.getElementById("themeBtn");
+const isDark = () => root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+const syncThemeBtn = () => { themeBtn.textContent = isDark() ? "المظهر الفاتح" : "المظهر الداكن"; };
+try { const t = localStorage.getItem("cc-theme"); if (t) root.dataset.theme = t; } catch (e) { /* التخزين غير متاح */ }
+themeBtn.addEventListener("click", () => { root.dataset.theme = isDark() ? "light" : "dark"; try { localStorage.setItem("cc-theme", root.dataset.theme); } catch (e) { /* تجاهل */ } syncThemeBtn(); });
+syncThemeBtn();
+
+document.getElementById("asof").textContent = `المبيعات حتى ${S.period.to} · قوائم الدخل حتى ${P.ytd_2026.through} · المديونية حتى ${A.latest.date} · المخزون حتى ${C.inventory[C.inventory.length - 1].date}`;
+document.getElementById("foot").textContent = `بُنيت من ${D.meta.sources.length} ملفًا في data/processed بتاريخ ${D.meta.generated} عبر command_center/build.py · ${D.checks.length} فحص مطابقة ناجح · لا رقم مُقدَّر أو مُفترَض.`;
+show(location.hash.slice(1));
+</script>
