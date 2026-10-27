@@ -2,8 +2,9 @@
 The approved file (mobile/Abu_Hashem_Mobile_bi.html), opened in a real browser.
 
 Regression: every section of the base file (full.html) renders the same text in the
-approved file; the one declared exception is «التقارير», which lists the eleven new tables.
-Then the five BI sections: no JavaScript errors, figures traced back to the data
+approved file; the declared exceptions are «التقارير», which lists the new tables, and
+«قائمة الدخل», whose own content is followed by the 2025 statements (the two income-statement
+sections merged, 27/10/2026). Then the BI sections: no JavaScript errors, figures traced back to the data
 they are computed from (recomputed here in Python where the data is in the repo),
 the alert status kept on the device, the ?nobi switch, and fault isolation.
 
@@ -21,7 +22,8 @@ APP_DIR = Path(__file__).resolve().parents[1]
 FULL_HTML = APP_DIR / "mobile" / "Abu_Hashem_Mobile_full.html"
 BI_HTML = APP_DIR / "mobile" / "Abu_Hashem_Mobile_bi.html"
 OPS_JSON = APP_DIR.parent / "data" / "processed" / "ops_data.json"
-BI_KEYS = ("bi_exec", "bi_bridge", "bi_stock", "bi_std", "bi_is25", "bi_abm", "bi_alerts", "bi_kpis")
+BI_KEYS = ("bi_exec", "bi_bridge", "bi_stock", "bi_std", "bi_arh", "bi_recipes", "bi_abm", "bi_alerts", "bi_kpis")
+IS25_HEAD = "قوائم الدخل 2025 كاملة"
 
 
 def _open(pg, path, query=""):
@@ -83,6 +85,11 @@ def test_existing_sections_render_identically(browser):
             # The only declared difference: the table count and the «ذكاء الأعمال» tile.
             b = b.replace(f"— {n_full + n_bi} جدولًا", f"— {n_full} جدولًا").replace(f" من {n_full + n_bi}\n", f" من {n_full}\n")
             b = b.replace(f"ذكاء الأعمال\n{n_bi} جدول\n", "")
+        if k == "fs_income":
+            # Declared: the 2025 statements follow the section's own content, unchanged above them.
+            head = a.rstrip()
+            if b.startswith(head) and IS25_HEAD in b[len(head):]:
+                b = a
         if a != b:
             changed.append(k)
     assert full.errors == [] and bi.errors == [], (full.errors, bi.errors)
@@ -187,6 +194,7 @@ def test_kill_switch_hides_the_group(browser):
     _open(pg, BI_HTML, "?nobi")
     reg = pg.evaluate("() => window.__abhApp.registry().map(s => s.key)")
     assert not [k for k in reg if k.startswith("bi_")] and len(reg) >= 40
+    assert IS25_HEAD not in go(pg, "fs_income")
     assert pg.errors == []
     pg.close()
 
@@ -256,7 +264,8 @@ def test_monthly_standard(page):
 def test_income_2025_full_year(page):
     """12 months: January–May from the statement text, June «يحتاج بيانات», July–December as DASH_FS;
     March flagged; the 2025-vs-2026 rows add the same months the 2026 statements cover."""
-    text = go(page, "bi_is25")
+    text = go(page, "fs_income")
+    assert IS25_HEAD in text and text.index(IS25_HEAD) > 0         # inside «قائمة الدخل», after its own content
     z = page.evaluate("() => window.__abhApp.biIs25()")
     assert [r["month"] for r in z["rows"]] == [f"2025-{m:02d}" for m in range(1, 13)]
     by = {r["month"]: r for r in z["rows"]}
@@ -285,3 +294,39 @@ def test_abohashem_main_section(page):
     assert "3,376,570" in text or "3.38" in text
     tabs = page.evaluate("() => window.__abhApp.exportTables().map(t => t.id)")
     assert {"bi_abm_runs", "bi_abm_salespeople", "bi_abm_aging"} <= set(tabs)
+
+
+def test_ar_history_section(page):
+    """Balances as printed: a missing report is «يحتاج بيانات», never carried forward; the partial
+    totals say so; the roll-forward rows add up; each gap row carries its pattern."""
+    text = go(page, "bi_arh")
+    h = page.evaluate("() => window.DASH_ARH")
+    assert "يحتاج بيانات" in text and "جزئي" in text and "مطابقة حركة المديونية" in text and "أنماط الفجوات" in text
+    for r in h["reps"]:
+        for d, v in r["by_date"].items():
+            if v is None:
+                assert d in [t["date"] for t in h["totals"] if not t["complete"]]
+    for p in h["rollforward"]["periods"]:
+        t = p["totals"]
+        assert t["opening"] + t["sales"] - t["receipts"] - t["returns"] + t["gap"] == pytest.approx(t["closing"], abs=0.05)
+        assert all(g.get("pattern") for g in p["gaps"])
+    full = [t for t in h["totals"] if t["complete"]][-1]
+    assert full["date"] == "2026-07-25" and full["net"] == pytest.approx(3835132.67)
+    tabs = page.evaluate("() => window.__abhApp.exportTables().map(t => t.id)")
+    assert {"bi_ar_history", "bi_ar_rollforward", "bi_ar_gaps"} <= set(tabs)
+
+
+def test_recipes_section(page):
+    """The sheets as printed; links as management confirmed them, each with its recipe margin;
+    no sheet → «يحتاج بيانات»."""
+    text = go(page, "bi_recipes")
+    c = page.evaluate("() => window.DASH_RCP")
+    assert "49.12" in text and "54.43" in text and "130.74" in text and "65.33" in text
+    assert "مؤكد — قرار الإدارة 27/10/2026" in text and "هامش بعد العمولة" in text
+    assert "يحتاج بيانات" in text and "عجينة بقري" in text
+    for x in c["candidates"]:
+        for i in x["items"]:
+            if i["status"].startswith("مؤكد"):
+                assert f"{i['margin']:.2f}" in text, i["code"]
+    tabs = page.evaluate("() => window.__abhApp.exportTables().map(t => t.id)")
+    assert {"bi_recipes", "bi_recipe_packs", "bi_recipe_candidates"} <= set(tabs)
