@@ -7,13 +7,14 @@ Sources, copied unchanged into ``data/raw/recipes/`` (uploaded to the repository
 
 Each sheet prints one batch: ingredient lines (quantity × price = total), the batch total,
 the cost of a kilo, what is added to the kilo (engineer, Othman, packaging) and the cost of
-each pack (the kilo cost × the pack weight, + packaging, + the salesmen's commission).
+each pack as the sheet prints it (the kilo cost × the pack weight, + packaging, + the salesmen's
+commission — the commission is then taken back out of the cost, see below).
 The PDFs' text comes out of pdftotext partly garbled, so the figures are transcribed in
 ``RECIPES`` below and the build stops unless, for every recipe:
   * every transcribed number appears verbatim in the source (pdftotext text / the xlsx cells);
   * each line's quantity × price equals its printed total, and the lines add up to the batch;
   * the kilo cost + its additions equals the printed loaded kilo cost;
-  * each pack = loaded kilo × weight (+ packaging + commission) as printed.
+  * each printed pack total = loaded kilo × weight + packaging + commission, as printed.
 
 Nothing is estimated:
   * the batch output the kilo cost was divided by is not printed — it is derived
