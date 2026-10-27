@@ -68,8 +68,12 @@ def run(cmd: list[str], cwd: Path) -> tuple[int, str]:
     return p.returncode, (p.stdout + p.stderr).strip()
 
 
+WARNING = re.compile(r"FutureWarning|DeprecationWarning|warnings\.warn|^\s*warning:", re.I)
+
+
 def tail(text: str, n: int = 6) -> list[str]:
-    return [ln for ln in text.splitlines() if ln.strip()][-n:]
+    """The script's last lines, without library warnings (they differ between versions)."""
+    return [ln for ln in text.splitlines() if ln.strip() and not WARNING.search(ln)][-n:]
 
 
 def rows(text: str) -> list[dict]:
@@ -262,7 +266,7 @@ def build() -> dict:
         mlog, totals = model(work)
         log += mlog
         for r in log:  # no temporary paths in the committed file
-            r["log"] = [ln.replace(tmp, "…") for ln in r["log"] if "FutureWarning" not in ln and "warnings.warn" not in ln]
+            r["log"] = [ln.replace(tmp, "…") for ln in r["log"]]
     sp = json.loads((SRC_DIR / "analysis" / "salespeople.json").read_text(encoding="utf-8"))
     credits = [{"debt": c["debit"] - c["credit"]} for c in sp if c["debit"] - c["credit"] < 0]
     data, e2 = collect(res, credits)

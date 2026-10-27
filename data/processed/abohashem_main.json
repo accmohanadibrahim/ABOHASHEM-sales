@@ -1048,6 +1048,8 @@
    "status": "يطابق invoices.json",
    "detail": "exit 0",
    "log": [
+    "invoices: 256",
+    "invoices with no parsed items: 0",
     "line items: 652",
     "line items failing price*qty*(1-disc)=total: 0",
     "invoices where sum(lines)!=invoice_total: 0",
@@ -1059,6 +1061,8 @@
    "status": "يطابق salespeople.json",
    "detail": "9 تقارير مناديب — على مجلده كاملًا يقرأ كل ملفات PDF فيه، فيُشغَّل على التقارير التسعة فقط",
    "log": [
+    "محمد خليل 26-6.pdf                  customers= 17 debit=     56,583.62 credit=      1.00 net=     56,582.62",
+    "محمود السيد.pdf                     customers=  3 debit=     10,184.00 credit=      0.00 net=     10,184.00",
     "هانى 26-6.pdf                       customers= 22 debit=    425,587.53 credit=      0.20 net=    425,587.33",
     "codes mapped to >1 salesperson: 0",
     "total customer rows: 249",
