@@ -14,7 +14,7 @@
 
   biSectionBody(s,X,T,api){
     const m={bi_exec:"biExecBody",bi_bridge:"biBridgeBody",bi_stock:"biStockBody",bi_std:"biStdBody",bi_alerts:"biAlertsBody",
-      bi_kpis:"biKpisBody"}[s];
+      bi_kpis:"biKpisBody",bi_is25:"biIs25Body",bi_abm:"biAbmBody"}[s];
     if(!m) return null;
     try{ return this[m](X,T,api); }
     catch(e){ return [this.advNote("bi-err","تعذّر عرض هذا القسم ("+String(e&&e.message||e)
@@ -442,6 +442,118 @@
     return out;
   }
 
+  /* ======================= قوائم الدخل 2025 كاملة (DASH_IS25) ================ */
+  /* يناير–مايو من نص القوائم (income_2025h1.py) · يونيو لا قائمة · يوليو–ديسمبر كما في DASH_FS.
+     المقارنة بـ2026 من DASH_IS26 كما صدرت (الربع الأول قائمة واحدة). */
+  biIs25(){
+    const I=window.DASH_IS25, rows=[];
+    I.months.forEach(r=>rows.push({month:r.month,net:r.net_sales,cogs:r.cogs,gp:r.gross_profit,exp:r.expenses,np:r.net_profit,
+      inv:r.invoice_sales,basis:r.basis,flags:r.flags,confirm:!!r.needs_confirmation,src:r.uploaded_as}));
+    I.missing.forEach(r=>rows.push({month:r.month,need:r.reason}));
+    I.h2.forEach(r=>{ const s=r.sections||{}, e=(s.admin||0)+(s.selling||0)+(s.finance||0);
+      rows.push({month:r.month,net:r.net_sales,cogs:r.cogs,gp:r.gross_profit,exp:e,np:r.net_profit,basis:r.basis,flags:[],src:r.source,predep:true}); });
+    rows.sort((a,b)=>a.month<b.month?-1:1);
+    rows.forEach(r=>{ if(r.net){ r.gpm=r.gp/r.net; r.npm=r.np/r.net; r.expr=r.exp/r.net; } });
+    const have=rows.filter(r=>r.net!=null), sum=k=>have.reduce((s,r)=>s+r[k],0);
+    const Y={net:sum("net"),gp:sum("gp"),np:sum("np"),months:have.length};
+    /* 2025 مقابل 2026 لنفس الفترة: الربع الأول مجمّعًا، ثم كل شهر له قائمة في 2026. */
+    const P=((window.DASH_IS26||{}).periods)||[], by=new Map(rows.map(r=>[r.month,r]));
+    const cmp=P.map(p=>{ const ms=p.months.map(m=>"2025"+m.slice(4)), a=ms.map(m=>by.get(m));
+      const ok=a.every(r=>r&&r.net!=null);
+      const s=k=>ok?a.reduce((t,r)=>t+r[k],0):null;
+      return {label:p.months.length>1?"الربع الأول":this.fsMon(p.period).split(" ")[0],m25:ms,
+        net25:s("net"),net26:p.net_sales,np25:s("np"),np26:p.net_profit,gp25:s("gp"),gp26:p.gross_profit,
+        confirm:a.some(r=>r&&r.confirm),missing:a.filter(r=>!r||r.net==null).map((r,i)=>ms[i])}; });
+    return {rows,Y,cmp};
+  }
+  biIs25Body(X,T,api){
+    if(!window.DASH_IS25) return [this.biNeed("bi25n","قوائم دخل 2025 غير مضمنة في هذا الملف.")];
+    const Z=this.biIs25(), out=[], Y=Z.Y, need=Z.rows.filter(r=>r.need), conf=Z.rows.filter(r=>r.confirm);
+    out.push(this.kpiTiles([
+      ["صافي المبيعات 2025",T.egpK(Y.net),Y.months+" شهرًا لها قائمة من 12","#3b82f6"],
+      ["صافي الربح 2025",T.egpK(Y.np),"هامش "+T.pct(Y.np/Y.net)+" · يوليو–ديسمبر قبل الإهلاك","#10b981"],
+      ["هامش مجمل الربح",T.pct(Y.gp/Y.net),"متوسط مرجّح بالمبيعات","#06b6d4"],
+      ["أشهر تحتاج بيانات أو تأكيدًا",T.int(need.length+conf.length),need.map(r=>this.fsMon(r.month)).concat(conf.map(r=>this.fsMon(r.month)+" (تأكيد)")).join("، "),"#f59e0b"]],"bi25k"));
+    out.push(this.advNote("bi25a","يناير–مايو 2025 من نص قوائم الدخل المرفوع (ملفات .pdf.txt — لم تُرفع ملفات PDF نفسها): كل رقم موجود حرفيًا في نص شهره، "
+      +"والمبيعات − المردودات − الخصم = الصافي، والصافي − التكلفة = مجمل الربح، ومجمل الربح − المصروفات = صافي الربح. "
+      +"تبقى «يحتاج مراجعة» حتى تُقارن بالـPDF. يوليو–ديسمبر من القوائم المالية المعتمدة (DASH_FS) كما هي، وصافي ربحها قبل الإهلاك (إهلاك السنة كله في ديسمبر)."));
+    out.push(this.card("قائمة الدخل الشهرية — 2025",[
+      this.fsTable("bi25t",["الشهر","صافي المبيعات","تكلفة المبيعات","مجمل الربح","هامش المجمل","المصروفات","نسبة المصروفات","صافي الربح","هامش الصافي","مبيعات الفواتير","الأساس"],
+        Z.rows.map(r=>r.need?[this.fsMon(r.month),{v:"يحتاج بيانات",c:"#c4b5fd"},"—","—","—","—","—","—","—","—",{v:r.need,c:"#c4b5fd"}]
+          :[this.fsMon(r.month),this.fsC(r.net),this.fsC(r.cogs),this.fsC(r.gp),this.fsC(r.gpm,"pct"),this.fsC(r.exp),this.fsC(r.expr,"pct"),
+            this.fsC(r.np),this.fsC(r.npm,"pct"),r.inv==null?"—":this.fsC(r.inv),
+            {v:(r.confirm?"يحتاج تأكيد · ":"")+(r.predep?"مُتحقَّق — قبل الإهلاك":r.basis),c:r.confirm?"#fcd34d":r.predep?"#6ee7b7":"#fcd34d"}])),
+      need.length?this.biNeed("bi25tn","قائمة دخل "+need.map(r=>this.fsMon(r.month)).join(" و")+" (لم تُرفع)."):null].filter(Boolean),
+      {k:"bi25c",sub:"مبيعات الفواتير = إجمالي فواتير الشهر بعد خصم البنود وقبل المردودات (مصدر مستقل) · تُعرض للمقارنة لا للمطابقة"}));
+    const FM=window.DASH_IS25.feb_mar;
+    conf.forEach(r=>out.push(this.advNote("bi25f"+r.month,this.fsMon(r.month)+": "+r.flags.join("؛ ")+". صافي ربحها "+T.egpK(r.np)
+      +" محسوب على تلك الأرقام كما طُبعت، وفواتير الشهر "+(r.inv==null?"—":T.egpK(r.inv))+" مقابل مبيعات القائمة."
+      +(FM?" فرضية: صافي مبيعات الشهرين معًا "+T.egpK(FM.net_sales)+" يختلف عن فواتيرهما بـ "+T.pct(FM.ratio)
+        +"، في نطاق باقي الأشهر ("+Object.values(FM.other_months_ratio).map(x=>T.pct(x)).join("، ")
+        +") — كأن رقم الشهرين قُسم مناصفة. لا يُعدَّل شيء حتى تؤكد الإدارة.":""),"warn")));
+    out.push(this.card("2025 مقابل 2026 — نفس الأشهر",this.fsTable("bi25y",
+      ["الفترة","صافي المبيعات 2025","صافي المبيعات 2026","التغير","مجمل الربح 2025","مجمل الربح 2026","صافي الربح 2025","صافي الربح 2026","التغير"],
+      Z.cmp.map(c=>{ const ch=(a,b)=>a==null||!a?{v:"—"}:this.fsC((b-a)/Math.abs(a),"pct");
+        return c.net25==null?[c.label,{v:"يحتاج بيانات ("+c.missing.map(m=>this.fsMon(m)).join("، ")+")",c:"#c4b5fd"},this.fsC(c.net26),"—","—",this.fsC(c.gp26),"—",this.fsC(c.np26),"—"]
+          :[c.label+(c.confirm?" *":""),this.fsC(c.net25),this.fsC(c.net26),ch(c.net25,c.net26),this.fsC(c.gp25),this.fsC(c.gp26),
+            this.fsC(c.np25),this.fsC(c.np26),ch(c.np25,c.np26)]; })),
+      {k:"bi25d",sub:"2026 من قوائم الدخل كما صدرت (DASH_IS26) · * يشمل مارس 2025 الذي يحتاج تأكيدًا"}));
+    out.push(this.opsDecision("bi25x",[
+      need.length?{t:"ارفع قائمة دخل "+need.map(r=>this.fsMon(r.month)).join(" و")+" لاستكمال السنة.",tag:"v"}:null,
+      conf.length?{t:"راجع "+conf.map(r=>this.fsMon(r.month)).join("، ")+": المبيعات والتكلفة مطابقة لفبراير بالقرش — غالبًا نسخ من قائمة الشهر السابق.",tag:"v"}:null,
+      {t:"ارفع ملفات PDF لقوائم يناير–مايو 2025 لتحويل أساسها من «نص مستخرج» إلى «مُتحقَّق».",tag:"v"}]));
+    return out;
+  }
+
+  /* ======================= تحليل Abohashem-main (DASH_ABM) =================== */
+  /* نتائج تشغيل كود الملف المضغوط (abohashem_main.py) — لقطة يونيو 2026؛ لا تحل محل البيانات الأحدث. */
+  biAbmBody(X,T,api){
+    const A=window.DASH_ABM;
+    if(!A||!A.enabled) return [this.biNeed("biab0","نتائج Abohashem-main غير مضمنة (معطلة بـ ABOHASHEM_MAIN=off أو لم تُبن).")];
+    const S=A.summary, out=[], G=A.aging_vs_debt, ok=A.checks.filter(c=>c.ok).length, D=A.due_within_month;
+    out.push(this.advNote("biabl",A.label+": فواتير "+this.opsDmy(A.as_of.invoices_from)+" ← "+this.opsDmy(A.as_of.invoices_to)
+      +" ومديونية المناديب في "+this.opsDmy(A.as_of.debt_as_of)+". لقطة تاريخية للمقارنة — أرقام المبيعات والمديونية الحالية في أقسامها كما هي.","warn"));
+    out.push(this.kpiTiles([
+      ["مبيعات الفترة",T.egpK(S.total_sales_EGP),T.int(S.invoices)+" فاتورة · "+T.int(S.distinct_customers_invoiced)+" عميلًا","#3b82f6"],
+      ["المديونية القائمة",T.egpK(S.total_outstanding_debt_EGP),T.int(S.salespeople)+" مناديب","#ef4444"],
+      ["مستحق خلال شهر",T.egpK(D.total),"متأخر "+T.egpK(D.overdue)+" · لاحقًا "+T.egpK(D.later),"#f59e0b"],
+      ["فواتير صفرية",T.int(A.zero_invoices.count),"كمية "+T.int(A.zero_invoices.qty),"#a78bfa"]],"biabk"));
+    out.push(this.card("تشغيل الأكواد",this.fsTable("biabr",["السكربت","النتيجة","تفاصيل"],
+      A.runs.filter(r=>!/^output\//.test(r.step)).map(r=>[r.step,{v:r.status,c:/^(يطابق|يعيد|يعمل)/.test(r.status)?"#6ee7b7":/^لم/.test(r.status)?"#c4b5fd":"#fca5a5"},
+        r.detail&&!/^exit 0$/.test(r.detail)?r.detail:(r.log||[]).slice(-1)[0]||""])),
+      {k:"biab1",sub:A.runs.filter(r=>/^output\//.test(r.step)&&/^يطابق/.test(r.status)).length+" من "+A.runs.filter(r=>/^output\//.test(r.step)).length
+        +" مخرجات تطابق النسخ المرفوعة في جذر المستودع"}));
+    out.push(this.card("المطابقات",this.fsTable("biabc",["الفحص","القيمة","المقابل","الحالة"],
+      A.checks.map(c=>[c.check,this.fsC(c.a),this.fsC(c.b),{v:c.ok?"يطابق":"لا يطابق",c:c.ok?"#6ee7b7":"#fca5a5"}])),
+      {k:"biab2",sub:ok+"/"+A.checks.length+" · أعمار الديون أعلى من المديونية بـ "+T.egpK(G.difference)+" = "+G.unmapped_customers
+        +" عملاء بفواتير غير مرتبطين بمندوب ("+T.egpK(G.unmapped_debt)+") + "+G.credit_customers+" رصيدًا دائنًا لا يظهر في الأعمار ("+T.egpK(-G.credit_balances)+")"}));
+    out.push(this.card("المناديب — المديونية والانكشاف",this.fsTable("biabs",["المندوب","عملاء","مبيعات الفترة","مبيعات شهرية","المديونية","شهور انكشاف"],
+      A.salespeople.map(r=>[r.salesperson,this.fsC(r.customers),this.fsC(r.period_sales_EGP),this.fsC(r.monthly_sales_EGP),this.fsC(r.outstanding_debt_EGP),
+        r.credit_exposure_months?{v:(+r.credit_exposure_months).toFixed(2)}:"—"])),
+      {k:"biab3",sub:"الانكشاف = المديونية ÷ المبيعات الشهرية (بلا فائدة) — كما في analyze.py"}));
+    const ag=A.aging_totals;
+    out.push(this.card("أعمار الديون",[
+      this.fsTable("biaba",["0–30 يومًا","31–60","61–90","أكثر من 90","رصيد سابق غير مؤرخ"],
+        [[this.fsC(ag.days_0_30_EGP),this.fsC(ag.days_31_60_EGP),this.fsC(ag.days_61_90_EGP),this.fsC(ag.days_over_90_EGP),this.fsC(ag.opening_carryover_undated_EGP)]]),
+      this.fsTable("biabat",["العميل","المندوب","0–30","رصيد سابق","الإجمالي"],
+        A.aging_top.map(r=>[r.customer,r.salesperson,this.fsC(r.days_0_30_EGP),this.fsC(r.opening_carryover_undated_EGP),this.fsC(r.total_debt_EGP)]))],
+      {k:"biab4",sub:"الفواتير غير المسددة بعمرها حتى "+this.opsDmy(A.as_of.aging_ref)+" · ما زاد عن الفواتير المؤرخة «رصيد سابق»"}));
+    out.push(this.card("المستحق خلال شهر",this.fsTable("biabd",["العميل","المندوب","فواتير","خلال شهر","متأخر","أول استحقاق","آخر استحقاق"],
+      D.top.map(r=>[r.customer,r.salesperson,this.fsC(r.invoices),this.fsC(r.due_within_1_month_EGP),this.fsC(r.overdue_EGP),r.first_due_date,r.last_due_date])),{k:"biab5"}));
+    out.push(this.card("أعلى الأصناف مبيعًا ومتوسط سعر البيع",this.fsTable("biabi",["الصنف","الوحدة","الكمية","المبيعات","متوسط السعر","أدنى","أعلى"],
+      A.items_top.map(r=>[r.item_name,r.unit,this.fsC(r.total_qty),this.fsC(r.total_sales_EGP),{v:(+r.avg_selling_price_EGP).toFixed(2)},
+        {v:(+r.min_price_EGP).toFixed(2)},{v:(+r.max_price_EGP).toFixed(2)}])),{k:"biab6"}));
+    out.push(this.card("مكافأة العملاء — شرائح analyze.py",this.fsTable("biabb",["العميل","المندوب","المبيعات","المديونية","النسبة","المكافأة"],
+      A.customers_bonus.top.map(r=>[r.customer,r.salesperson,this.fsC(r.total_sales_EGP),this.fsC(r.outstanding_debt_EGP),{v:r.bonus_pct+"%"},this.fsC(r.bonus_amount_EGP)])),
+      {k:"biab7",sub:"افتراض الملف: 0% أقل من 5 آلاف · 0.5% · 1% · 1.5% · 2% من 250 ألفًا · إجمالي "+T.egpK(A.customers_bonus.total)}));
+    const M=A.model||{};
+    if(M.material_cogs) out.push(this.card("نموذج التسعير — يونيو 2026",this.fsTable("biabm",["البند","النموذج","قائمة الدخل"],
+      [["تكلفة المواد",this.fsC(M.material_cogs.model),this.fsC(M.material_cogs.statement)],
+       ["الربح التشغيلي",this.fsC(M.operating_profit.model),this.fsC(M.operating_profit.statement)]]),
+      {k:"biab8",sub:T.int(M.invoices)+" فاتورة · "+T.int(M.skus)+" صنفًا · model/costing_pricing_model.py كما في الملف المضغوط"}));
+    return out;
+  }
+
   /* ======================= 4) سجل التنبيهات الموحد ========================= */
   /* كل تنبيه: المؤشر، القيمة الفعلية، الحد، الانحراف، السبب المحتمل (مُتحقَّق أو فرضية)،
      الإجراء، المسؤول (دور مقترح)، الحالة، تاريخ آخر تحديث. الحالة تُحفظ في هذا الجهاز فقط. */
@@ -720,6 +832,28 @@
           col("معيار الملف / الإدارة",null,r=>num(r.file!=null?r.file:r.mgmt))].concat(
           Z.mon.list.map(m=>col("المعيار "+m,null,r=>r.by[m]&&r.by[m].std!=null?num(r.by[m].std):"يحتاج بيانات")))});
     }
+    if(window.DASH_IS25){
+      const Z=this.biIs25();
+      out.push(
+        {id:"bi_is25",label:"ذكاء الأعمال — قوائم الدخل 2025",rows:Z.rows,columns:[
+          col("الشهر","month"), col("صافي المبيعات",null,r=>r.need?"يحتاج بيانات":num(r.net)), col("تكلفة المبيعات",null,r=>r.need?"":num(r.cogs)),
+          col("مجمل الربح",null,r=>r.need?"":num(r.gp)), col("المصروفات",null,r=>r.need?"":num(r.exp)), col("صافي الربح",null,r=>r.need?"":num(r.np)),
+          col("مبيعات الفواتير",null,r=>r.inv==null?"":num(r.inv)), col("الأساس",null,r=>r.need||((r.confirm?"يحتاج تأكيد · ":"")+r.basis)),
+          col("ملاحظات",null,r=>(r.flags||[]).join("؛ ")), col("المصدر",null,r=>r.src||"")]},
+        {id:"bi_is25_vs_26",label:"ذكاء الأعمال — 2025 مقابل 2026",rows:Z.cmp,columns:[
+          col("الفترة","label"), col("صافي المبيعات 2025",null,r=>r.net25==null?"يحتاج بيانات":num(r.net25)), col("صافي المبيعات 2026",null,r=>num(r.net26)),
+          col("مجمل الربح 2025",null,r=>r.gp25==null?"":num(r.gp25)), col("مجمل الربح 2026",null,r=>num(r.gp26)),
+          col("صافي الربح 2025",null,r=>r.np25==null?"":num(r.np25)), col("صافي الربح 2026",null,r=>num(r.np26)), col("يحتاج تأكيد",null,r=>r.confirm?"نعم":"")]});
+    }
+    const AB=window.DASH_ABM;
+    if(AB&&AB.enabled) out.push(
+      {id:"bi_abm_runs",label:"ذكاء الأعمال — تشغيل أكواد Abohashem-main",rows:AB.runs,columns:[col("السكربت","step"), col("النتيجة","status"), col("تفاصيل","detail")]},
+      {id:"bi_abm_salespeople",label:"ذكاء الأعمال — Abohashem-main: المناديب ("+AB.as_of.debt_as_of+")",rows:AB.salespeople,columns:[
+        col("المندوب","salesperson"), col("عملاء",null,r=>num(r.customers)), col("مبيعات الفترة",null,r=>num(r.period_sales_EGP)),
+        col("المديونية",null,r=>num(r.outstanding_debt_EGP)), col("شهور انكشاف",null,r=>r.credit_exposure_months===""?"":num(r.credit_exposure_months))]},
+      {id:"bi_abm_aging",label:"ذكاء الأعمال — Abohashem-main: أعمار الديون",rows:AB.aging_top,columns:[
+        col("الكود","customer_code"), col("العميل","customer"), col("المندوب","salesperson"), col("0–30",null,r=>num(r.days_0_30_EGP)),
+        col("رصيد سابق",null,r=>num(r.opening_carryover_undated_EGP)), col("الإجمالي",null,r=>num(r.total_debt_EGP))]});
     const A=this.biAlertRows(X,D,st.filters||{},T);
     out.push(
       {id:"bi_alert_register",label:"ذكاء الأعمال — سجل التنبيهات",rows:A.rows,columns:[

@@ -8,14 +8,17 @@
       → python3 -m src.income_2026 → ../data/processed/income_2026.json   (2026 income statement PDFs)
       → python3 -m src.standard_cost → ../data/processed/standard_cost.json («سعر انتاج تام»)
       → enrich_mobile.py       → mobile/Abu_Hashem_Mobile_full.html   (base of the approved file)
+      → python3 -m src.income_2025h1 → ../data/processed/income_2025h1.json (January–May 2025 statements)
+      → python3 -m src.abohashem_main → ../data/processed/abohashem_main.json (runs the code of Abohashem-main.zip)
       → bi_mobile.py           → mobile/Abu_Hashem_Mobile_bi.html     (the approved file, 26/10/2026: + «ذكاء الأعمال»)
 
 Usage:
   python3 build_all.py            rebuild every stage
   python3 build_all.py --check    rebuild, then fail if any committed output changed
   python3 build_all.py --skip-ingest
-                                  reuse the committed ops_data.json, income_2026.json and
-                                  standard_cost.json (no pdftotext, openpyxl or LibreOffice needed)
+                                  reuse the committed ops_data.json, income_2026.json,
+                                  standard_cost.json and abohashem_main.json
+                                  (no pdftotext, PyMuPDF, openpyxl or LibreOffice needed)
   python3 build_all.py --month 2026-10 --strict
                                   check that month's files first (src/monthly.py) and
                                   stop before building if a required one is missing
@@ -39,7 +42,9 @@ MOB = APP / "mobile"
 OPS_JSON = APP.parent / "data" / "processed" / "ops_data.json"
 IS26_JSON = APP.parent / "data" / "processed" / "income_2026.json"
 STD_JSON = APP.parent / "data" / "processed" / "standard_cost.json"
-INGEST = {"ingest", "income", "stdcost"}
+IS25_JSON = APP.parent / "data" / "processed" / "income_2025h1.json"
+ABM_JSON = APP.parent / "data" / "processed" / "abohashem_main.json"
+INGEST = {"ingest", "income", "stdcost", "abmain"}
 
 STAGES = [
     ("merge", [sys.executable, "merge_into_mobile.py"], MOB / "Abu_Hashem_Mobile_merged.html"),
@@ -48,6 +53,8 @@ STAGES = [
     ("income", [sys.executable, "-m", "src.income_2026"], IS26_JSON),
     ("stdcost", [sys.executable, "-m", "src.standard_cost"], STD_JSON),
     ("enrich", [sys.executable, "enrich_mobile.py"], MOB / "Abu_Hashem_Mobile_full.html"),
+    ("income25", [sys.executable, "-m", "src.income_2025h1"], IS25_JSON),
+    ("abmain", [sys.executable, "-m", "src.abohashem_main"], ABM_JSON),
     ("bi", [sys.executable, "bi_mobile.py"], MOB / "Abu_Hashem_Mobile_bi.html"),
 ]
 
