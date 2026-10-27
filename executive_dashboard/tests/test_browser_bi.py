@@ -22,7 +22,7 @@ APP_DIR = Path(__file__).resolve().parents[1]
 FULL_HTML = APP_DIR / "mobile" / "Abu_Hashem_Mobile_full.html"
 BI_HTML = APP_DIR / "mobile" / "Abu_Hashem_Mobile_bi.html"
 OPS_JSON = APP_DIR.parent / "data" / "processed" / "ops_data.json"
-BI_KEYS = ("bi_exec", "bi_bridge", "bi_stock", "bi_std", "bi_arh", "bi_recipes", "bi_abm", "bi_alerts", "bi_kpis")
+BI_KEYS = ("bi_map", "bi_exec", "bi_bridge", "bi_stock", "bi_std", "bi_arh", "bi_recipes", "bi_abm", "bi_alerts", "bi_kpis")
 IS25_HEAD = "قوائم الدخل 2025 كاملة"
 PL_HEAD = "قائمة الدخل الشهرية — يناير 2025 إلى يوليو 2026"
 
@@ -187,6 +187,64 @@ def test_bi_tables_export(page):
     for tid in ("bi_freshness", "bi_bridge_pnl", "bi_bridge_items", "bi_breakeven", "bi_dio", "bi_alert_register",
                 "bi_alert_rules", "bi_kpi_catalog", "bi_readiness"):
         assert tabs.get(tid, 0) > 0, tid
+
+
+def test_map_places_every_section(page):
+    """«دليل اللوحة»: every section of the navigation (but the guide itself) is in one of the seven
+    groups, with its own label and nav group; the production group, with no section, names the data
+    it needs; a name opens its section; the export table is the guide row for row."""
+    text = go(page, "bi_map")
+    reg = page.evaluate("() => window.__abhApp.registry().filter(s => s.key !== 'bi_map').map(s => [s.key, s.label, s.group])")
+    rows = page.evaluate("() => window.__abhApp.biMapRows()")
+    assert len(reg) >= 50 and [[r["key"], r["label"], r["nav"]] for r in rows] == [list(x) for x in reg]
+    assert [r["key"] for r in rows if r["g"] is None] == []
+    groups = page.evaluate("() => window.__abhApp.biMapDef().groups.map(g => g[0])")
+    assert len(groups) == 7 and all(f"{i + 1} — {g}" in text for i, g in enumerate(groups))
+    used = {r["g"] for r in rows}
+    assert used == set(range(7)) - {4}                                   # no production section yet
+    assert "يحتاج بيانات: أوامر التشغيل" in text and "\n0\nأقسام لم تُصنَّف\nكل الأقسام في الدليل" in text
+    for r in rows:
+        assert r["source"] and r["filters"] != "—", r["key"]
+        assert r["as_of"] is None or re.fullmatch(r"\d{4}-\d{2}-\d{2}", r["as_of"]), r
+    tab = page.evaluate("() => window.__abhApp.exportTables().find(t => t.id === 'bi_map')")
+    assert [x["key"] for x in tab["rows"]] == [r["key"] for r in rows]
+    page.click('[data-bi-map="ops_inventory"]')
+    page.wait_for_function("() => window.__abhApp.state.section === 'ops_inventory'")
+    go(page, "bi_map")
+
+
+def test_map_filter_scope(browser):
+    """What the guide says about filters is what the sections do: an invoice rep filter and a month
+    filter, then an «التحليل» brand filter, change a section's text exactly where the guide says ✓."""
+    pg = _page(browser)
+    _open(pg, BI_HTML)
+    empty = {"rep": None, "brand": None, "customerCode": None, "itemName": None}
+    rep, month, brand = pg.evaluate("""() => { const D = window.__abhApp.state.api.D, RD = window.__abhApp.state.RD, top = k => {
+        const c = {}; D.invoices.forEach(v => c[v[k]] = (c[v[k]] || 0) + 1); return Object.entries(c).sort((a, b) => b[1] - a[1])[0][0]; };
+      return [top("rep"), top("month"), RD.brand_summary[0].brand]; }""")
+    rows = pg.evaluate("() => window.__abhApp.biMapRows().map(r => [r.key, r.filter])")
+
+    def txt(key, state):
+        pg.evaluate("s => window.__abhApp.setState(s)", {"filters": {}, "rf": empty, **state})
+        return go(pg, key)
+
+    notice = "الفلاتر لا تنطبق على هذا القسم"
+    wrong = []
+    for key, code in rows:
+        if code == "mix":
+            continue
+        base = txt(key, {})
+        by_rep, by_month = txt(key, {"filters": {"rep": rep}}) != base, txt(key, {"filters": {"month": month}}) != base
+        want = {"rm": (True, True), "r": (True, False), "m": (False, True)}.get(code, (False, False))
+        ok = (by_rep, by_month) == want
+        if code.startswith("rf"):
+            t = txt(key, {"rf": {**empty, "brand": brand}})
+            ok = ok and {"rf": t != base and notice not in t, "rf-": t == base or notice in t, "rf0": t == base}[code]
+        if not ok:
+            wrong.append((key, code, by_rep, by_month))
+    txt("bi_map", {})
+    assert wrong == [] and pg.errors == [], (wrong, pg.errors)
+    pg.close()
 
 
 def test_kill_switch_hides_the_group(browser):

@@ -16,7 +16,10 @@ dates and their roll-forward, src/ar_history.py) and DASH_RCP (the panée / stri
 recipe sheets, src/recipes.py); the rest is read from what the full file already embeds
 (DASH_MARGIN, DASH_OPS, DASH_FS, DASH_IS26, DASH_BUILD and the sales snapshots). Added:
 
-  * a nav group «ذكاء الأعمال» with five sections — executive summary and data
+  * a nav group «ذكاء الأعمال», opened by «دليل اللوحة» — every section in seven functional
+    groups with its data source and date and the filters that apply to it (measured, and
+    checked by tests/test_browser_bi.py); the original navigation is unchanged. Then five
+    sections — executive summary and data
     freshness, profit bridge (price / cost / volume-mix, contribution margin,
     break-even), inventory turnover / dead stock / reconciliation, a unified alert
     register (indicator, actual, threshold, deviation, cause tagged verified or
@@ -55,7 +58,7 @@ ABM_JSON = APP.parent / "data" / "processed" / "abohashem_main.json"
 ARH_JSON = APP.parent / "data" / "processed" / "ar_history.json"
 RCP_JSON = APP.parent / "data" / "processed" / "recipes.json"
 
-SECTIONS = ("bi_exec", "bi_bridge", "bi_stock", "bi_std", "bi_arh", "bi_recipes", "bi_abm", "bi_alerts", "bi_kpis")
+SECTIONS = ("bi_map", "bi_exec", "bi_bridge", "bi_stock", "bi_std", "bi_arh", "bi_recipes", "bi_abm", "bi_alerts", "bi_kpis")
 
 
 def js(o) -> str:
@@ -89,6 +92,8 @@ def edits(methods: str, std: dict | None = None, is25: dict | None = None, abm: 
          "    /* ذكاء الأعمال — الملف المعتمد (bi_mobile.py). ?nobi في الرابط يخفي المجموعة. */\n"
          "    if(!/[?&#]nobi\\b/.test(String(location.search)+String(location.hash))){\n"
          "      const G2=\"ذكاء الأعمال\";\n"
+         '      push(G2,"dash","bi_map",{label:"دليل اللوحة",h2:"دليل اللوحة — الأقسام في سبع مجموعات",\n'
+         '        p:"كل قسم في مجموعته الوظيفية · مصدره وتاريخ بياناته · الفلاتر التي تنطبق عليه · القائمة الأصلية كما هي"});\n'
          '      push(G2,"dash","bi_exec",{label:"الملخص التنفيذي",h2:"الملخص التنفيذي وحداثة البيانات",\n'
          '        p:"أحدث المؤشرات المُتحقَّقة · تاريخ كل مجال بيانات · ما حرّك صافي الربح · أعلى التنبيهات"});\n'
          '      push(G2,"dash","bi_bridge",{label:"جسر الربح",h2:"جسر الربح — السعر والكمية والتكلفة",\n'
@@ -113,7 +118,7 @@ def edits(methods: str, std: dict | None = None, is25: dict | None = None, abm: 
          '        p:"المصدر والمعادلة والتاريخ والفحص لكل مؤشر · ما ينقص لكل وحدة لم تُبن"});\n'
          "    }\n"),
         ("nav-note-bi", '      "قرارات وتشغيل":"المخزون · المشتريات · رأس المال العامل · شرائح العملاء · المندوبون · المحاكي · التقييم",\n', "",
-         '      "ذكاء الأعمال":"الملخص · جسر الربح · دوران المخزون · التكلفة المعيارية · تاريخ المديونية · الوصفات · Abohashem-main · سجل التنبيهات · قاموس المؤشرات",\n'),
+         '      "ذكاء الأعمال":"دليل اللوحة · الملخص · جسر الربح · دوران المخزون · التكلفة المعيارية · تاريخ المديونية · الوصفات · Abohashem-main · سجل التنبيهات · قاموس المؤشرات",\n'),
         ("section-bi", '    if(s.slice(0,4)==="ops_"||s.slice(0,4)==="dec_"||s==="dq_clean") return this.opsSectionBody(s,X,T,api)||[];\n', "",
          '    if(s.slice(0,3)==="bi_") return this.biSectionBody(s,X,T,api)||[];\n'),
         ("income-chip-bi", '      : s==="fs_quality"?"كل الفترات"\n', "      : span;\n",

@@ -128,6 +128,7 @@ def read_app():
             fsdict: ((window.DASH_FS || {}).kpi_dictionary || []).map(d => ({kpi: d.kpi, formula: d.formula,
                                                                               source: d.source, period: d.period})),
             registry: A.registry().map(s => ({group: s.group, key: s.key, label: s.label})),
+            guide: Object.fromEntries(A.biMapRows().map(r => [r.key, r.group])),
             exports: A.exportTables().map(t => ({id: t.id, label: t.label}))};
         }""")
     finally:
@@ -260,10 +261,13 @@ def render(app):
     L += ["", "## التغطية بالقسم", "",
           f"كل أقسام اللوحة ({len(app['registry'])} قسمًا) وعدد مؤشراتها الموثقة هنا. القسم بلا مؤشر موثق لم يُستخرج "
           "تعريف مؤشراته بعد؛ أرقامه في اللوحة كما هي، لكنها خارج هذا السجل حتى تُوثَّق.", "",
-          "| المجموعة | القسم | المعرّف | مؤشرات موثقة |", "|---|---|---|---|"]
+          "المجموعة الوظيفية من «دليل اللوحة» (`biMapDef`)، و«في القائمة» مكان القسم في التنقل الأصلي.", "",
+          "| المجموعة الوظيفية | في القائمة | القسم | المعرّف | مؤشرات موثقة |", "|---|---|---|---|---|"]
+    guide = app["guide"]
     for s in app["registry"]:
         k = sum(1 for r in rs if r["section"] == s["key"])
-        L.append(f"| {esc(s['group'])} | {esc(s['label'])} | `{s['key']}` | {k if k else 'لم يُوثَّق بعد'} |")
+        g = "دليل اللوحة نفسه" if s["key"] == "bi_map" else guide.get(s["key"], "لم يُصنَّف")
+        L.append(f"| {esc(g)} | {esc(s['group'])} | {esc(s['label'])} | `{s['key']}` | {k if k else 'لم يُوثَّق بعد'} |")
     L += ["", "## بلا اختبار مطابقة", ""]
     L += [f"- {r['id']} {r['name']} (`{r['table']}`)" for r in untested] or ["- لا شيء."]
     return "\n".join(L) + "\n"

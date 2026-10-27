@@ -34328,6 +34328,8 @@ class App extends React.Component {
     /* ذكاء الأعمال — الملف المعتمد (bi_mobile.py). ?nobi في الرابط يخفي المجموعة. */
     if(!/[?&#]nobi\b/.test(String(location.search)+String(location.hash))){
       const G2="ذكاء الأعمال";
+      push(G2,"dash","bi_map",{label:"دليل اللوحة",h2:"دليل اللوحة — الأقسام في سبع مجموعات",
+        p:"كل قسم في مجموعته الوظيفية · مصدره وتاريخ بياناته · الفلاتر التي تنطبق عليه · القائمة الأصلية كما هي"});
       push(G2,"dash","bi_exec",{label:"الملخص التنفيذي",h2:"الملخص التنفيذي وحداثة البيانات",
         p:"أحدث المؤشرات المُتحقَّقة · تاريخ كل مجال بيانات · ما حرّك صافي الربح · أعلى التنبيهات"});
       push(G2,"dash","bi_bridge",{label:"جسر الربح",h2:"جسر الربح — السعر والكمية والتكلفة",
@@ -34398,7 +34400,7 @@ class App extends React.Component {
       "تحليلات وجودة البيانات":"Sunburst وSankey · والمطابقة والقيم الشاذّة",
       "تحليلات متقدمة":"ABC · الموسمية · سلة المشتريات · الأفواج · التنبيهات",
       "قرارات وتشغيل":"المخزون · المشتريات · رأس المال العامل · شرائح العملاء · المندوبون · المحاكي · التقييم",
-      "ذكاء الأعمال":"الملخص · جسر الربح · دوران المخزون · التكلفة المعيارية · تاريخ المديونية · الوصفات · Abohashem-main · سجل التنبيهات · قاموس المؤشرات",
+      "ذكاء الأعمال":"دليل اللوحة · الملخص · جسر الربح · دوران المخزون · التكلفة المعيارية · تاريخ المديونية · الوصفات · Abohashem-main · سجل التنبيهات · قاموس المؤشرات",
       "القوائم المالية":"ميزانيات 31/7 و31/8 و31/12/2025 · قوائم دخل 7–12/2025 و1–7/2026 · من اللوحة التنفيذية",
     };
     const groups=[];
@@ -39127,7 +39129,7 @@ class App extends React.Component {
 
   biSectionBody(s,X,T,api){
     const m={bi_exec:"biExecBody",bi_bridge:"biBridgeBody",bi_stock:"biStockBody",bi_std:"biStdBody",bi_alerts:"biAlertsBody",
-      bi_kpis:"biKpisBody",bi_abm:"biAbmBody",bi_arh:"biArhBody",bi_recipes:"biRecipesBody"}[s];
+      bi_kpis:"biKpisBody",bi_abm:"biAbmBody",bi_arh:"biArhBody",bi_recipes:"biRecipesBody",bi_map:"biMapBody"}[s];
     if(!m) return null;
     try{ return this[m](X,T,api); }
     catch(e){ return [this.advNote("bi-err","تعذّر عرض هذا القسم ("+String(e&&e.message||e)
@@ -40140,6 +40142,101 @@ class App extends React.Component {
     return out;
   }
 
+  /* ======================= 10) دليل اللوحة ================================ */
+  /* الأقسام كلها في سبع مجموعات وظيفية (خطة تنظيم اللوحة، 27/10/2026). التنقل الأصلي لا يتغير:
+     الدليل قسم مضاف، والانتقال منه بـ go() إلى القسم نفسه في مكانه.
+     لكل قسم: [المجموعة، نطاق الفلاتر، مجال تاريخ البيانات]. نطاق الفلاتر مقيس لا مفترض:
+     tests/test_browser_bi.py::test_map_filter_scope يطبّق فلتر المندوب والشهر (وفلاتر «التحليل»)
+     ويتحقق أن كل قسم يتغير أو لا يتغير كما هو مكتوب هنا، ويفشل إن ظهر قسم لا مكان له في الدليل. */
+  biMapDef(){
+    const groups=[
+      ["الملخص التنفيذي","أهم المؤشرات والتنبيهات في شاشة"],
+      ["التحليل التجاري والمبيعات","المبيعات والعملاء والأصناف والمندوبون والمرتجعات"],
+      ["التحليل المالي والربحية","القوائم المالية والربحية والمصروفات ورأس المال العامل"],
+      ["المخزون والتكلفة","المخزون والمشتريات والتكلفة المعيارية والوصفات"],
+      ["التشغيل والإنتاج","الإنتاجية والهالك وتتبع التشغيلات"],
+      ["العملاء والتحصيل والمخاطر","المديونية وأعمارها والتحصيل والتنبيهات على المخاطر"],
+      ["التقارير والتفاصيل الأصلية","جداول التصدير وجودة البيانات وقاموس المؤشرات"]];
+    const keys={
+      bi_exec:[0,"rm","mix"], overview:[0,"rm","inv"], fs_exec:[0,"-","fs"], bi_alerts:[0,"rm","mix"],
+      sales:[1,"rm","inv"], customers:[1,"rm","inv"], products:[1,"rm","inv"], bonus:[1,"rm","inv"],
+      "r:sales":[1,"rf0","agg"], "r:customers":[1,"rf","agg"], "r:brands":[1,"rf","agg"], "r:products":[1,"rf","agg"],
+      "r:analysis":[1,"rf","agg"], "r:forecast":[1,"rf-","agg"],
+      adv_abc:[1,"rm","inv"], adv_season:[1,"rm","inv"], adv_basket:[1,"rm","inv"], adv_cohort:[1,"rm","inv"],
+      dec_rfm:[1,"rm","inv"], dec_reps:[1,"-","inv"], dec_leakage:[1,"rm","inv"], dec_returns:[1,"-","inv"],
+      fs_position:[2,"-","fs"], fs_income:[2,"-","pl"], fs_wc:[2,"-","fs"], "r:fin":[2,"rf-","agg"],
+      "r:margin":[2,"rf-","agg"], "r:expenses":[2,"rf-","agg"], bi_bridge:[2,"-","pl"], ops_wc:[2,"-","ops"],
+      dec_whatif:[2,"-","pl"], dec_valuation:[2,"-","fs"],
+      ops_inventory:[3,"-","ops"], ops_purchases:[3,"-","pur"], ops_costpass:[3,"-","pur"], bi_stock:[3,"-","ops"],
+      bi_std:[3,"-","std"], bi_recipes:[3,"-","rcp"],
+      receivables:[5,"r","inv"], overdue:[5,"r","inv"], aging:[5,"r","inv"], armove:[5,"-","inv"], collections:[5,"m","inv"],
+      "r:debt":[5,"rf","agg"], bi_arh:[5,"-","arh"], adv_alerts:[5,"rm","inv"],
+      "r:reports":[6,"mix","mix"], analytics:[6,"rm","inv"], quality:[6,"rm","inv"], snapdetail:[6,"m","inv"],
+      "r:quality":[6,"rf-","agg"], dq_clean:[6,"-","inv"], fs_quality:[6,"-","fs"], bi_kpis:[6,"-","mix"], bi_abm:[6,"-","abm"]};
+    const filt={
+      rm:["الشهر ✓ · المندوب ✓","#10b981"], r:["المندوب ✓ · الشهر ✗ (رصيد في تاريخ)","#f59e0b"],
+      m:["الشهر ✓ · المندوب ✗","#f59e0b"], "-":["لا تنطبق فلاتر الفواتير","#64748b"],
+      rf:["فلاتر «التحليل» ✓ (لا فلاتر الفواتير)","#3b82f6"], "rf-":["لا تنطبق — أرقام محسوبة مسبقًا للشركة","#64748b"],
+      rf0:["لا تنطبق أي فلاتر","#64748b"], mix:["كل جدول حسب قسمه","#a78bfa"]};
+    return {groups,keys,filt};
+  }
+  /* مصدر بيانات القسم وتاريخها، من التواريخ المضمنة نفسها (لا تاريخ يُكتب باليد). */
+  biMapDate(d,Fr){
+    const st=this.state, Bd=window.DASH_BUILD||{}, F=window.DASH_FS, fr=id=>Fr.rows.find(r=>r.id===id)||{};
+    if(d==="inv") return {src:fr("sales").source,as_of:fr("sales").as_of};
+    if(d==="agg"){ const P=st.RD&&st.RD.financial&&st.RD.financial.period;
+      return {src:"التجميعات الشهرية"+(P?" "+P.start+" – "+P.end:""),as_of:P?P.end:null}; }
+    if(d==="fs") return {src:"الميزانية العمومية — DASH_FS",as_of:F&&F.meta&&F.meta.as_of||null};
+    if(d==="pl") return {src:fr("pl").source,as_of:fr("pl").as_of};
+    if(d==="ops") return {src:fr("inv").source,as_of:Bd.inventory_as_of||null};
+    if(d==="pur") return {src:fr("pur").source,as_of:fr("pur").as_of};
+    if(d==="std"){ const M=window.DASH_STD&&window.DASH_STD.monthly, ms=M&&M.months||[], m=ms[ms.length-1];
+      return {src:"«سعر انتاج تام»"+(m?" + المعيار الشهري":""),as_of:m?this.opsMonEnd(m):null}; }
+    if(d==="arh"){ const ds=window.DASH_ARH&&window.DASH_ARH.meta.dates||[];
+      return {src:"تقارير أرصدة المناديب",as_of:ds[ds.length-1]||null}; }
+    if(d==="rcp") return {src:"أوراق الوصفات",as_of:window.DASH_RCP&&window.DASH_RCP.meta.as_of||null};
+    if(d==="abm") return {src:"Abohashem-main — لقطة",as_of:window.DASH_ABM&&window.DASH_ABM.as_of&&window.DASH_ABM.as_of.debt_as_of||null};
+    return {src:"عدة مجالات — لكلٍّ تاريخه في «حداثة البيانات»",as_of:null};
+  }
+  biMapRows(){
+    const Df=this.biMapDef(), Fr=this.biFresh(this.state.api?this.state.api.D:{}), ref=Fr.ref;
+    return this.registry().filter(s=>s.key!=="bi_map").map(s=>{
+      const k=Df.keys[s.key]||null, dt=k?this.biMapDate(k[2],Fr):{src:"",as_of:null};
+      const lag=dt.as_of&&ref?this.advDays(dt.as_of,ref):null;
+      return {key:s.key,label:s.label,nav:s.group,g:k?k[0]:null,group:k?Df.groups[k[0]][0]:"لم يُصنَّف",
+        filter:k?k[1]:null,filters:k?Df.filt[k[1]][0]:"—",source:dt.src,as_of:dt.as_of,lag,
+        fresh:dt.as_of==null?(k&&k[2]==="mix"?"—":"بلا تاريخ"):lag==null?"—":lag<=35?"حديثة":lag<=65?"متأخرة شهرًا":"قديمة"};
+    });
+  }
+  biMapBody(X,T,api){
+    const Df=this.biMapDef(), rows=this.biMapRows(), out=[], ref=this.biRef();
+    const lost=rows.filter(r=>r.g==null), noF=rows.filter(r=>r.filter&&r.filter!=="rm"&&r.filter!=="mix");
+    out.push(this.kpiTiles([
+      ["الأقسام",T.int(rows.length),"في "+T.int(new Set(rows.map(r=>r.nav)).size)+" مجموعات في القائمة","#3b82f6"],
+      ["المجموعات الوظيفية",T.int(Df.groups.length),T.int(Df.groups.filter((g,i)=>!rows.some(r=>r.g===i)).length)+" بلا قسم بعد","#14b8a6"],
+      ["لا تتبع كل فلاتر الفواتير",T.int(noF.length),"مكتوب لكل قسم أدناه","#f59e0b"],
+      ["أقسام لم تُصنَّف",T.int(lost.length),lost.length?"تُعرض في آخر الدليل":"كل الأقسام في الدليل",lost.length?"#ef4444":"#10b981"]],"bmk"));
+    out.push(this.advNote("bmn","الدليل لا يغيّر القائمة: كل قسم يبقى في مكانه وباسمه، والضغط على اسمه ينقلك إليه. "
+      +"«الفلاتر» مقيسة: ✓ يعني أن القسم يتغير بالفلتر، ✗ أنه لا يتغير. «حتى» تاريخ آخر بيانات القسم، "
+      +"والحداثة بالأيام حتى "+(ref?this.opsDmy(ref):"—")+" (آخر تحديث لبيانات التشغيل)."));
+    const fl={"حديثة":"#10b981","متأخرة شهرًا":"#f59e0b","قديمة":"#ef4444","بلا تاريخ":"#64748b"};
+    const link=r=>React.createElement("span",{onClick:()=>this.go(r.key),"data-bi-map":r.key,
+      style:{cursor:"pointer",color:"var(--abh-93c5fd,var(--abh-93c5fd,#93c5fd))",textDecoration:"underline",textUnderlineOffset:3}},r.label);
+    const table=(k,list)=>this.fsTable(k,["القسم","في القائمة","المصدر","حتى","الفلاتر"],
+      list.map(r=>[{v:link(r)},r.nav,r.source,{v:r.as_of?this.opsDmy(r.as_of):r.fresh,c:fl[r.fresh]},
+        {v:r.filters,c:(Df.filt[r.filter]||[])[1]}]));
+    Df.groups.forEach((g,i)=>{
+      const list=rows.filter(r=>r.g===i);
+      out.push(this.card((i+1)+" — "+g[0],list.length?table("bmt"+i,list)
+        :this.biNeed("bm-need"+i,i===4?this.biReadiness()[0].need+" — لا قسم إنتاج قبل وجودها":"لا قسم بعد"),
+        {k:"bm"+i,sub:g[1]+(list.length?" · الأقسام: "+T.int(list.length):"")}));
+    });
+    if(lost.length) out.push(this.card("لم يُصنَّف بعد",table("bmtx",lost),{k:"bmx",sub:"قسم جديد لم يُضف إلى الدليل"}));
+    out.push(this.advNote("bmr","لكل مؤشر معادلته ودالته ومصدره وحالته واختباراته في سجل المؤشرات docs/KPI_REGISTER.md؛ والقيم الحالية في «قاموس المؤشرات»."));
+    out.push(this.advLink("bmgo","قاموس المؤشرات","bi_kpis"));
+    return out;
+  }
+
   /* جداول «ذكاء الأعمال» لكتالوج التصدير وملف Excel. */
   biExport(out,col,num){
     const st=this.state;
@@ -40276,7 +40373,10 @@ class App extends React.Component {
         col("المؤشر","kpi"), col("القيمة","value"), col("الوحدة","unit"), col("المعادلة","formula"), col("المصدر","source"), col("الفترة","period"),
         col("حتى",null,r=>r.as_of||""), col("الفحص","check"), col("الأساس","status")]},
       {id:"bi_readiness",label:"ذكاء الأعمال — جاهزية البيانات",rows:this.biReadiness(),columns:[
-        col("الوحدة","module"), col("المطلوب","need"), col("من","owner"), col("الحالة","status")]});
+        col("الوحدة","module"), col("المطلوب","need"), col("من","owner"), col("الحالة","status")]},
+      {id:"bi_map",label:"ذكاء الأعمال — دليل اللوحة",rows:this.biMapRows(),columns:[
+        col("المجموعة","group"), col("القسم","label"), col("المفتاح","key"), col("في القائمة","nav"), col("المصدر","source"),
+        col("حتى",null,r=>r.as_of||""), col("الحداثة","fresh"), col("الفلاتر","filters")]});
   }
 
   buildRepo(){
