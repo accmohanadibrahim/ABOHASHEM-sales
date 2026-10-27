@@ -70,4 +70,4 @@ jobs:
         python -m src.abohashem_main
         diff /tmp/committed.json ../data/processed/abohashem_main.json
     - name: Test
-      run: pytest executive_dashboard/tests/test_abohashem_main.py -v
+      run: pytest executive_dashboard/tests/test_abohashem_main.py executive_dashboard/tests/test_ar_history.py executive_dashboard/tests/test_recipes.py -v

@@ -14,11 +14,25 @@
 
   biSectionBody(s,X,T,api){
     const m={bi_exec:"biExecBody",bi_bridge:"biBridgeBody",bi_stock:"biStockBody",bi_std:"biStdBody",bi_alerts:"biAlertsBody",
-      bi_kpis:"biKpisBody",bi_is25:"biIs25Body",bi_abm:"biAbmBody"}[s];
+      bi_kpis:"biKpisBody",bi_abm:"biAbmBody",bi_arh:"biArhBody",bi_recipes:"biRecipesBody"}[s];
     if(!m) return null;
     try{ return this[m](X,T,api); }
     catch(e){ return [this.advNote("bi-err","تعذّر عرض هذا القسم ("+String(e&&e.message||e)
       +"). باقي اللوحة يعمل كما هو؛ هذا القسم وحده معطّل حتى يُصلح.","warn")]; }
+  }
+
+  /* مفتاح التعطيل: ?nobi أو #nobi في الرابط يخفي كل إضافات ذكاء الأعمال. */
+  biOn(){ return !/[?&#]nobi\b/.test(String(location.search)+String(location.hash)); }
+  /* قوائم الدخل 2025 داخل قسم «قائمة الدخل» (القوائم المالية) — دمج القسمين بطلب الإدارة 27/10/2026. */
+  biIs25InIncome(T){
+    if(!window.DASH_IS25||!this.biOn()) return [];
+    let body;
+    try{ body=this.biIs25Body(null,T,null); }
+    catch(e){ body=[this.advNote("bi25err","تعذّر عرض قوائم الدخل 2025 ("+String(e&&e.message||e)+"). باقي القسم يعمل كما هو.","warn")]; }
+    return [React.createElement("div",{key:"bi25h","data-bi-is25":"1",style:{marginTop:8,paddingTop:10,
+        borderTop:"1px solid var(--abh-rgba-255-255-255-14,rgba(255,255,255,.14))",fontSize:13,fontWeight:700,color:"var(--abh-e2e8f0,#e2e8f0)"}},
+      "قوائم الدخل 2025 كاملة",React.createElement("span",{style:{fontSize:10.5,fontWeight:400,color:"#64748b",marginInlineStart:8}},
+        "12 شهرًا: يناير–مايو من نص القوائم · يونيو يحتاج بيانات · يوليو–ديسمبر المعتمدة · مقارنة بنفس أشهر 2026"))].concat(body);
   }
 
   /* ---- مساعدات ------------------------------------------------------------- */
@@ -554,6 +568,110 @@
     return out;
   }
 
+  /* ======================= تاريخ المديونية ومطابقة حركتها (DASH_ARH) ======== */
+  /* أرصدة العملاء كما طبعتها تقارير المناديب في ستة تواريخ (ar_history.py): التاريخ المطبوع في
+     التقرير، والتقرير الغائب «يحتاج بيانات» لا يُرحَّل ولا يُقدَّر. المطابقة لكل عميل طُبع في
+     التاريخين: رصيد أول + فواتير − تحصيلات − مرتجعات (لقطة 3/9) مقابل الرصيد المطبوع آخرًا. */
+  biArh(){
+    const H=window.DASH_ARH, D=H.meta.dates, full=H.totals.filter(t=>t.complete);
+    const f0=full.length?full[0].date:null, f1=full.length?full[full.length-1].date:null;
+    const reps=H.reps.map(r=>({rep:r.rep,by:r.by_date,ch:f0&&f1&&r.by_date[f0]&&r.by_date[f1]?r.by_date[f1].net-r.by_date[f0].net:null}));
+    const P=H.rollforward.periods, tied=P.reduce((s,p)=>s+p.tied,0), cust=P.reduce((s,p)=>s+p.customers,0);
+    return {H,D,full,f0,f1,reps,P,tied,cust};
+  }
+  biArhBody(X,T,api){
+    if(!window.DASH_ARH) return [this.biNeed("biar0","تقارير أرصدة المناديب (ar_history.json) غير مضمنة في هذا الملف.")];
+    const Z=this.biArh(), H=Z.H, D=Z.D, out=[], d=x=>this.opsDmy(x), last=H.totals[H.totals.length-1];
+    const fl=Z.full[Z.full.length-1], R=H.rollforward;
+    out.push(this.kpiTiles([
+      ["تواريخ التقارير",T.int(D.length),d(D[0])+" ← "+d(D[D.length-1])+" · "+T.int(H.files.length)+" تقريرًا","#3b82f6"],
+      ["آخر تاريخ كامل",fl?T.egpK(fl.net):"—",fl?d(fl.date)+" · كل المناديب ("+H.meta.reps.length+")":"لا تاريخ مكتمل","#ef4444"],
+      ["آخر تقرير",T.egpK(last.net),d(last.date)+(last.complete?" · كامل":" · بدون "+last.missing.join("، ")),"#f59e0b"],
+      ["عملاء تطابقت حركتهم",T.pct(Z.cust?Z.tied/Z.cust:null),T.int(Z.tied)+" من "+T.int(Z.cust)+" (عميل × فترة) · الفرق ≤ 1 ج.م","#10b981"]],"biark"));
+    out.push(this.advNote("biara","كل رقم من تقرير «حسابات العملاء» المطبوع لكل مندوب، بالتاريخ المطبوع فيه (ملفات «23-7» مطبوعة 25/7 و«26-6» مطبوعة 24/6). "
+      +"صفوف كل تقرير تساوي إجمالي المدين والدائن والصافي المطبوع فيه. المندوب الذي لم يُطبع تقريره في تاريخ «يحتاج بيانات» — لا يُرحَّل رصيده ولا يُقدَّر، "
+      +"وإجمالي الشركة لا يُعطى كاملًا إلا في تاريخ حضرت فيه كل التقارير."));
+    out.push(this.card("المديونية بالمندوب — كما طُبعت",this.fsTable("biart",["المندوب"].concat(D.map(d)).concat(Z.f0&&Z.f1&&Z.f0!==Z.f1?["التغير "+d(Z.f0)+" ← "+d(Z.f1)]:[]),
+      Z.reps.map(r=>[r.rep].concat(D.map(x=>r.by[x]?this.fsC(r.by[x].net):{v:"يحتاج بيانات",c:"#c4b5fd"}))
+        .concat(Z.f0&&Z.f1&&Z.f0!==Z.f1?[this.fsC(r.ch)]:[]))
+      .concat([{cells:["الإجمالي"].concat(H.totals.map(t=>t.complete?this.fsC(t.net):{v:this.fsC(t.net).v+" · جزئي",c:"#fcd34d"}))
+        .concat(Z.f0&&Z.f1&&Z.f0!==Z.f1?[this.fsC(Z.full[Z.full.length-1].net-Z.full[0].net)]:[]),bold:true}])),
+      {k:"biar1",sub:"صافي المدين − الدائن · «جزئي» = ينقصه تقرير مندوب واحد على الأقل"}));
+    out.push(this.card("مطابقة حركة المديونية — كل فترتين متتاليتين",this.fsTable("biarr",
+      ["الفترة","عملاء مطابقون","رصيد أول","فواتير","تحصيلات","مرتجعات","المتوقع","الرصيد المطبوع","الفجوة","ملاحظة"],
+      Z.P.map(p=>{ const t=p.totals;
+        return [d(p.from)+" ← "+d(p.to),T.int(p.tied)+"/"+T.int(p.customers),this.fsC(t.opening),this.fsC(t.sales),this.fsC(t.receipts),this.fsC(t.returns),
+          this.fsC(t.opening+t.sales-t.receipts-t.returns),this.fsC(t.closing),this.fsC(t.gap),
+          {v:[p.after_extract?"الفترة تتجاوز نهاية الفواتير المستخرجة ("+d(p.extract_through)+")":"",
+              p.only_on_one_date.opening||p.only_on_one_date.closing?T.int(p.only_on_one_date.opening)+" في الأول فقط · "+T.int(p.only_on_one_date.closing)+" في الثاني فقط":""]
+            .filter(Boolean).join(" · ")||"—",c:p.after_extract?"#fcd34d":null}]; })),
+      {k:"biar2",sub:"لكل عميل طُبع في التاريخين: رصيد أول + فواتير − تحصيلات − مرتجعات من لقطة "+d(R.as_of)+" (حتى "+d(R.extract_through)+")"}));
+    out.push(this.card("أنماط الفجوات — تطابق حسابي لا تفسير",this.fsTable("biarp",["الفترة","النمط","عملاء","الفجوة"],
+      [].concat(...Z.P.map(p=>p.patterns.map(x=>[d(p.from)+" ← "+d(p.to),x.pattern,T.int(x.customers),this.fsC(x.gap)])))),
+      {k:"biar3",sub:"فجوة تساوي (±1 ج.م) حركة واحدة من حركات الفترة نفسها · السبب (تاريخ ترحيل، تسوية، خصم) لا تبيّنه البيانات"}));
+    const st=this.state, keys=Z.P.map(p=>p.from+"|"+p.to), cur=keys.includes(st.biArP)?st.biArP:keys[keys.length-1];
+    const P=Z.P[keys.indexOf(cur)];
+    out.push(React.createElement("div",{key:"biarl",style:{fontSize:11,color:"#94a3b8"}},"أكبر الفجوات في الفترة:"));
+    out.push(this.fsPick("biarpk",Z.P.map((p,i)=>[keys[i],d(p.from)+" ← "+d(p.to)]),cur,"biArP"));
+    out.push(this.card("أكبر الفجوات بالعميل — "+d(P.from)+" ← "+d(P.to),this.fsTable("biarg",
+      ["الكود","العميل","المندوب","رصيد أول","فواتير","تحصيلات","مرتجعات","الرصيد المطبوع","الفجوة","النمط"],
+      P.gaps.map(g=>[g.code,g.name,g.rep,this.fsC(g.opening),this.fsC(g.sales),this.fsC(g.receipts),this.fsC(g.returns),this.fsC(g.closing),this.fsC(g.gap),
+        {v:g.pattern||"—",c:/لا تساوي/.test(g.pattern||"")?"#94a3b8":"#fcd34d"}])),
+      {k:"biar4",sub:"أعلى "+P.gaps.length+" عميلًا بالقيمة المطلقة · الباقي في التصدير"}));
+    const miss=H.reps.filter(r=>Object.values(r.by_date).some(v=>!v));
+    out.push(this.opsDecision("biarx",[
+      miss.length?{t:"ارفع تقارير أرصدة "+miss.map(r=>r.rep+" ("+Object.keys(r.by_date).filter(k=>!r.by_date[k]).map(d).join("، ")+")").join(" · ")+" لاستكمال إجمالي الشركة.",tag:"v"}:null,
+      {t:"راجع مع المحاسب العملاء الذين «لا يتضمن رصيدهم المطبوع فواتير الفترة»: تاريخ ترحيل الفاتورة أو فاتورة لم تُرحَّل لحساب العميل.",tag:"v"},
+      Z.P.some(p=>p.after_extract)?{t:"فترة "+Z.P.filter(p=>p.after_extract).map(p=>d(p.from)+" ← "+d(p.to)).join("، ")+" تتجاوز آخر فاتورة مستخرجة ("+d(R.extract_through)
+        +"): ارفع فواتير وتحصيلات سبتمبر قبل قراءة فجوتها.",tag:"v"}:null]));
+    return out;
+  }
+
+  /* ======================= وصفات البانيه والاستربس والصويا (DASH_RCP) ========= */
+  /* أوراق الخلطة كما طُبعت (recipes.py) — الدفعة، سعر الكيلو، تكلفة العبوة مع التغليف والعمولة.
+     الصنف المقابل غير مطبوع في الورقة: الأصناف بنفس الكلمة والوزن مرشحة «يحتاج تأكيد الربط». */
+  biRecipesBody(X,T,api){
+    const C=window.DASH_RCP;
+    if(!C) return [this.biNeed("birc0","أوراق الوصفات (recipes.json) غير مضمنة في هذا الملف.")];
+    const out=[], d=x=>this.opsDmy(x), n2=v=>v==null?{v:"—"}:{v:(+v).toFixed(2)};
+    out.push(this.kpiTiles(C.recipes.map((r,i)=>[r.name,n2(r.per_kg_loaded).v+" ج.م/كجم",
+      r.packs.map(p=>p.grams+" جم "+n2(p.total).v).join(" · ")+(r.date?" · "+d(r.date):""),["#f59e0b","#ef4444","#10b981"][i%3]]),"birck"));
+    out.push(this.advNote("birca","كل رقم كما طُبع في ورقة الخلطة، وتحققنا أن الكمية × السعر = الإجمالي لكل بند، وأن البنود تساوي إجمالي الدفعة، "
+      +"وأن تكلفة العبوة = سعر الكيلو بإضافاته × الوزن + التغليف + العمولة. العمولة معروضة منفصلة عن تكلفة الخامة والتغليف. "
+      +"الورقة لا تذكر اسم صنف المبيعات ولا الماركة ولا نوع العبوة (طبق / كيس)."));
+    C.recipes.forEach(r=>{
+      out.push(this.card(r.name+(r.date?" — "+d(r.date):""),[
+        this.fsTable("bircl"+r.key,["البند","الكمية","السعر","الإجمالي","من الدفعة"],
+          r.lines.map(l=>[l.name,l.qty==null?"—":{v:String(l.qty)},l.price==null?"—":{v:String(l.price)},this.fsC(l.total),this.fsC(l.share,"pct")])
+          .concat([{cells:["إجمالي الدفعة","","",this.fsC(r.total),""],bold:true}])),
+        this.fsTable("bircp"+r.key,["الكيلو والعبوة","القيمة"],
+          [["سعر الكيلو",n2(r.per_kg)]].concat(r.kg_add.map(a=>[a.name,n2(a.value)]))
+          .concat([{cells:["سعر الكيلو بالإضافات",n2(r.per_kg_loaded)],bold:true}])
+          .concat([].concat(...r.packs.map(p=>[
+            [p.grams+" جرام — "+(p.base_printed_as||"الخلطة"),n2(p.base)],["تغليف",n2(p.packaging)],
+            ["التكلفة قبل العمولة",n2(p.cost_ex_commission)],["عمولة",n2(p.commission)],
+            {cells:["إجمالي "+(p.label||p.grams+" جرام"),n2(p.total)],bold:true}])))),
+        this.advNote("bircy"+r.key,"كمية الإنتاج للدفعة: "+T.int(r.output_kg)+" كجم — "+r.output_kg_basis+".",r.output_kg_basis==="مطبوع"?null:"warn")],
+        {k:"birc"+r.key,sub:r.uploaded_as}));
+    });
+    out.push(this.card("الأصناف المرشحة لكل عبوة — يحتاج تأكيد الربط",this.fsTable("bircc",
+      ["العبوة","الصنف","الكود","الكمية","بونص","متوسط سعر البيع","تكلفة الوصفة قبل العمولة","تكلفة الوصفة بالعمولة","تكلفة النموذج يونيو (مجمل / تشغيلي)","الحالة"],
+      [].concat(...C.candidates.map(c=>{ const r=C.recipes.find(x=>x.key===c.recipe);
+        return c.items.length?c.items.map(i=>[r.name+" "+c.grams+" جم",i.name,i.code,this.fsC(i.qty),this.fsC(i.bonus_qty),n2(i.avg_price),
+          n2(c.cost_ex_commission),n2(c.pack_total),i.model_cost?{v:(+i.model_cost.gross).toFixed(2)+" / "+(+i.model_cost.op).toFixed(2)}:"—",{v:i.status,c:"#fcd34d"}])
+          :[[r.name+" "+c.grams+" جم",{v:"لا صنف بنفس الوزن في المبيعات",c:"#94a3b8"},"—","—","—","—",n2(c.cost_ex_commission),n2(c.pack_total),"—","—"]]; }))),
+      {k:"bircd",sub:C.meta.link_rule+" · الكمية ومتوسط السعر من لقطة "+d(C.meta.snapshot_as_of)+" · تكلفة النموذج من DASH_MARGIN بتاريخ مختلف عن الوصفة"}));
+    out.push(this.card("أصناف بلا ورقة وصفة — يحتاج بيانات",this.fsTable("bircn",["الصنف","الكود","الكمية","متوسط سعر البيع","السبب"],
+      C.no_sheet.map(i=>[i.name,i.code,this.fsC(i.qty),n2(i.avg_price),{v:i.reason,c:"#c4b5fd"}])),{k:"bircm"}));
+    const cmp=[].concat(...C.candidates.map(c=>c.items.filter(i=>i.model_cost).map(i=>({hi:c.pack_total>i.model_cost.op}))));
+    out.push(this.opsDecision("bircx",[
+      {t:"أكّد الصنف المقابل لكل ورقة (الماركة ونوع العبوة) قبل استعمال تكلفة الوصفة في هامش الصنف.",tag:"v"},
+      C.no_sheet.length?{t:"ارفع أوراق خلطة: "+Array.from(new Set(C.no_sheet.map(i=>i.family+(i.family==="عجينة بقري"?"":" "+i.grams+" جم")))).join("، ")+".",tag:"v"}:null,
+      cmp.length?{t:"تكلفة الوصفة بالعمولة أعلى من تكلفة النموذج التشغيلية (يونيو 2026) في "+T.int(cmp.filter(x=>x.hi).length)+" من "+T.int(cmp.length)
+        +" أصناف مرشحة لها تكلفة نموذج — تاريخان مختلفان والربط غير مؤكد؛ قارن أسعار الخامات بين التاريخين قبل أي قرار تسعير.",tag:"e"}:null]));
+    return out;
+  }
+
   /* ======================= 4) سجل التنبيهات الموحد ========================= */
   /* كل تنبيه: المؤشر، القيمة الفعلية، الحد، الانحراف، السبب المحتمل (مُتحقَّق أو فرضية)،
      الإجراء، المسؤول (دور مقترح)، الحالة، تاريخ آخر تحديث. الحالة تُحفظ في هذا الجهاز فقط. */
@@ -844,6 +962,38 @@
           col("الفترة","label"), col("صافي المبيعات 2025",null,r=>r.net25==null?"يحتاج بيانات":num(r.net25)), col("صافي المبيعات 2026",null,r=>num(r.net26)),
           col("مجمل الربح 2025",null,r=>r.gp25==null?"":num(r.gp25)), col("مجمل الربح 2026",null,r=>num(r.gp26)),
           col("صافي الربح 2025",null,r=>r.np25==null?"":num(r.np25)), col("صافي الربح 2026",null,r=>num(r.np26)), col("يحتاج تأكيد",null,r=>r.confirm?"نعم":"")]});
+    }
+    if(window.DASH_ARH){
+      const Z=this.biArh(), per=p=>p.from+" ← "+p.to;
+      out.push(
+        {id:"bi_ar_history",label:"ذكاء الأعمال — المديونية بالمندوب كما طُبعت",rows:Z.reps.concat([{rep:"الإجمالي",total:true}]),columns:[
+          col("المندوب","rep")].concat(Z.D.map(x=>col(x,null,r=>{ if(r.total){ const t=Z.H.totals.find(t=>t.date===x); return num(t.net)+(t.complete?"":" (جزئي)"); }
+            return r.by[x]?num(r.by[x].net):"يحتاج بيانات"; })))},
+        {id:"bi_ar_rollforward",label:"ذكاء الأعمال — مطابقة حركة المديونية",rows:Z.P,columns:[
+          col("من","from"), col("إلى","to"), col("عملاء",null,r=>num(r.customers)), col("مطابقون",null,r=>num(r.tied)),
+          col("رصيد أول",null,r=>num(r.totals.opening)), col("فواتير",null,r=>num(r.totals.sales)), col("تحصيلات",null,r=>num(r.totals.receipts)),
+          col("مرتجعات",null,r=>num(r.totals.returns)), col("الرصيد المطبوع",null,r=>num(r.totals.closing)), col("الفجوة",null,r=>num(r.totals.gap)),
+          col("بعد نهاية الاستخراج",null,r=>r.after_extract?"نعم":"")]},
+        {id:"bi_ar_gaps",label:"ذكاء الأعمال — أكبر فجوات المديونية بالعميل",rows:[].concat(...Z.P.map(p=>p.gaps.map(g=>({...g,per:per(p)})))),columns:[
+          col("الفترة","per"), col("الكود","code"), col("العميل","name"), col("المندوب","rep"), col("رصيد أول",null,r=>num(r.opening)),
+          col("فواتير",null,r=>num(r.sales)), col("تحصيلات",null,r=>num(r.receipts)), col("مرتجعات",null,r=>num(r.returns)),
+          col("الرصيد المطبوع",null,r=>num(r.closing)), col("الفجوة",null,r=>num(r.gap)), col("النمط","pattern")]});
+    }
+    if(window.DASH_RCP){
+      const C=window.DASH_RCP;
+      out.push(
+        {id:"bi_recipes",label:"ذكاء الأعمال — بنود الوصفات",rows:[].concat(...C.recipes.map(r=>r.lines.map(l=>({...l,recipe:r.name})))),columns:[
+          col("الوصفة","recipe"), col("البند","name"), col("الكمية",null,r=>r.qty==null?"":num(r.qty)), col("السعر",null,r=>r.price==null?"":num(r.price)),
+          col("الإجمالي",null,r=>num(r.total))]},
+        {id:"bi_recipe_packs",label:"ذكاء الأعمال — تكلفة العبوة من الوصفة",rows:[].concat(...C.recipes.map(r=>r.packs.map(p=>({...p,recipe:r.name,kg:r.per_kg_loaded})))),columns:[
+          col("الوصفة","recipe"), col("الوزن (جم)",null,r=>num(r.grams)), col("سعر الكيلو بالإضافات",null,r=>num(r.kg)), col("الخلطة",null,r=>num(r.base)),
+          col("التغليف",null,r=>num(r.packaging)), col("قبل العمولة",null,r=>num(r.cost_ex_commission)), col("العمولة",null,r=>num(r.commission)),
+          col("الإجمالي",null,r=>num(r.total))]},
+        {id:"bi_recipe_candidates",label:"ذكاء الأعمال — الأصناف المرشحة لكل وصفة (يحتاج تأكيد الربط)",
+          rows:[].concat(...C.candidates.map(c=>c.items.map(i=>({...i,recipe:c.recipe,g:c.grams,pack:c.pack_total,ex:c.cost_ex_commission})))),columns:[
+          col("الوصفة","recipe"), col("الوزن",null,r=>num(r.g)), col("الكود","code"), col("الصنف","name"), col("الكمية",null,r=>num(r.qty)),
+          col("متوسط سعر البيع",null,r=>r.avg_price==null?"":num(r.avg_price)), col("تكلفة الوصفة قبل العمولة",null,r=>num(r.ex)),
+          col("تكلفة الوصفة بالعمولة",null,r=>num(r.pack)), col("تكلفة النموذج التشغيلية (يونيو)",null,r=>r.model_cost?num(r.model_cost.op):""), col("الحالة","status")]});
     }
     const AB=window.DASH_ABM;
     if(AB&&AB.enabled) out.push(
