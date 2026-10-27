@@ -322,11 +322,14 @@ def test_recipes_section(page):
     text = go(page, "bi_recipes")
     c = page.evaluate("() => window.DASH_RCP")
     assert "49.12" in text and "54.43" in text and "130.74" in text and "65.33" in text
-    assert "مؤكد — قرار الإدارة 27/10/2026" in text and "هامش بعد العمولة" in text
+    assert "مؤكد — قرار الإدارة 27/10/2026" in text and "هامش الوصفة" in text and "عمولة البيع (مصروف بيعي)" in text
+    assert "هامش بعد العمولة" not in text and "التكلفة قبل العمولة" not in text   # commission is never in a cost
     assert "يحتاج بيانات" in text and "عجينة بقري" in text
     for x in c["candidates"]:
         for i in x["items"]:
             if i["status"].startswith("مؤكد"):
-                assert f"{i['margin']:.2f}" in text, i["code"]
+                assert f"{i['margin']:.2f}" in text or f"({abs(i['margin']):.2f})" in text, i["code"]
+    assert "42.55" in text and "112.90" in text and "140.32" in text and "قرار الإدارة: 51.86 × 0.7" in text
+    assert "هامش سالب: استربس الهنا 1 كيلو" in text                     # sold at 100/kg against 140.32
     tabs = page.evaluate("() => window.__abhApp.exportTables().map(t => t.id)")
     assert {"bi_recipes", "bi_recipe_packs", "bi_recipe_candidates"} <= set(tabs)

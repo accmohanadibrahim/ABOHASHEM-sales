@@ -24,8 +24,8 @@ recipe sheets, src/recipes.py); the rest is read from what the full file already
     dictionary with automatic checks plus the data each blocked module needs;
     then «التكلفة المعيارية», «تاريخ المديونية» (the printed balances by representative,
     missing reports «يحتاج بيانات», and the customer roll-forward with its gaps),
-    «وصفات البانيه والاستربس» (the recipe sheets, pack cost with packaging and
-    commission, candidate sales items «يحتاج تأكيد الربط») and «تحليل Abohashem-main»
+    «وصفات البانيه والاستربس» (the recipe sheets, pack cost with packaging — the
+    commission is a selling expense, never in a cost —, candidate sales items «يحتاج تأكيد الربط») and «تحليل Abohashem-main»
     (the zip's scripts run, their tie-outs, salespeople, aging, maturities, items — a
     June 2026 snapshot).
   * «قوائم الدخل 2025» (12 months, June «يحتاج بيانات», and 2025 against the same 2026
@@ -101,7 +101,7 @@ def edits(methods: str, std: dict | None = None, is25: dict | None = None, abm: 
          '          p:"أرصدة العملاء كما طبعتها تقارير المناديب في ستة تواريخ · رصيد أول + فواتير − تحصيلات − مرتجعات مقابل الرصيد المطبوع"});\n'
          '      if(window.DASH_RCP)\n'
          '        push(G2,"dash","bi_recipes",{label:"وصفات البانيه والاستربس",h2:"وصفات البانيه والاستربس والصويا",\n'
-         '          p:"أوراق الخلطة 28/8/2026 كما طُبعت · تكلفة الكيلو والعبوة · التغليف والعمولة منفصلان · الأصناف المرشحة تحتاج تأكيد الربط"});\n'
+         '          p:"أوراق الخلطة 28/8/2026 كما طُبعت · تكلفة الكيلو والعبوة · العمولة مصروف بيعي خارج التكلفة · ربط الأصناف بقرار الإدارة"});\n'
          '      if(window.DASH_ABM&&window.DASH_ABM.enabled)\n'
          '        push(G2,"dash","bi_abm",{label:"تحليل Abohashem-main",h2:"تحليل Abohashem-main — لقطة يونيو 2026",\n'
          '          p:"تشغيل أكواد الملف المضغوط · المناديب والمديونية · أعمار الديون · المستحق خلال شهر · الأصناف · نموذج التسعير"});\n'
