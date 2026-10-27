@@ -322,7 +322,8 @@ def test_recipes_section(page):
     text = go(page, "bi_recipes")
     c = page.evaluate("() => window.DASH_RCP")
     assert "49.12" in text and "54.43" in text and "130.74" in text and "65.33" in text
-    assert "مؤكد — قرار الإدارة 27/10/2026" in text and "هامش بعد العمولة" in text
+    assert "مؤكد — قرار الإدارة 27/10/2026" in text and "هامش الوصفة" in text and "عمولة البيع (مصروف بيعي)" in text
+    assert "هامش بعد العمولة" not in text and "التكلفة قبل العمولة" not in text   # commission is never in a cost
     assert "يحتاج بيانات" in text and "عجينة بقري" in text
     for x in c["candidates"]:
         for i in x["items"]:

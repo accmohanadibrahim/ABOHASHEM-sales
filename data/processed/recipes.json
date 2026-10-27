@@ -8,14 +8,14 @@
   "decision": {
    "date": "2026-10-27",
    "status": "مؤكد — قرار الإدارة 27/10/2026",
-   "note": "التكلفة لا تختلف باختلاف الماركة في البانيه والاستربس فقط · وصفة الصويا 400 جرام = «مفروم صويا 400» · العبوات غير المطبوعة = كيلو الوصفة × الوزن + التغليف · عمولة البيع 2.5% من سعر البيع"
+   "note": "التكلفة لا تختلف باختلاف الماركة في البانيه والاستربس فقط · وصفة الصويا 400 جرام = «مفروم صويا 400» · العبوات غير المطبوعة = كيلو الوصفة × الوزن + التغليف · العمولة لا تدخل أي تكلفة: مصروف بيعي وتسويقي (2.5% من سعر البيع)"
   },
   "price_month": "2026-08",
   "commission_rate": {
    "panee": 0.025,
    "strips": 0.025
   },
-  "commission_note": "عمولة البيع 2.5% من سعر البيع — قرار الإدارة 27/10/2026",
+  "commission_note": "عمولة البيع 2.5% من سعر البيع — مصروف بيعي وتسويقي خارج التكلفة (قرار الإدارة 27/10/2026)",
   "model_cost_note": "تكلفة الوحدة في نموذج التكاليف (يونيو 2026) من DASH_MARGIN كما هي — تاريخ مختلف عن الوصفة"
  },
  "recipes": [
@@ -127,27 +127,27 @@
      "grams": 800,
      "base": 41.4949,
      "packaging": 6.25,
-     "commission": 1.375,
-     "total": 49.1199,
-     "cost_ex_commission": 47.7449,
+     "cost": 47.7449,
+     "printed_commission": 1.375,
+     "printed_total": 49.1199,
      "basis": "مطبوع في ورقة الوصفة — المجاميع متحقَّقة"
     },
     {
      "grams": 900,
      "base": 46.68176,
      "packaging": 6.25,
-     "commission": 1.5,
-     "total": 54.43176,
-     "cost_ex_commission": 52.93176,
+     "cost": 52.93176,
+     "printed_commission": 1.5,
+     "printed_total": 54.43176,
      "basis": "مطبوع في ورقة الوصفة — المجاميع متحقَّقة"
     },
     {
      "grams": 700,
      "base": 36.302,
      "packaging": 6.25,
-     "commission": null,
-     "total": null,
-     "cost_ex_commission": 42.552,
+     "cost": 42.552,
+     "printed_commission": null,
+     "printed_total": null,
      "kilo_used": 51.86,
      "basis": "قرار الإدارة 27/10/2026 — غير مطبوع في الورقة"
     }
@@ -233,18 +233,18 @@
      "grams": 900,
      "base": 123.4131,
      "packaging": 3.2,
-     "commission": 4.125,
-     "total": 130.7381,
-     "cost_ex_commission": 126.6131,
+     "cost": 126.6131,
+     "printed_commission": 4.125,
+     "printed_total": 130.7381,
      "basis": "مطبوع في ورقة الوصفة — المجاميع متحقَّقة"
     },
     {
      "grams": 800,
      "base": 109.696,
      "packaging": 3.2,
-     "commission": null,
-     "total": null,
-     "cost_ex_commission": 112.896,
+     "cost": 112.896,
+     "printed_commission": null,
+     "printed_total": null,
      "kilo_used": 137.12,
      "basis": "قرار الإدارة 27/10/2026 — غير مطبوع في الورقة"
     },
@@ -252,9 +252,9 @@
      "grams": 1000,
      "base": 137.12,
      "packaging": 3.2,
-     "commission": null,
-     "total": null,
-     "cost_ex_commission": 140.32,
+     "cost": 140.32,
+     "printed_commission": null,
+     "printed_total": null,
      "kilo_used": 137.12,
      "basis": "قرار الإدارة 27/10/2026 — غير مطبوع في الورقة"
     }
@@ -315,14 +315,14 @@
    "packs": [
     {
      "grams": 400,
-     "label": "مفروم صويا بروتين اقتصادى ٤٠٠ جرام",
      "base": 59.66116,
      "packaging": 5.67,
-     "commission": 0.0,
-     "total": 65.33116,
-     "base_printed_as": "الطبق",
-     "cost_ex_commission": 65.33116,
-     "basis": "مطبوع في ورقة الوصفة — المجاميع متحقَّقة"
+     "cost": 65.33116,
+     "printed_commission": 0.0,
+     "printed_total": 65.33116,
+     "basis": "مطبوع في ورقة الوصفة — المجاميع متحقَّقة",
+     "label": "مفروم صويا بروتين اقتصادى ٤٠٠ جرام",
+     "base_printed_as": "الطبق"
     }
    ],
    "basis": "مطبوع في ورقة الوصفة — المجاميع متحقَّقة",
@@ -335,8 +335,7 @@
   {
    "recipe": "panee",
    "grams": 800,
-   "pack_total": 49.1199,
-   "cost_ex_commission": 47.7449,
+   "cost": 47.7449,
    "status": "مؤكد — قرار الإدارة 27/10/2026",
    "items": [
     {
@@ -360,13 +359,10 @@
      "status": "مؤكد — قرار الإدارة 27/10/2026",
      "price": 55.0,
      "price_basis": "2026-08",
-     "margin_ex_commission": 7.2551,
-     "margin_ex_pct": 0.1319,
-     "commission": 1.375,
-     "commission_basis": "عمولة البيع 2.5% من سعر البيع — قرار الإدارة 27/10/2026",
-     "cost_with_commission": 49.1199,
-     "margin": 5.8801,
-     "margin_pct": 0.1069
+     "margin": 7.2551,
+     "margin_pct": 0.1319,
+     "selling_commission": 1.375,
+     "selling_commission_basis": "عمولة البيع 2.5% من سعر البيع — مصروف بيعي وتسويقي خارج التكلفة (قرار الإدارة 27/10/2026)"
     },
     {
      "qty": 3935.0,
@@ -386,21 +382,17 @@
      "status": "مؤكد — قرار الإدارة 27/10/2026",
      "price": 51.5095,
      "price_basis": "كل اللقطة",
-     "margin_ex_commission": 3.7646,
-     "margin_ex_pct": 0.0731,
-     "commission": 1.2877,
-     "commission_basis": "عمولة البيع 2.5% من سعر البيع — قرار الإدارة 27/10/2026",
-     "cost_with_commission": 49.0326,
-     "margin": 2.4769,
-     "margin_pct": 0.0481
+     "margin": 3.7646,
+     "margin_pct": 0.0731,
+     "selling_commission": 1.2877,
+     "selling_commission_basis": "عمولة البيع 2.5% من سعر البيع — مصروف بيعي وتسويقي خارج التكلفة (قرار الإدارة 27/10/2026)"
     }
    ]
   },
   {
    "recipe": "panee",
    "grams": 900,
-   "pack_total": 54.43176,
-   "cost_ex_commission": 52.93176,
+   "cost": 52.93176,
    "status": "مؤكد — قرار الإدارة 27/10/2026",
    "items": [
     {
@@ -424,13 +416,10 @@
      "status": "مؤكد — قرار الإدارة 27/10/2026",
      "price": 60.065,
      "price_basis": "2026-08",
-     "margin_ex_commission": 7.1332,
-     "margin_ex_pct": 0.1188,
-     "commission": 1.5016,
-     "commission_basis": "عمولة البيع 2.5% من سعر البيع — قرار الإدارة 27/10/2026",
-     "cost_with_commission": 54.4334,
-     "margin": 5.6316,
-     "margin_pct": 0.0938
+     "margin": 7.1332,
+     "margin_pct": 0.1188,
+     "selling_commission": 1.5016,
+     "selling_commission_basis": "عمولة البيع 2.5% من سعر البيع — مصروف بيعي وتسويقي خارج التكلفة (قرار الإدارة 27/10/2026)"
     },
     {
      "qty": 1310.0,
@@ -450,21 +439,17 @@
      "status": "مؤكد — قرار الإدارة 27/10/2026",
      "price": 56.2424,
      "price_basis": "كل اللقطة",
-     "margin_ex_commission": 3.3106,
-     "margin_ex_pct": 0.0589,
-     "commission": 1.4061,
-     "commission_basis": "عمولة البيع 2.5% من سعر البيع — قرار الإدارة 27/10/2026",
-     "cost_with_commission": 54.3379,
-     "margin": 1.9045,
-     "margin_pct": 0.0339
+     "margin": 3.3106,
+     "margin_pct": 0.0589,
+     "selling_commission": 1.4061,
+     "selling_commission_basis": "عمولة البيع 2.5% من سعر البيع — مصروف بيعي وتسويقي خارج التكلفة (قرار الإدارة 27/10/2026)"
     }
    ]
   },
   {
    "recipe": "panee",
    "grams": 700,
-   "pack_total": null,
-   "cost_ex_commission": 42.552,
+   "cost": 42.552,
    "status": "مؤكد — قرار الإدارة 27/10/2026",
    "items": [
     {
@@ -485,21 +470,17 @@
      "status": "مؤكد — قرار الإدارة 27/10/2026",
      "price": 48.2107,
      "price_basis": "كل اللقطة",
-     "margin_ex_commission": 5.6587,
-     "margin_ex_pct": 0.1174,
-     "commission": 1.2053,
-     "commission_basis": "عمولة البيع 2.5% من سعر البيع — قرار الإدارة 27/10/2026",
-     "cost_with_commission": 43.7573,
-     "margin": 4.4534,
-     "margin_pct": 0.0924
+     "margin": 5.6587,
+     "margin_pct": 0.1174,
+     "selling_commission": 1.2053,
+     "selling_commission_basis": "عمولة البيع 2.5% من سعر البيع — مصروف بيعي وتسويقي خارج التكلفة (قرار الإدارة 27/10/2026)"
     }
    ]
   },
   {
    "recipe": "strips",
    "grams": 900,
-   "pack_total": 130.7381,
-   "cost_ex_commission": 126.6131,
+   "cost": 126.6131,
    "status": "مؤكد — قرار الإدارة 27/10/2026",
    "items": [
     {
@@ -523,13 +504,10 @@
      "status": "مؤكد — قرار الإدارة 27/10/2026",
      "price": 164.1795,
      "price_basis": "2026-08",
-     "margin_ex_commission": 37.5664,
-     "margin_ex_pct": 0.2288,
-     "commission": 4.1045,
-     "commission_basis": "عمولة البيع 2.5% من سعر البيع — قرار الإدارة 27/10/2026",
-     "cost_with_commission": 130.7176,
-     "margin": 33.4619,
-     "margin_pct": 0.2038
+     "margin": 37.5664,
+     "margin_pct": 0.2288,
+     "selling_commission": 4.1045,
+     "selling_commission_basis": "عمولة البيع 2.5% من سعر البيع — مصروف بيعي وتسويقي خارج التكلفة (قرار الإدارة 27/10/2026)"
     },
     {
      "qty": 795.0,
@@ -552,21 +530,17 @@
      "status": "مؤكد — قرار الإدارة 27/10/2026",
      "price": 155.137,
      "price_basis": "2026-08",
-     "margin_ex_commission": 28.5239,
-     "margin_ex_pct": 0.1839,
-     "commission": 3.8784,
-     "commission_basis": "عمولة البيع 2.5% من سعر البيع — قرار الإدارة 27/10/2026",
-     "cost_with_commission": 130.4915,
-     "margin": 24.6455,
-     "margin_pct": 0.1589
+     "margin": 28.5239,
+     "margin_pct": 0.1839,
+     "selling_commission": 3.8784,
+     "selling_commission_basis": "عمولة البيع 2.5% من سعر البيع — مصروف بيعي وتسويقي خارج التكلفة (قرار الإدارة 27/10/2026)"
     }
    ]
   },
   {
    "recipe": "strips",
    "grams": 800,
-   "pack_total": null,
-   "cost_ex_commission": 112.896,
+   "cost": 112.896,
    "status": "مؤكد — قرار الإدارة 27/10/2026",
    "items": [
     {
@@ -591,21 +565,17 @@
      "status": "مؤكد — قرار الإدارة 27/10/2026",
      "price": 149.8396,
      "price_basis": "كل اللقطة",
-     "margin_ex_commission": 36.9436,
-     "margin_ex_pct": 0.2466,
-     "commission": 3.746,
-     "commission_basis": "عمولة البيع 2.5% من سعر البيع — قرار الإدارة 27/10/2026",
-     "cost_with_commission": 116.642,
-     "margin": 33.1976,
-     "margin_pct": 0.2216
+     "margin": 36.9436,
+     "margin_pct": 0.2466,
+     "selling_commission": 3.746,
+     "selling_commission_basis": "عمولة البيع 2.5% من سعر البيع — مصروف بيعي وتسويقي خارج التكلفة (قرار الإدارة 27/10/2026)"
     }
    ]
   },
   {
    "recipe": "strips",
    "grams": 1000,
-   "pack_total": null,
-   "cost_ex_commission": 140.32,
+   "cost": 140.32,
    "status": "مؤكد — قرار الإدارة 27/10/2026",
    "items": [
     {
@@ -629,13 +599,10 @@
      "status": "مؤكد — قرار الإدارة 27/10/2026",
      "price": 102.4615,
      "price_basis": "2026-08",
-     "margin_ex_commission": -37.8585,
-     "margin_ex_pct": -0.3695,
-     "commission": 2.5615,
-     "commission_basis": "عمولة البيع 2.5% من سعر البيع — قرار الإدارة 27/10/2026",
-     "cost_with_commission": 142.8815,
-     "margin": -40.42,
-     "margin_pct": -0.3945
+     "margin": -37.8585,
+     "margin_pct": -0.3695,
+     "selling_commission": 2.5615,
+     "selling_commission_basis": "عمولة البيع 2.5% من سعر البيع — مصروف بيعي وتسويقي خارج التكلفة (قرار الإدارة 27/10/2026)"
     },
     {
      "qty": 10.0,
@@ -654,21 +621,17 @@
      "status": "مؤكد — قرار الإدارة 27/10/2026",
      "price": 145.0,
      "price_basis": "2026-08",
-     "margin_ex_commission": 4.68,
-     "margin_ex_pct": 0.0323,
-     "commission": 3.625,
-     "commission_basis": "عمولة البيع 2.5% من سعر البيع — قرار الإدارة 27/10/2026",
-     "cost_with_commission": 143.945,
-     "margin": 1.055,
-     "margin_pct": 0.0073
+     "margin": 4.68,
+     "margin_pct": 0.0323,
+     "selling_commission": 3.625,
+     "selling_commission_basis": "عمولة البيع 2.5% من سعر البيع — مصروف بيعي وتسويقي خارج التكلفة (قرار الإدارة 27/10/2026)"
     }
    ]
   },
   {
    "recipe": "soya",
    "grams": 400,
-   "pack_total": 65.33116,
-   "cost_ex_commission": 65.33116,
+   "cost": 65.33116,
    "status": "مؤكد — قرار الإدارة 27/10/2026",
    "items": [
     {
@@ -688,11 +651,6 @@
      "status": "مؤكد — قرار الإدارة 27/10/2026",
      "price": 71.8297,
      "price_basis": "2026-08",
-     "margin_ex_commission": 6.4985,
-     "margin_ex_pct": 0.0905,
-     "commission": 0.0,
-     "commission_basis": "مطبوع في ورقة الوصفة — المجاميع متحقَّقة",
-     "cost_with_commission": 65.3312,
      "margin": 6.4985,
      "margin_pct": 0.0905
     }

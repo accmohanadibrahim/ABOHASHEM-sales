@@ -18,19 +18,22 @@ The PDFs' text comes out of pdftotext partly garbled, so the figures are transcr
 Nothing is estimated:
   * the batch output the kilo cost was divided by is not printed — it is derived
     (batch total ÷ kilo cost) and labelled so;
-  * the commission is kept apart from the material + packaging cost;
+  * the commission is in no cost: it is a selling and marketing expense (management,
+    27/10/2026). A pack's cost is the loaded kilo × weight + packaging; what the sheet prints
+    with the commission is kept beside it, labelled;
   * the sheets do not name the sales item. Items of the latest sales snapshot with the same
     product word and weight are listed as candidates, each «يحتاج تأكيد الربط» — the brand
     and pack (طبق / كيس / اسباشيل) are not on the sheet, so no link is asserted — unless
     management confirmed it (``CONFIRMED``, 27/10/2026: الهنا and اسبشيال share one recipe
     cost, and the soya 400 g sheet is «مفروم صويا 400»). A confirmed item gets its recipe
     margin: its average selling price in August 2026 (the sheets' month; the whole snapshot
-    when it sold nothing in August) less the pack cost, before and after commission;
+    when it sold nothing in August) less the pack cost;
   * the 700 g panée and 800 g / 1 kg strips packs are not printed: management costed them
     (27/10/2026) as the sheet's kilo × weight + its packaging (``DECISION_PACKS``), checked
     against the sheet;
   * commission on panée and strips is 2.5% of the item's own selling price (management,
-    27/10/2026; every commission the sheets print is 2.5% of a whole price);
+    27/10/2026; every commission the sheets print is 2.5% of a whole price), shown beside the
+    margin as a selling expense;
   * products and weights with no sheet or decision (عجينة بقري, …) are «يحتاج بيانات».
 
     python3 -m src.recipes        # from executive_dashboard/
@@ -61,12 +64,13 @@ DECISION = "مؤكد — قرار الإدارة 27/10/2026"
 # And: «التكلفة لا تختلف فى اختلاف البراند فقط فى البانيه والاستربس» — every brand of those two.
 CONFIRMED = {"panee": {"all_brands": True}, "strips": {"all_brands": True}, "soya": {"codes": {"10"}}}
 CONFIRMED_NOTE = ("التكلفة لا تختلف باختلاف الماركة في البانيه والاستربس فقط · وصفة الصويا 400 جرام = «مفروم صويا 400»"
-                  " · العبوات غير المطبوعة = كيلو الوصفة × الوزن + التغليف · عمولة البيع 2.5% من سعر البيع")
+                  " · العبوات غير المطبوعة = كيلو الوصفة × الوزن + التغليف"
+                  " · العمولة لا تدخل أي تكلفة: مصروف بيعي وتسويقي (2.5% من سعر البيع)")
 # «تكلفة التعبئة لأى استربس 3.2 جنيه وعمولة البيه هى 2.5 % من سعر البيع» (27/10/2026). The sheets agree:
 # every commission they print is 2.5% of a round price (1.375 = 2.5% × 55, 1.5 × 60, 4.125 × 165), checked
 # in check(). An item's commission is that rate × its own selling price; the soya sheet prints none.
 COMMISSION_RATE = {"panee": 0.025, "strips": 0.025}
-COMMISSION_NOTE = "عمولة البيع 2.5% من سعر البيع — قرار الإدارة 27/10/2026"
+COMMISSION_NOTE = "عمولة البيع 2.5% من سعر البيع — مصروف بيعي وتسويقي خارج التكلفة (قرار الإدارة 27/10/2026)"
 # Packs the sheets do not print, costed by management (27/10/2026): «تكلفة كيلو البانيه هى 51.86 وقيمة
 # تغليف هى 6.25 اذن تكلفة البانيه ٧٠٠ هى 42.552 … تكلفة كيلو الاستربس هى 137.12 وتكلفة تغليف هى 3.2
 # اذن تكلفة الاستربس ٨٠٠ هى 112.896». The kilo cost management used must be the sheet's within 0.01;
@@ -247,19 +251,12 @@ def link(recipe: str, pack: dict, it: dict) -> dict:
                     else (it["avg_price"], "كل اللقطة"))
     out = {**it, "status": DECISION, "price": price, "price_basis": basis}
     if price:
-        out["margin_ex_commission"] = round(price - pack["cost_ex_commission"], 4)
-        out["margin_ex_pct"] = round(out["margin_ex_commission"] / price, 4)
+        out["margin"] = round(price - pack["cost"], 4)            # commission is not a cost (selling expense)
+        out["margin_pct"] = round(out["margin"] / price, 4)
         rate = COMMISSION_RATE.get(recipe)
-        if rate is not None:                                # the sales rate × this item's own price
-            out["commission"] = round(price * rate, 4)
-            out["commission_basis"] = COMMISSION_NOTE
-        elif pack["total"] is not None:                     # as printed (soya: none)
-            out["commission"] = pack["commission"]
-            out["commission_basis"] = BASIS
-        if "commission" in out:
-            out["cost_with_commission"] = round(pack["cost_ex_commission"] + out["commission"], 4)
-            out["margin"] = round(price - out["cost_with_commission"], 4)
-            out["margin_pct"] = round(out["margin"] / price, 4)
+        if rate is not None:          # shown beside the margin as a selling and marketing expense, never inside a cost
+            out["selling_commission"] = round(price * rate, 4)
+            out["selling_commission_basis"] = COMMISSION_NOTE
     return out
 
 
@@ -276,10 +273,15 @@ def build() -> dict:
             "total": r["total"], "per_kg": round(r["per_kg"], 5),
             "output_kg": out_kg, "output_kg_basis": "مطبوع" if "batch_kg" in r else "محسوب: الإجمالي ÷ سعر الكيلو — غير مطبوع",
             "kg_add": [{"name": n, "value": v} for n, v in r["kg_add"]], "per_kg_loaded": round(r["per_kg_loaded"], 5),
-            "packs": [{**p, "base": round(p["base"], 5), "total": round(p["total"], 5),
-                       "cost_ex_commission": round(p["base"] + p["packaging"], 5), "basis": BASIS} for p in r["packs"]]
+            # The pack cost leaves the commission out: it is a selling and marketing expense
+            # (management, 27/10/2026). What the sheet prints with it is kept, labelled, beside it.
+            "packs": [{"grams": p["grams"], "base": round(p["base"], 5), "packaging": p["packaging"],
+                       "cost": round(p["base"] + p["packaging"], 5), "printed_commission": p["commission"],
+                       "printed_total": round(p["total"], 5), "basis": BASIS,
+                       **({"label": p["label"]} if "label" in p else {}),
+                       **({"base_printed_as": p["base_printed_as"]} if "base_printed_as" in p else {})} for p in r["packs"]]
             + [{"grams": p["grams"], "base": round(p["kilo"] * p["grams"] / 1000, 5), "packaging": p["packaging"],
-                "commission": None, "total": None, "cost_ex_commission": p["cost"], "kilo_used": p["kilo"],
+                "cost": p["cost"], "printed_commission": None, "printed_total": None, "kilo_used": p["kilo"],
                 "basis": PACK_DECISION} for p in DECISION_PACKS.get(r["key"], ())],
             "basis": BASIS, "source": f"data/raw/recipes/{r['file']}", "uploaded_as": r["uploaded_as"],
             "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
@@ -298,8 +300,7 @@ def build() -> dict:
             its = sorted((it for it in items.values() if it["family"] == r["family"] and it["grams"] == p["grams"]),
                          key=lambda x: -x["qty"])
             linked = [link(r["key"], p, it) for it in its]
-            candidates.append({"recipe": r["key"], "grams": p["grams"], "pack_total": p["total"],
-                               "cost_ex_commission": p["cost_ex_commission"],
+            candidates.append({"recipe": r["key"], "grams": p["grams"], "cost": p["cost"],
                                "status": DECISION if linked and all(i["status"] == DECISION for i in linked) else LINK,
                                "items": linked})
     no_sheet = []
@@ -321,7 +322,7 @@ def main() -> int:
     data = build()
     OUT_JSON.write_text(json.dumps(data, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     for r in data["recipes"]:
-        packs = " | ".join(f"{p['grams']} g {p['cost_ex_commission']:.3f}" for p in r["packs"])
+        packs = " | ".join(f"{p['grams']} g {p['cost']:.3f}" for p in r["packs"])
         print(f"{r['name']}: batch {r['total']:,.2f} · kilo {r['per_kg_loaded']:.4f} · {packs}")
     for c in data["candidates"]:
         print(f"  {c['recipe']} {c['grams']} g → candidates: {', '.join(i['code'] for i in c['items']) or '—'}")
