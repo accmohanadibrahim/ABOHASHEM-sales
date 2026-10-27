@@ -85,8 +85,8 @@ def test_every_script_ran(data):
     assert "/tmp" not in json.dumps(data, ensure_ascii=False)
 
 
-@pytest.mark.skipif(not (abm.has("fitz") and abm.has("openpyxl") and shutil.which("pdftotext")),
-                    reason="needs PyMuPDF, openpyxl and pdftotext (the abohashem-main CI job)")
+@pytest.mark.skipif(not (abm.has("fitz") and abm.has("openpyxl") and shutil.which("pdftotext") and shutil.which("soffice")),
+                    reason="needs PyMuPDF, openpyxl, pdftotext and LibreOffice (the abohashem-main CI job)")
 def test_full_run_gives_the_committed_file(data):
     assert abm.build() == data
 

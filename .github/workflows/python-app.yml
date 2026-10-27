@@ -58,7 +58,9 @@ jobs:
         python-version: "3.10"
     - name: Install the tools its scripts need
       run: |
+        # pdftotext reads the purchase PDFs; the WAC scripts recalculate their workbooks in LibreOffice
         sudo apt-get update && sudo apt-get install -y poppler-utils
+        sudo apt-get install -y --no-install-recommends libreoffice-calc
         python -m pip install --upgrade pip
         pip install pymupdf openpyxl pytest
     - name: Run the Abohashem-main code
@@ -66,6 +68,6 @@ jobs:
       run: |
         cp ../data/processed/abohashem_main.json /tmp/committed.json
         python -m src.abohashem_main
-        cmp /tmp/committed.json ../data/processed/abohashem_main.json
+        diff /tmp/committed.json ../data/processed/abohashem_main.json
     - name: Test
       run: pytest executive_dashboard/tests/test_abohashem_main.py -v

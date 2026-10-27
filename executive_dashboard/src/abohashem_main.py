@@ -17,7 +17,7 @@ written. Then:
     ``invoices.json``; ``parse_salespeople.py`` is run on the nine salesperson reports
     named in ``salespeople.json`` only — on its own folder it would read every PDF;
   * ``model/costing_pricing_model.py`` must still tie to the June income statement, and
-    ``wac_august_2026.py`` / ``wac_september_2026.py`` (pdftotext) must rebuild their
+    ``wac_august_2026.py`` / ``wac_september_2026.py`` (pdftotext, LibreOffice) must rebuild their
     committed reports.
 A step whose tool is missing is recorded «لم يُشغَّل» with the reason, not estimated.
 
@@ -168,8 +168,8 @@ def model(work: Path) -> tuple[list[dict], dict]:
         rc, log = run([sys.executable, "build_workbook.py"], md)
         out.append(step("model/build_workbook.py", "يعمل" if rc == 0 else "فشل", f"exit {rc}", log))
     for s, report in (("wac_august_2026.py", "WAC_AUGUST_2026_REPORT.md"), ("wac_september_2026.py", "WAC_SEPTEMBER_2026_REPORT.md")):
-        if not shutil.which("pdftotext") or not has("openpyxl"):
-            out.append(step(f"model/{s}", "لم يُشغَّل", "يحتاج pdftotext (poppler-utils) و openpyxl"))
+        if not (shutil.which("pdftotext") and shutil.which("soffice") and has("openpyxl")):
+            out.append(step(f"model/{s}", "لم يُشغَّل", "يحتاج pdftotext (poppler-utils) و LibreOffice (soffice) و openpyxl"))
             continue
         rc, log = run([sys.executable, s], md)
         same = rc == 0 and (work / report).read_bytes() == (SRC_DIR / report).read_bytes()
@@ -281,6 +281,8 @@ def main() -> int:
         return 0
     for r in data["runs"]:
         print(f"  {r['step']:40} {r['status']}{' — ' + r['detail'] if r['detail'] else ''}")
+        if r["status"].startswith("فشل") or "يختلف" in r["status"]:
+            print("    " + "\n    ".join(r["log"]))
     s = data["summary"]
     print(f"sales {s['total_sales_EGP']:,.2f} · debt {s['total_outstanding_debt_EGP']:,.2f} · "
           f"{sum(c['ok'] for c in data['checks'])}/{len(data['checks'])} tie-outs → {OUT_JSON.relative_to(REPO_ROOT)}")
