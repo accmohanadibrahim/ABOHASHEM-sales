@@ -26,9 +26,11 @@ Nothing is estimated:
     cost, and the soya 400 g sheet is «مفروم صويا 400»). A confirmed item gets its recipe
     margin: its average selling price in August 2026 (the sheets' month; the whole snapshot
     when it sold nothing in August) less the pack cost, before and after commission;
-  * the 700 g panée and 800 g strips packs are not printed: management costed them (27/10/2026)
-    as the sheet's kilo × weight + its packaging (``DECISION_PACKS``), checked against the
-    sheet; their commission was not given and stays «يحتاج بيانات»;
+  * the 700 g panée and 800 g / 1 kg strips packs are not printed: management costed them
+    (27/10/2026) as the sheet's kilo × weight + its packaging (``DECISION_PACKS``), checked
+    against the sheet;
+  * commission on panée and strips is 2.5% of the item's own selling price (management,
+    27/10/2026; every commission the sheets print is 2.5% of a whole price);
   * products and weights with no sheet or decision (عجينة بقري, …) are «يحتاج بيانات».
 
     python3 -m src.recipes        # from executive_dashboard/
@@ -56,16 +58,23 @@ BASIS = "مطبوع في ورقة الوصفة — المجاميع متحقَّ
 LINK = "يحتاج تأكيد الربط"
 DECISION = "مؤكد — قرار الإدارة 27/10/2026"
 # Management decision 27/10/2026: «براند الهنا واسبشيال نفس السعر والصويا ٤٠٠ هو مفروم صويا ٤٠٠».
-CONFIRMED = {"panee": {"brands": {"الهنا", "اسبشيال"}}, "strips": {"brands": {"الهنا", "اسبشيال"}},
-             "soya": {"codes": {"10"}}}
-CONFIRMED_NOTE = ("الهنا واسبشيال نفس تكلفة الوصفة في البانيه والاستربس فقط · وصفة الصويا 400 جرام = «مفروم صويا 400»"
-                  " · بانيه 700 واستربس 800 = كيلو الوصفة × الوزن + التغليف")
+# And: «التكلفة لا تختلف فى اختلاف البراند فقط فى البانيه والاستربس» — every brand of those two.
+CONFIRMED = {"panee": {"all_brands": True}, "strips": {"all_brands": True}, "soya": {"codes": {"10"}}}
+CONFIRMED_NOTE = ("التكلفة لا تختلف باختلاف الماركة في البانيه والاستربس فقط · وصفة الصويا 400 جرام = «مفروم صويا 400»"
+                  " · العبوات غير المطبوعة = كيلو الوصفة × الوزن + التغليف · عمولة البيع 2.5% من سعر البيع")
+# «تكلفة التعبئة لأى استربس 3.2 جنيه وعمولة البيه هى 2.5 % من سعر البيع» (27/10/2026). The sheets agree:
+# every commission they print is 2.5% of a round price (1.375 = 2.5% × 55, 1.5 × 60, 4.125 × 165), checked
+# in check(). An item's commission is that rate × its own selling price; the soya sheet prints none.
+COMMISSION_RATE = {"panee": 0.025, "strips": 0.025}
+COMMISSION_NOTE = "عمولة البيع 2.5% من سعر البيع — قرار الإدارة 27/10/2026"
 # Packs the sheets do not print, costed by management (27/10/2026): «تكلفة كيلو البانيه هى 51.86 وقيمة
 # تغليف هى 6.25 اذن تكلفة البانيه ٧٠٠ هى 42.552 … تكلفة كيلو الاستربس هى 137.12 وتكلفة تغليف هى 3.2
 # اذن تكلفة الاستربس ٨٠٠ هى 112.896». The kilo cost management used must be the sheet's within 0.01;
-# no commission was given for these packs, so it stays «يحتاج بيانات» and the margin is before commission.
+# their commission is the sales rate below (COMMISSION_RATE). The 1 kg strips pack follows the same rule
+# with the packaging management set for any strips (3.2).
 DECISION_PACKS = {"panee": [{"grams": 700, "kilo": 51.86, "packaging": 6.25, "cost": 42.552}],
-                  "strips": [{"grams": 800, "kilo": 137.12, "packaging": 3.2, "cost": 112.896}]}
+                  "strips": [{"grams": 800, "kilo": 137.12, "packaging": 3.2, "cost": 112.896},
+                             {"grams": 1000, "kilo": 137.12, "packaging": 3.2, "cost": 140.32}]}
 PACK_DECISION = "قرار الإدارة 27/10/2026 — غير مطبوع في الورقة"
 KILO_TOL = 0.01
 PRICE_MONTH = "2026-08"
@@ -143,6 +152,10 @@ def check(r: dict, nums: set[float]) -> list[str]:
             errs.append(f"{k}: {r['total']} ÷ {r['batch_kg']} ≠ {r['per_kg']}")
     if abs(r["per_kg"] + sum(v for _, v in r["kg_add"]) - r["per_kg_loaded"]) > 1e-4:
         errs.append(f"{k}: kilo cost + additions ≠ {r['per_kg_loaded']}")
+    rate = COMMISSION_RATE.get(k)
+    for p in r["packs"]:
+        if rate and p["commission"] and abs(round(p["commission"] / rate, 6) - round(p["commission"] / rate)) > 1e-6:
+            errs.append(f"{k}: printed commission {p['commission']} is not {rate:.1%} of a whole price")
     for p in DECISION_PACKS.get(k, ()):
         if abs(p["kilo"] - r["per_kg_loaded"]) > KILO_TOL:
             errs.append(f"{k}: management kilo {p['kilo']} is not the sheet's {r['per_kg_loaded']}")
@@ -228,7 +241,7 @@ def model_cost(margin: dict) -> dict[str, dict]:
 def link(recipe: str, pack: dict, it: dict) -> dict:
     """The candidate item, confirmed (with its recipe margin) when management's decision covers it."""
     c = CONFIRMED.get(recipe, {})
-    if it["brand"] not in c.get("brands", ()) and it["code"] not in c.get("codes", ()):
+    if not c.get("all_brands") and it["code"] not in c.get("codes", ()):
         return {**it, "status": LINK}
     price, basis = ((it["month_price"], PRICE_MONTH) if it["month_price"] is not None
                     else (it["avg_price"], "كل اللقطة"))
@@ -236,8 +249,16 @@ def link(recipe: str, pack: dict, it: dict) -> dict:
     if price:
         out["margin_ex_commission"] = round(price - pack["cost_ex_commission"], 4)
         out["margin_ex_pct"] = round(out["margin_ex_commission"] / price, 4)
-        if pack["total"] is not None:                       # commission known
-            out["margin"] = round(price - pack["total"], 4)
+        rate = COMMISSION_RATE.get(recipe)
+        if rate is not None:                                # the sales rate × this item's own price
+            out["commission"] = round(price * rate, 4)
+            out["commission_basis"] = COMMISSION_NOTE
+        elif pack["total"] is not None:                     # as printed (soya: none)
+            out["commission"] = pack["commission"]
+            out["commission_basis"] = BASIS
+        if "commission" in out:
+            out["cost_with_commission"] = round(pack["cost_ex_commission"] + out["commission"], 4)
+            out["margin"] = round(price - out["cost_with_commission"], 4)
             out["margin_pct"] = round(out["margin"] / price, 4)
     return out
 
@@ -291,7 +312,7 @@ def build() -> dict:
         "meta": {"basis": BASIS, "as_of": "2026-08-28", "snapshot": SNAPSHOT, "snapshot_as_of": snap.get("as_of"),
                  "link_rule": "الصنف المرشح: اسمه يحوي كلمة المنتج ووزن العبوة نفسه — الماركة ونوع العبوة غير مطبوعين في ورقة الوصفة",
                  "decision": {"date": "2026-10-27", "status": DECISION, "note": CONFIRMED_NOTE},
-                 "price_month": PRICE_MONTH,
+                 "price_month": PRICE_MONTH, "commission_rate": COMMISSION_RATE, "commission_note": COMMISSION_NOTE,
                  "model_cost_note": "تكلفة الوحدة في نموذج التكاليف (يونيو 2026) من DASH_MARGIN كما هي — تاريخ مختلف عن الوصفة"},
         "recipes": recipes, "candidates": candidates, "no_sheet": no_sheet}
 

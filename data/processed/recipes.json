@@ -8,9 +8,14 @@
   "decision": {
    "date": "2026-10-27",
    "status": "مؤكد — قرار الإدارة 27/10/2026",
-   "note": "الهنا واسبشيال نفس تكلفة الوصفة في البانيه والاستربس فقط · وصفة الصويا 400 جرام = «مفروم صويا 400» · بانيه 700 واستربس 800 = كيلو الوصفة × الوزن + التغليف"
+   "note": "التكلفة لا تختلف باختلاف الماركة في البانيه والاستربس فقط · وصفة الصويا 400 جرام = «مفروم صويا 400» · العبوات غير المطبوعة = كيلو الوصفة × الوزن + التغليف · عمولة البيع 2.5% من سعر البيع"
   },
   "price_month": "2026-08",
+  "commission_rate": {
+   "panee": 0.025,
+   "strips": 0.025
+  },
+  "commission_note": "عمولة البيع 2.5% من سعر البيع — قرار الإدارة 27/10/2026",
   "model_cost_note": "تكلفة الوحدة في نموذج التكاليف (يونيو 2026) من DASH_MARGIN كما هي — تاريخ مختلف عن الوصفة"
  },
  "recipes": [
@@ -242,6 +247,16 @@
      "cost_ex_commission": 112.896,
      "kilo_used": 137.12,
      "basis": "قرار الإدارة 27/10/2026 — غير مطبوع في الورقة"
+    },
+    {
+     "grams": 1000,
+     "base": 137.12,
+     "packaging": 3.2,
+     "commission": null,
+     "total": null,
+     "cost_ex_commission": 140.32,
+     "kilo_used": 137.12,
+     "basis": "قرار الإدارة 27/10/2026 — غير مطبوع في الورقة"
     }
    ],
    "basis": "مطبوع في ورقة الوصفة — المجاميع متحقَّقة",
@@ -347,6 +362,9 @@
      "price_basis": "2026-08",
      "margin_ex_commission": 7.2551,
      "margin_ex_pct": 0.1319,
+     "commission": 1.375,
+     "commission_basis": "عمولة البيع 2.5% من سعر البيع — قرار الإدارة 27/10/2026",
+     "cost_with_commission": 49.1199,
      "margin": 5.8801,
      "margin_pct": 0.1069
     },
@@ -370,8 +388,11 @@
      "price_basis": "كل اللقطة",
      "margin_ex_commission": 3.7646,
      "margin_ex_pct": 0.0731,
-     "margin": 2.3896,
-     "margin_pct": 0.0464
+     "commission": 1.2877,
+     "commission_basis": "عمولة البيع 2.5% من سعر البيع — قرار الإدارة 27/10/2026",
+     "cost_with_commission": 49.0326,
+     "margin": 2.4769,
+     "margin_pct": 0.0481
     }
    ]
   },
@@ -405,7 +426,10 @@
      "price_basis": "2026-08",
      "margin_ex_commission": 7.1332,
      "margin_ex_pct": 0.1188,
-     "margin": 5.6332,
+     "commission": 1.5016,
+     "commission_basis": "عمولة البيع 2.5% من سعر البيع — قرار الإدارة 27/10/2026",
+     "cost_with_commission": 54.4334,
+     "margin": 5.6316,
      "margin_pct": 0.0938
     },
     {
@@ -428,8 +452,11 @@
      "price_basis": "كل اللقطة",
      "margin_ex_commission": 3.3106,
      "margin_ex_pct": 0.0589,
-     "margin": 1.8106,
-     "margin_pct": 0.0322
+     "commission": 1.4061,
+     "commission_basis": "عمولة البيع 2.5% من سعر البيع — قرار الإدارة 27/10/2026",
+     "cost_with_commission": 54.3379,
+     "margin": 1.9045,
+     "margin_pct": 0.0339
     }
    ]
   },
@@ -459,7 +486,12 @@
      "price": 48.2107,
      "price_basis": "كل اللقطة",
      "margin_ex_commission": 5.6587,
-     "margin_ex_pct": 0.1174
+     "margin_ex_pct": 0.1174,
+     "commission": 1.2053,
+     "commission_basis": "عمولة البيع 2.5% من سعر البيع — قرار الإدارة 27/10/2026",
+     "cost_with_commission": 43.7573,
+     "margin": 4.4534,
+     "margin_pct": 0.0924
     }
    ]
   },
@@ -493,8 +525,11 @@
      "price_basis": "2026-08",
      "margin_ex_commission": 37.5664,
      "margin_ex_pct": 0.2288,
-     "margin": 33.4414,
-     "margin_pct": 0.2037
+     "commission": 4.1045,
+     "commission_basis": "عمولة البيع 2.5% من سعر البيع — قرار الإدارة 27/10/2026",
+     "cost_with_commission": 130.7176,
+     "margin": 33.4619,
+     "margin_pct": 0.2038
     },
     {
      "qty": 795.0,
@@ -519,8 +554,11 @@
      "price_basis": "2026-08",
      "margin_ex_commission": 28.5239,
      "margin_ex_pct": 0.1839,
-     "margin": 24.3989,
-     "margin_pct": 0.1573
+     "commission": 3.8784,
+     "commission_basis": "عمولة البيع 2.5% من سعر البيع — قرار الإدارة 27/10/2026",
+     "cost_with_commission": 130.4915,
+     "margin": 24.6455,
+     "margin_pct": 0.1589
     }
    ]
   },
@@ -554,7 +592,75 @@
      "price": 149.8396,
      "price_basis": "كل اللقطة",
      "margin_ex_commission": 36.9436,
-     "margin_ex_pct": 0.2466
+     "margin_ex_pct": 0.2466,
+     "commission": 3.746,
+     "commission_basis": "عمولة البيع 2.5% من سعر البيع — قرار الإدارة 27/10/2026",
+     "cost_with_commission": 116.642,
+     "margin": 33.1976,
+     "margin_pct": 0.2216
+    }
+   ]
+  },
+  {
+   "recipe": "strips",
+   "grams": 1000,
+   "pack_total": null,
+   "cost_ex_commission": 140.32,
+   "status": "مؤكد — قرار الإدارة 27/10/2026",
+   "items": [
+    {
+     "qty": 32.25,
+     "bonus_qty": 0.0,
+     "revenue": 3475.0,
+     "paid_qty": 32.25,
+     "code": "440",
+     "name": "استربس الهنا 1 كيلو",
+     "family": "استربس",
+     "grams": 1000,
+     "brand": "الهنا",
+     "avg_price": 107.7519,
+     "month_price": 102.4615,
+     "month_qty": 16.25,
+     "model_cost": {
+      "gross": 46.8549,
+      "op": 88.4305,
+      "month": "2026-06"
+     },
+     "status": "مؤكد — قرار الإدارة 27/10/2026",
+     "price": 102.4615,
+     "price_basis": "2026-08",
+     "margin_ex_commission": -37.8585,
+     "margin_ex_pct": -0.3695,
+     "commission": 2.5615,
+     "commission_basis": "عمولة البيع 2.5% من سعر البيع — قرار الإدارة 27/10/2026",
+     "cost_with_commission": 142.8815,
+     "margin": -40.42,
+     "margin_pct": -0.3945
+    },
+    {
+     "qty": 10.0,
+     "bonus_qty": 0.0,
+     "revenue": 1450.0,
+     "paid_qty": 10.0,
+     "code": "454",
+     "name": "كيلو استربس",
+     "family": "استربس",
+     "grams": 1000,
+     "brand": "غير مصنف",
+     "avg_price": 145.0,
+     "month_price": 145.0,
+     "month_qty": 10.0,
+     "model_cost": null,
+     "status": "مؤكد — قرار الإدارة 27/10/2026",
+     "price": 145.0,
+     "price_basis": "2026-08",
+     "margin_ex_commission": 4.68,
+     "margin_ex_pct": 0.0323,
+     "commission": 3.625,
+     "commission_basis": "عمولة البيع 2.5% من سعر البيع — قرار الإدارة 27/10/2026",
+     "cost_with_commission": 143.945,
+     "margin": 1.055,
+     "margin_pct": 0.0073
     }
    ]
   },
@@ -584,6 +690,9 @@
      "price_basis": "2026-08",
      "margin_ex_commission": 6.4985,
      "margin_ex_pct": 0.0905,
+     "commission": 0.0,
+     "commission_basis": "مطبوع في ورقة الوصفة — المجاميع متحقَّقة",
+     "cost_with_commission": 65.3312,
      "margin": 6.4985,
      "margin_pct": 0.0905
     }
@@ -591,44 +700,6 @@
   }
  ],
  "no_sheet": [
-  {
-   "qty": 32.25,
-   "bonus_qty": 0.0,
-   "revenue": 3475.0,
-   "paid_qty": 32.25,
-   "code": "440",
-   "name": "استربس الهنا 1 كيلو",
-   "family": "استربس",
-   "grams": 1000,
-   "brand": "الهنا",
-   "avg_price": 107.7519,
-   "month_price": 102.4615,
-   "month_qty": 16.25,
-   "model_cost": {
-    "gross": 46.8549,
-    "op": 88.4305,
-    "month": "2026-06"
-   },
-   "reason": "لا ورقة وصفة لوزن 1000 جرام",
-   "status": "يحتاج بيانات"
-  },
-  {
-   "qty": 10.0,
-   "bonus_qty": 0.0,
-   "revenue": 1450.0,
-   "paid_qty": 10.0,
-   "code": "454",
-   "name": "كيلو استربس",
-   "family": "استربس",
-   "grams": 1000,
-   "brand": "غير مصنف",
-   "avg_price": 145.0,
-   "month_price": 145.0,
-   "month_qty": 10.0,
-   "model_cost": null,
-   "reason": "لا ورقة وصفة لوزن 1000 جرام",
-   "status": "يحتاج بيانات"
-  },
   {
    "qty": 2237.0,
    "bonus_qty": 0.0,

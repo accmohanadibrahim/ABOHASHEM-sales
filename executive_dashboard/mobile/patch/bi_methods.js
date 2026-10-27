@@ -634,7 +634,7 @@
   biRecipesBody(X,T,api){
     const C=window.DASH_RCP;
     if(!C) return [this.biNeed("birc0","أوراق الوصفات (recipes.json) غير مضمنة في هذا الملف.")];
-    const out=[], d=x=>this.opsDmy(x), n2=v=>v==null?{v:"—"}:{v:(+v).toFixed(2)};
+    const out=[], d=x=>this.opsDmy(x), n2=v=>v==null?{v:"—"}:{v:(+v).toFixed(2)}, rate=C.meta.commission_rate||{};
     out.push(this.kpiTiles(C.recipes.map((r,i)=>[r.name,n2(r.per_kg_loaded).v+" ج.م/كجم",
       r.packs.map(p=>p.grams+" جم "+n2(p.total!=null?p.total:p.cost_ex_commission).v+(p.total==null?"*":"")).join(" · ")+(r.date?" · "+d(r.date):""),["#f59e0b","#ef4444","#10b981"][i%3]]),"birck"));
     out.push(this.advNote("birca","كل رقم كما طُبع في ورقة الخلطة، وتحققنا أن الكمية × السعر = الإجمالي لكل بند، وأن البنود تساوي إجمالي الدفعة، "
@@ -652,31 +652,35 @@
             [p.grams+" جرام — "+(p.kilo_used!=null?"قرار الإدارة: "+p.kilo_used+" × "+p.grams/1000:(p.base_printed_as||"الخلطة")),n2(p.base)],
             ["تغليف",n2(p.packaging)],
             [{v:"التكلفة قبل العمولة"+(p.kilo_used!=null?" — قرار الإدارة 27/10/2026":""),c:p.kilo_used!=null?"#6ee7b7":null},n2(p.cost_ex_commission)],
-            ["عمولة",p.commission==null?{v:"يحتاج بيانات",c:"#c4b5fd"}:n2(p.commission)],
-            {cells:["إجمالي "+(p.label||p.grams+" جرام"),p.total==null?{v:"يحتاج بيانات — العمولة",c:"#c4b5fd"}:n2(p.total)],bold:true}])))),
+            ["عمولة"+(rate[r.key]?" (المطبوع؛ الهامش بـ "+T.pct(rate[r.key])+" من سعر بيع الصنف)":""),
+              p.commission==null?(rate[r.key]?{v:T.pct(rate[r.key])+" من سعر البيع",c:"#6ee7b7"}:{v:"يحتاج بيانات",c:"#c4b5fd"}):n2(p.commission)],
+            {cells:["إجمالي "+(p.label||p.grams+" جرام"),p.total==null?{v:rate[r.key]?"التكلفة + "+T.pct(rate[r.key])+" من سعر البيع":"يحتاج بيانات — العمولة",
+              c:rate[r.key]?"#6ee7b7":"#c4b5fd"}:n2(p.total)],bold:true}])))),
         this.advNote("bircy"+r.key,"كمية الإنتاج للدفعة: "+T.int(r.output_kg)+" كجم — "+r.output_kg_basis+".",r.output_kg_basis==="مطبوع"?null:"warn")],
         {k:"birc"+r.key,sub:r.uploaded_as}));
     });
     const ok=x=>x.status===C.meta.decision.status, pc=v=>v==null?{v:"—"}:this.fsC(v,"pct"), need={v:"يحتاج بيانات",c:"#c4b5fd"};
     out.push(this.card("ربط الوصفات بأصناف المبيعات وهامش الوصفة",this.fsTable("bircc",
       ["العبوة","الصنف","الكود","الكمية","بونص","سعر البيع","أساس السعر","تكلفة الوصفة قبل العمولة","تكلفة الوصفة بالعمولة",
-       "هامش قبل العمولة","نسبة قبل العمولة","هامش بعد العمولة","نسبة بعد العمولة","تكلفة النموذج يونيو (مجمل / تشغيلي)","الحالة"],
+       "هامش قبل العمولة","نسبة قبل العمولة","العمولة","هامش بعد العمولة","نسبة بعد العمولة","تكلفة النموذج يونيو (مجمل / تشغيلي)","الحالة"],
       [].concat(...C.candidates.map(c=>{ const r=C.recipes.find(x=>x.key===c.recipe);
         return c.items.length?c.items.map(i=>[r.name+" "+c.grams+" جم",i.name,i.code,this.fsC(i.qty),this.fsC(i.bonus_qty),
           n2(ok(i)?i.price:i.avg_price),ok(i)?(i.price_basis===C.meta.price_month?"أغسطس 2026 · "+T.int(i.month_qty)+" وحدة":{v:"كل اللقطة — لا مبيعات في أغسطس",c:"#fcd34d"}):"—",
-          n2(c.cost_ex_commission),c.pack_total==null?need:n2(c.pack_total),ok(i)?n2(i.margin_ex_commission):"—",ok(i)?pc(i.margin_ex_pct):"—",
-          ok(i)?(c.pack_total==null?need:n2(i.margin)):"—",ok(i)?(c.pack_total==null?need:pc(i.margin_pct)):"—",
+          n2(c.cost_ex_commission),i.cost_with_commission!=null?n2(i.cost_with_commission):(c.pack_total==null?need:n2(c.pack_total)),
+          ok(i)?n2(i.margin_ex_commission):"—",ok(i)?pc(i.margin_ex_pct):"—",
+          ok(i)?(i.commission==null?need:n2(i.commission)):"—",ok(i)?(i.margin==null?need:n2(i.margin)):"—",ok(i)?(i.margin_pct==null?need:pc(i.margin_pct)):"—",
           i.model_cost?{v:(+i.model_cost.gross).toFixed(2)+" / "+(+i.model_cost.op).toFixed(2)}:"—",{v:i.status,c:ok(i)?"#6ee7b7":"#fcd34d"}])
-          :[[r.name+" "+c.grams+" جم",{v:"لا صنف بنفس الوزن في المبيعات",c:"#94a3b8"},"—","—","—","—","—",n2(c.cost_ex_commission),c.pack_total==null?need:n2(c.pack_total),"—","—","—","—","—","—"]]; }))),
+          :[[r.name+" "+c.grams+" جم",{v:"لا صنف بنفس الوزن في المبيعات",c:"#94a3b8"},"—","—","—","—","—",n2(c.cost_ex_commission),c.pack_total==null?need:n2(c.pack_total),"—","—","—","—","—","—","—"]]; }))),
       {k:"bircd",sub:C.meta.decision.status+": "+C.meta.decision.note+" · هامش الوصفة = سعر البيع − تكلفة العبوة في ورقة 28/8 (تشمل التشغيل وأجور المهندس) · الكمية من لقطة "+d(C.meta.snapshot_as_of)}));
     out.push(this.card("أصناف بلا ورقة وصفة — يحتاج بيانات",this.fsTable("bircn",["الصنف","الكود","الكمية","متوسط سعر البيع","السبب"],
       C.no_sheet.map(i=>[i.name,i.code,this.fsC(i.qty),n2(i.avg_price),{v:i.reason,c:"#c4b5fd"}])),{k:"bircm"}));
     const cmp=[].concat(...C.candidates.map(c=>c.items.filter(i=>i.model_cost).map(i=>({hi:c.pack_total>i.model_cost.op}))));
-    const all=[].concat(...C.candidates.map(c=>c.items)), open_=all.filter(i=>!ok(i)), thin=all.filter(i=>ok(i)&&i.margin_pct!=null).sort((a,b)=>a.margin_pct-b.margin_pct);
+    const all=[].concat(...C.candidates.map(c=>c.items)), open_=all.filter(i=>!ok(i)), thin=all.filter(i=>ok(i)&&i.margin_pct!=null&&i.margin_pct>=0).sort((a,b)=>a.margin_pct-b.margin_pct);
     out.push(this.opsDecision("bircx",[
       open_.length?{t:"أكّد الصنف المقابل لـ "+open_.map(i=>i.name).join("، ")+" قبل استعمال تكلفة الوصفة في هامشه.",tag:"v"}:null,
-      C.candidates.some(c=>c.pack_total==null)?{t:"حدّد عمولة "+C.candidates.filter(c=>c.pack_total==null).map(c=>C.recipes.find(x=>x.key===c.recipe).family+" "+c.grams+" جم").join(" و")
-        +" لحساب هامشها بعد العمولة — التكلفة قبل العمولة بقرار الإدارة 27/10/2026.",tag:"v"}:null,
+      all.some(i=>ok(i)&&i.margin==null)?{t:"حدّد عمولة "+all.filter(i=>ok(i)&&i.margin==null).map(i=>i.name).join("، ")+" لحساب هامشها بعد العمولة.",tag:"v"}:null,
+      all.some(i=>ok(i)&&i.margin<0)?{t:"هامش سالب: "+all.filter(i=>ok(i)&&i.margin<0).map(i=>i.name+" يُباع بـ "+n2(i.price).v+" وتكلفته بالعمولة "+n2(i.cost_with_commission).v).join("، ")
+        +" — راجع سعر بيعه قبل الاستمرار.",tag:"v"}:null,
       thin.length?{t:"أضعف هامش وصفة بعد العمولة: "+thin.slice(0,3).map(i=>i.name+" "+this.fsC(i.margin_pct,"pct").v).join("، ")
         +" — راجع السعر أو التغليف أو بند التشغيل في الورقة قبل التوسع في بيعه.",tag:"e"}:null,
       C.no_sheet.length?{t:"ارفع أوراق خلطة: "+Array.from(new Set(C.no_sheet.map(i=>i.family+(i.family==="عجينة بقري"?"":" "+i.grams+" جم")))).join("، ")+".",tag:"v"}:null,
@@ -1006,7 +1010,8 @@
           rows:[].concat(...C.candidates.map(c=>c.items.map(i=>({...i,recipe:c.recipe,g:c.grams,pack:c.pack_total,ex:c.cost_ex_commission})))),columns:[
           col("الوصفة","recipe"), col("الوزن",null,r=>num(r.g)), col("الكود","code"), col("الصنف","name"), col("الكمية",null,r=>num(r.qty)),
           col("متوسط سعر البيع",null,r=>r.avg_price==null?"":num(r.avg_price)), col("تكلفة الوصفة قبل العمولة",null,r=>num(r.ex)),
-          col("تكلفة الوصفة بالعمولة",null,r=>r.pack==null?"يحتاج بيانات":num(r.pack)), col("سعر البيع (هامش الوصفة)",null,r=>r.price==null?"":num(r.price)),
+          col("تكلفة الوصفة بالعمولة",null,r=>r.cost_with_commission!=null?num(r.cost_with_commission):r.pack==null?"يحتاج بيانات":num(r.pack)),
+          col("العمولة",null,r=>r.commission==null?"":num(r.commission)), col("أساس العمولة",null,r=>r.commission_basis||""), col("سعر البيع (هامش الوصفة)",null,r=>r.price==null?"":num(r.price)),
           col("أساس السعر",null,r=>r.price_basis||""), col("هامش قبل العمولة",null,r=>r.margin_ex_commission==null?"":num(r.margin_ex_commission)),
           col("نسبة قبل العمولة",null,r=>r.margin_ex_pct==null?"":num(r.margin_ex_pct)),
           col("هامش بعد العمولة",null,r=>r.margin==null?"":num(r.margin)), col("نسبة بعد العمولة",null,r=>r.margin_pct==null?"":num(r.margin_pct)),
