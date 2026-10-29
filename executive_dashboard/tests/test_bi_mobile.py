@@ -21,7 +21,7 @@ import bi_mobile as bm  # noqa: E402
 TABLES = ("bi_freshness", "bi_bridge_pnl", "bi_bridge_items", "bi_breakeven", "bi_dio", "bi_dead_stock",
           "bi_unpriced", "bi_std_cost", "bi_std_variance_month", "bi_std_margin_sku", "bi_alert_register", "bi_alert_rules",
           "bi_kpi_catalog", "bi_readiness", "bi_is25", "bi_is25_vs_26", "bi_ar_history", "bi_ar_rollforward", "bi_ar_gaps",
-          "bi_recipes", "bi_recipe_packs", "bi_recipe_candidates")
+          "bi_recipes", "bi_recipe_packs", "bi_recipe_candidates", "bi_prod_bom", "bi_cost_kilo_monthly", "bi_cost_std_vs_actual")
 
 
 @pytest.fixture(scope="module")

@@ -22,7 +22,9 @@ APP_DIR = Path(__file__).resolve().parents[1]
 FULL_HTML = APP_DIR / "mobile" / "Abu_Hashem_Mobile_full.html"
 BI_HTML = APP_DIR / "mobile" / "Abu_Hashem_Mobile_bi.html"
 OPS_JSON = APP_DIR.parent / "data" / "processed" / "ops_data.json"
-BI_KEYS = ("bi_map", "bi_exec", "bi_bridge", "bi_stock", "bi_std", "bi_arh", "bi_recipes", "bi_abm", "bi_alerts", "bi_kpis")
+BI_KEYS = ("bi_map", "bi_exec", "bi_bridge", "bi_cost", "bi_arh", "bi_prod", "bi_abm", "bi_alerts", "bi_kpis")
+BOM_JSON = APP_DIR.parent / "data" / "raw" / "cost" / "recipes_bom.json"
+STD_JSON = APP_DIR.parent / "data" / "processed" / "standard_cost.json"
 IS25_HEAD = "قوائم الدخل 2025 كاملة"
 PL_HEAD = "قائمة الدخل الشهرية — يناير 2025 إلى يوليو 2026"
 
@@ -38,6 +40,19 @@ def go(pg, key):
     pg.evaluate("k => window.__abhApp.go(k)", key)
     pg.wait_for_function("k => window.__abhApp.state.section === k", arg=key)
     pg.wait_for_timeout(150)
+    return pg.inner_text('[data-print="scroll"]')
+
+
+def go_all(pg, key):
+    """go(), then scroll the section to its end: charts are drawn only near the screen (the base
+    file's deferred drawing), so a long merged section shows them only once scrolled to."""
+    go(pg, key)
+    el = pg.locator('[data-print="scroll"]')
+    for y in range(0, el.evaluate("e => e.scrollHeight") + 600, 600):
+        el.evaluate("(e, y) => e.scrollTop = y", y)
+        pg.wait_for_timeout(20)
+    pg.wait_for_timeout(200)
+    el.evaluate("e => e.scrollTop = 0")
     return pg.inner_text('[data-print="scroll"]')
 
 
@@ -89,6 +104,11 @@ def test_existing_sections_render_identically(browser):
         if k == "fs_income":
             # Declared: one income statement Jan 2025 – Jul 2026 replaces the section's statement
             # tables; with ?nobi the section is the full file's exactly (test_income_merged).
+            continue
+        if k == "ops_costpass":
+            # Declared: «تمرير التكلفة» moved into «التكلفة والمخزون» (29/10/2026) — out of the menu,
+            # its whole body there as is (test_cost_section_keeps_what_it_merged); ?nobi brings it back.
+            assert k not in bi.evaluate("() => window.__abhApp.registry().map(s => s.key)")
             continue
         if a != b:
             changed.append(k)
@@ -210,7 +230,7 @@ def test_stock_figures_trace_to_ops_data(page):
 
 
 def test_missing_data_is_named_not_estimated(page):
-    text = go(page, "bi_stock")
+    text = go(page, "bi_cost")
     months = page.evaluate("() => window.__abhApp.biStock().dio.filter(r => r.cogs == null).map(r => window.__abhApp.fsMon(r.month))")
     if months:
         assert "يحتاج بيانات" in text and all(m in text for m in months)
@@ -238,7 +258,7 @@ def test_alert_register_fields_and_status(page):
 def test_bi_tables_export(page):
     tabs = dict(page.evaluate("() => window.__abhApp.exportTables().filter(t => /^bi_/.test(t.id)).map(t => [t.id, t.rows.length])"))
     for tid in ("bi_freshness", "bi_bridge_pnl", "bi_bridge_items", "bi_breakeven", "bi_dio", "bi_alert_register",
-                "bi_alert_rules", "bi_kpi_catalog", "bi_readiness"):
+                "bi_alert_rules", "bi_kpi_catalog", "bi_readiness", "bi_prod_bom", "bi_cost_kilo_monthly", "bi_cost_std_vs_actual"):
         assert tabs.get(tid, 0) > 0, tid
 
 
@@ -254,8 +274,9 @@ def test_map_places_every_section(page):
     groups = page.evaluate("() => window.__abhApp.biMapDef().groups.map(g => g[0])")
     assert len(groups) == 7 and all(f"{i + 1} — {g}" in text for i, g in enumerate(groups))
     used = {r["g"] for r in rows}
-    assert used == set(range(7)) - {4}                                   # no production section yet
-    assert "يحتاج بيانات: أوامر التشغيل" in text and "\n0\nأقسام لم تُصنَّف\nكل الأقسام في الدليل" in text
+    assert used == set(range(7))                                         # «الإنتاج والتشغيل» fills group 5
+    assert [r["key"] for r in rows if r["g"] == 4] == ["bi_prod"]
+    assert "\n0\nأقسام لم تُصنَّف\nكل الأقسام في الدليل" in text
     for r in rows:
         assert r["source"] and r["filters"] != "—", r["key"]
         assert r["as_of"] is None or re.fullmatch(r"\d{4}-\d{2}-\d{2}", r["as_of"]), r
@@ -305,6 +326,7 @@ def test_kill_switch_hides_the_group(browser):
     _open(pg, BI_HTML, "?nobi")
     reg = pg.evaluate("() => window.__abhApp.registry().map(s => s.key)")
     assert not [k for k in reg if k.startswith("bi_")] and len(reg) >= 40
+    assert "ops_costpass" in reg                   # back in «قرارات وتشغيل» with the BI group off
     text = go(pg, "fs_income")
     assert IS25_HEAD not in text and PL_HEAD not in text
     assert "قائمة الدخل (شهري + إجمالي الفترة)" in text and "قائمة الدخل 2026 (" in text
@@ -317,7 +339,12 @@ def test_a_failing_section_does_not_break_the_app(browser):
     pg = _page(browser)
     _open(pg, BI_HTML)
     pg.evaluate("() => { window.__abhApp.biStockBody = () => { throw new Error('test fault'); }; }")
-    assert "تعذّر عرض هذا القسم (test fault)" in go(pg, "bi_stock")
+    text = go(pg, "bi_cost")                       # one part of the merged section fails, the rest stays
+    assert "تعذّر عرض هذا الجزء (test fault)" in text and "تعذّر عرض هذا القسم" not in text
+    assert "كيلو الخلطة على مدار الشهور" in text and "المعيار الشهري: الوصفة بمتوسط سعر آخر الشهر" in text
+    assert "تكلفة الكيلو من ورقة «سعر الكجم من الوصفات»" in text
+    pg.evaluate("() => { window.__abhApp.biCostBody = () => { throw new Error('test fault 2'); }; }")
+    assert "تعذّر عرض هذا القسم (test fault 2)" in go(pg, "bi_cost")
     assert len(go(pg, "overview").strip()) > 40 and pg.errors == []
     pg.close()
 
@@ -325,7 +352,7 @@ def test_a_failing_section_does_not_break_the_app(browser):
 def test_standard_cost_variance(page):
     """Monthly: variance = (statement COGS ratio − standard ratio) × net sales; months without a
     statement show «يحتاج بيانات». Per SKU only the standard margin at the invoiced price is shown."""
-    text = go(page, "bi_std")
+    text = go(page, "bi_cost")
     z = page.evaluate("() => window.__abhApp.biStd(window.__abhApp.state.api.D)")
     assert z["linked"] >= 15 and z["months"]
     assert z["cons"] == []     # every flagged item is a sausage, now compared in the casing table
@@ -353,7 +380,7 @@ def test_standard_cost_variance(page):
 def test_monthly_standard(page):
     """Beside the file standard: each linked pack at the month's recipe prices; the file standard
     and the monthly variance table above are unchanged."""
-    text = go(page, "bi_std")
+    text = go(page, "bi_cost")
     z = page.evaluate("() => window.__abhApp.biStd(window.__abhApp.state.api.D)")
     q = z["mon"]
     assert q["list"] == ["2026-08", "2026-09"]
@@ -480,7 +507,7 @@ def test_ar_history_section(page):
 def test_recipes_section(page):
     """The sheets as printed; links as management confirmed them, each with its recipe margin;
     no sheet → «يحتاج بيانات»."""
-    text = go(page, "bi_recipes")
+    text = go(page, "bi_prod")
     c = page.evaluate("() => window.DASH_RCP")
     assert "49.12" in text and "54.43" in text and "130.74" in text and "65.33" in text
     assert "مؤكد — قرار الإدارة 27/10/2026" in text and "هامش الوصفة" in text and "عمولة البيع (مصروف بيعي)" in text
@@ -494,3 +521,156 @@ def test_recipes_section(page):
     assert "هامش سالب: استربس الهنا 1 كيلو" in text                     # sold at 100/kg against 140.32
     tabs = page.evaluate("() => window.__abhApp.exportTables().map(t => t.id)")
     assert {"bi_recipes", "bi_recipe_packs", "bi_recipe_candidates"} <= set(tabs)
+
+
+def _js_num(v):
+    """A quantity as «الإنتاج والتشغيل» prints it: String(+v.toFixed(3))."""
+    s = f"{round(v, 3):.3f}".rstrip("0").rstrip(".")
+    return "0" if s in ("", "-0") else s
+
+
+def test_cost_section_keeps_what_it_merged(browser):
+    """«التكلفة والمخزون» holds «التكلفة المعيارية», «دوران المخزون والراكد» and «تمرير التكلفة» whole, and
+    «الإنتاج والتشغيل» holds «وصفات البانيه والاستربس» whole: each original body, as it renders on its own
+    («تمرير التكلفة» in the base file), is found verbatim in the merged section (management, 29/10/2026)."""
+    full, bi = _page(browser), _page(browser)
+    _open(full, FULL_HTML)
+    _open(bi, BI_HTML)
+    cost, prod = go_all(bi, "bi_cost"), go_all(bi, "bi_prod")
+
+    def body(t):
+        return t.split("\n", 1)[1].strip()          # the first line is the section's own sub-line
+
+    assert body(go_all(full, "ops_costpass")) in cost
+    for k, host in (("bi_std", cost), ("bi_stock", cost), ("bi_recipes", prod)):
+        # Out of the menu, so put back for one render — a key the registry lacks shows the overview.
+        bi.evaluate("""k => { const A = window.__abhApp, r = A.registry.bind(A);
+          A.registry = () => r().concat([{key: k, id: k, src: "dash", group: "ذكاء الأعمال", label: k, h2: k, p: "-"}]); }""", k)
+        alone = body(go_all(bi, k))
+        bi.evaluate("() => { delete window.__abhApp.registry; }")
+        assert alone in host, k
+    assert full.errors == [] and bi.errors == [], (full.errors, bi.errors)
+    full.close()
+    bi.close()
+
+
+def test_links_land_in_the_menu(page):
+    """Every section the BI pages link to — alerts and the five answers — is in the menu: a key the
+    registry lacks would open the overview instead."""
+    lost = page.evaluate("""() => { const A = window.__abhApp, D = A.state.api.D, T = A.state.T, X = A.state.api.buildContext({});
+      const Al = A.biAlertRows(X, D, {}, T).rows, keys = new Set(A.registry().map(s => s.key));
+      const go = Al.map(a => a.go).concat(A.biExecAnswers(D, T, Al).map(a => a.go)).filter(Boolean);
+      return [...new Set(go)].filter(k => !keys.has(k)); }""")
+    assert lost == []
+
+
+def test_production_quantities(page):
+    """«الإنتاج والتشغيل»: each of the nine recipes line by line as exported from the management file, the
+    sheets' printed quantities and the single-material products — no price before «وصفات البانيه
+    والاستربس», which follows as it was —, and identical recipes flagged, not hidden."""
+    bom = json.loads(BOM_JSON.read_text(encoding="utf-8"))
+    std = json.loads(STD_JSON.read_text(encoding="utf-8"))
+    rcp = json.loads((APP_DIR.parent / "data" / "processed" / "recipes.json").read_text(encoding="utf-8"))
+    text = go(page, "bi_prod")
+    part = page.locator('[data-bi-part="وصفات البانيه والاستربس"]').inner_text()
+    head = text[:text.index(part[:40])]
+    assert not re.search(r"(?m)(^|\t)(السعر|الإجمالي)(\t|$)", head) and "ج.م" not in head   # no price column
+    assert "49.12" in part
+    assert len(bom["recipes"]) == 9 and bom["sha256"]
+    for r in bom["recipes"]:
+        assert f"{r['name']} — {r['brand']}" in head
+        assert r["main_total"] == pytest.approx(sum(x["qty"] for x in r["main"]))
+        for x in r["main"]:
+            ing = x["ing"] + (" (الخلطة الفرعية)" if x["ing"] == "توابيل" and r["sub"] else "")
+            assert f"{ing}\t{_js_num(x['qty'])}" in head, (r["name"], x)
+        for x in r["sub"]:
+            assert f"{x['ing']}\t{_js_num(x['qty'])}" in head, (r["name"], x)
+        assert f"أساس الإنتاجية (ناتج الدفعة)\t{_js_num(r['yield_kg'])}" in head
+        sp = sum(x["qty"] for x in r["main"] if x["ing"] == "توابيل")
+        flag = f"تستعمل {_js_num(sp)} كجم توابيل من خلطة فرعية مجموعها {_js_num(r['sub_total'])} كجم"
+        assert (flag in head) == bool(r["sub"] and abs(sp - r["sub_total"]) > 0.001), r["name"]
+    for c in rcp["recipes"]:
+        for ln in c["lines"]:
+            assert f"{ln['name']}\t{'قيمة بلا كمية' if ln['qty'] is None else _js_num(ln['qty'])}" in head, (c["name"], ln)
+    for s in std["monthly"]["single"]:
+        assert f"{s['name']}\t{s['item_name_sales']}\t{s['item']}\t{_js_num(s['kg'])}" in head
+    sig = {r["name"]: json.dumps(r["main"] + r["sub"]) for r in bom["recipes"]}
+    names = list(sig)
+    same = [(a, b) for i, a in enumerate(names) for b in names[i + 1:] if sig[a] == sig[b]]
+    assert same == [("برجر اسبشيال", "كفته الهنا")]                   # as the management file has them
+    assert "«برجر اسبشيال» و«كفته الهنا» بنفس البنود والكميات" in head
+    tab = page.evaluate("() => window.__abhApp.exportTables().find(t => t.id === 'bi_prod_bom').rows.length")
+    assert tab == sum(len(r["main"]) + len(r["sub"]) for r in bom["recipes"]) + sum(len(c["lines"]) for c in rcp["recipes"]) \
+        + len(std["monthly"]["single"])
+
+
+def test_cost_kilo_monthly(page):
+    """The kilo of every mix over the months: the nine recipes as the valuation file has them each month,
+    a sheet only in the month of its date (an undated one in none), minced meat and liver at the month's
+    average where there is one — every other cell «يحتاج بيانات», never carried over."""
+    ops = json.loads(OPS_JSON.read_text(encoding="utf-8"))
+    std = json.loads(STD_JSON.read_text(encoding="utf-8"))
+    rcp = json.loads((APP_DIR.parent / "data" / "processed" / "recipes.json").read_text(encoding="utf-8"))
+    k = page.evaluate("() => window.__abhApp.biCostKilo()")
+    months = ["2026-06", "2026-07", "2026-08", "2026-09"]
+    assert k["months"] == months
+    rows = {r["name"]: r for r in k["rows"]}
+    for r in ops["inventory"]["recipes"]:
+        assert [rows[r["product"]]["by"][m] for m in months] == pytest.approx([r["kg_jun"], r["kg_jul"], r["kg_aug"], r["kg_sep"]])
+    for c in rcp["recipes"]:
+        m0 = c["date"][:7] if c["date"] else None
+        assert rows[c["name"]]["by"] == {m: (c["per_kg"] if m == m0 else None) for m in months}, c["name"]
+    for s in std["monthly"]["single"]:
+        by = rows[s["item"]]["by"]
+        assert by["2026-06"] is None and by["2026-07"] is None
+        for m, v in s["by_month"].items():
+            assert by[m] == pytest.approx(v["price"])
+    text = go(page, "bi_cost")
+    assert "خلطة الصويا\tورقة خلطة" + "\tيحتاج بيانات" * 4 in text and "ورقة بلا تاريخ: 161.25 للكيلو" in text
+    assert "نفس قيم «كفته الهنا»" in text and "نفس قيم «برجر اسبشيال»" in text
+
+
+def test_cost_std_vs_actual(page):
+    """Each finished product: the month's standard from the recipes; the actual = the income statement's
+    COGS × the linked items' share of invoice revenue, spread by standard cost of the quantities sold
+    (bonus included); variance = actual − standard. No statement → «يحتاج بيانات», no figure."""
+    ops = {r["product"]: r for r in json.loads(OPS_JSON.read_text(encoding="utf-8"))["inventory"]["recipes"]}
+    std = json.loads(STD_JSON.read_text(encoding="utf-8"))
+    file = {r["item_code"]: r for r in std["rows"] if r.get("item_code")}
+    z, stmts = page.evaluate("""() => { const A = window.__abhApp, Z = A.biCostStd(A.state.api.D);
+      return [Z, Z.months.map(m => A.biStmt(m.month))]; }""")
+    items = {it["code"]: it for it in z["items"]}
+    assert len(items) == len(file) + len(std["monthly"]["single"])
+    measured = 0
+    for m, st in zip(z["months"], stmts):
+        if st is None or st.get("cogs") is None:
+            assert m["cogs"] is None and m["f"] is None
+            assert all(it["by"][m["month"]]["act"] is None for it in z["items"])
+            continue
+        measured += 1
+        assert m["cogs"] == st["cogs"] and m["alloc"] == pytest.approx(st["cogs"] * m["covRev"] / m["rev"])
+        assert m["stdCogs"] == pytest.approx(sum(it["by"][m["month"]]["q"] * it["by"][m["month"]]["std"] for it in z["items"]))
+        assert sum((it["by"][m["month"]]["act"] or 0) * it["by"][m["month"]]["q"] for it in z["items"]) == pytest.approx(m["alloc"], abs=1)
+        for it in z["items"]:
+            s = it["by"][m["month"]]
+            if s["q"]:
+                assert s["act"] == pytest.approx(s["std"] * m["f"]) and s["var"] == pytest.approx(s["act"] - s["std"])
+    assert measured >= 2                                                   # June and July 2026
+    jun = "2026-06"
+    for r in std["monthly"]["rows"]:
+        o, a, it = ops[r["recipe"]], r["by_month"]["2026-08"], items[r["item_code"]]
+        casing = (file[r["item_code"]].get("hank_cost") or a["casing"]) if a["casing"] > 0 else 0
+        exact = abs(a["paste"] / r["kg"] - o["kg_aug"]) < 0.01
+        paste = r["kg"] * o["kg_jun"] if exact else a["paste"] * o["kg_jun"] / o["kg_aug"]
+        assert it["by"][jun]["std"] == pytest.approx(paste + casing + a["pack"]), r["key"]
+        assert it["by"][jun]["t"] == ("تقدير بالكيلو" if exact else "تقدير بالنسبة")
+        for mm, x in r["by_month"].items():
+            assert it["by"][mm]["std"] == pytest.approx(x["std"]) and it["by"][mm]["t"] == "شهري"
+    assert {it["recipe"] for it in z["ratio"]} == {"سجق ابوهاشم"}
+    for s in std["monthly"]["single"]:
+        assert items[s["item_code"]]["by"][jun]["std"] == pytest.approx(s["mgmt"])
+    text = go(page, "bi_cost")
+    assert "يحتاج بيانات: قائمة دخل أغسطس 2026 وسبتمبر 2026 لحساب الفعلي" in text
+    assert "نسبة الانحراف نفسها" in text and "لا تكلفة فعلية مستقلة لكل صنف" in text
+    tab = page.evaluate("() => window.__abhApp.exportTables().find(t => t.id === 'bi_cost_std_vs_actual').rows.length")
+    assert tab == len(z["items"]) * len(z["months"])
