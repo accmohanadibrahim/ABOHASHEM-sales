@@ -21,7 +21,7 @@ import bi_mobile as bm  # noqa: E402
 TABLES = ("bi_freshness", "bi_bridge_pnl", "bi_bridge_items", "bi_breakeven", "bi_dio", "bi_dead_stock",
           "bi_unpriced", "bi_std_cost", "bi_std_variance_month", "bi_std_margin_sku", "bi_alert_register", "bi_alert_rules",
           "bi_kpi_catalog", "bi_readiness", "bi_is25", "bi_is25_vs_26", "bi_ar_history", "bi_ar_rollforward", "bi_ar_gaps",
-          "bi_recipes", "bi_recipe_packs", "bi_recipe_candidates")
+          "bi_recipes", "bi_recipe_packs", "bi_recipe_candidates", "bi_prod_bom", "bi_cost_kilo_monthly", "bi_cost_std_vs_actual")
 
 
 @pytest.fixture(scope="module")
@@ -63,7 +63,8 @@ def test_sections_and_exports_are_wired(built):
     assert out.count('if(s.slice(0,3)==="bi_") return this.biSectionBody(s,X,T,api)||[];') == 1
     assert out.count("    this.biExport(out,col,num);\n") == 1
     # «قوائم الدخل 2025» merged into «قائمة الدخل» (القوائم المالية), not a BI section of its own.
-    assert out.count('    if(s==="fs_income") body=body.concat(this.biIs25InIncome(T));\n') == 1
+    assert out.count('    if(s==="fs_income") body=this.biIncomeMerged(body,F,T);\n') == 1
+    assert out.count('      : s==="fs_income"&&this.biPlOn(F)?this.biPlSpan()\n') == 1
     assert '"dash","bi_is25"' not in out
     assert out.count('["bi","ذكاء الأعمال","#14b8a6",id=>/^bi_/.test(id)],') == 1
 
