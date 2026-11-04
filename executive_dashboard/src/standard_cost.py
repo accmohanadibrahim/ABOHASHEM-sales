@@ -237,6 +237,7 @@ def monthly(rows: list, names: dict) -> dict | None:
         rec = [m["single"][name] for m in months]
         single.append({"name": name, "item_code": code, "item_name_sales": names[code],
                        "recipe": f"{rec[0]['kg']:g} كجم {rec[0]['item']} + تغليف {rec[0]['pack']:.2f}",
+                       "kg": rec[0]["kg"], "item": rec[0]["item"], "pack": rec[0]["pack"],
                        "mgmt": mgmt, "mgmt_basis": mgmt_basis,
                        "by_month": {m["month"]: {"price": x["price"], "std": x["std"]} for m, x in zip(months, rec)}})
     return {"basis": months[0]["basis"], "months": [m["month"] for m in months],

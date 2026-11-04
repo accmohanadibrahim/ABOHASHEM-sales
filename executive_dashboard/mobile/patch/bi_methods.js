@@ -14,7 +14,8 @@
 
   biSectionBody(s,X,T,api){
     const m={bi_exec:"biExecBody",bi_bridge:"biBridgeBody",bi_stock:"biStockBody",bi_std:"biStdBody",bi_alerts:"biAlertsBody",
-      bi_kpis:"biKpisBody",bi_abm:"biAbmBody",bi_arh:"biArhBody",bi_recipes:"biRecipesBody"}[s];
+      bi_kpis:"biKpisBody",bi_abm:"biAbmBody",bi_arh:"biArhBody",bi_recipes:"biRecipesBody",bi_map:"biMapBody",
+      bi_cost:"biCostBody",bi_prod:"biProdBody"}[s];
     if(!m) return null;
     try{ return this[m](X,T,api); }
     catch(e){ return [this.advNote("bi-err","تعذّر عرض هذا القسم ("+String(e&&e.message||e)
@@ -24,15 +25,134 @@
   /* مفتاح التعطيل: ?nobi أو #nobi في الرابط يخفي كل إضافات ذكاء الأعمال. */
   biOn(){ return !/[?&#]nobi\b/.test(String(location.search)+String(location.hash)); }
   /* قوائم الدخل 2025 داخل قسم «قائمة الدخل» (القوائم المالية) — دمج القسمين بطلب الإدارة 27/10/2026. */
-  biIs25InIncome(T){
+  biIs25InIncome(T,opt){
     if(!window.DASH_IS25||!this.biOn()) return [];
     let body;
-    try{ body=this.biIs25Body(null,T,null); }
+    try{ body=this.biIs25Body(null,T,null,opt); }
     catch(e){ body=[this.advNote("bi25err","تعذّر عرض قوائم الدخل 2025 ("+String(e&&e.message||e)+"). باقي القسم يعمل كما هو.","warn")]; }
     return [React.createElement("div",{key:"bi25h","data-bi-is25":"1",style:{marginTop:8,paddingTop:10,
         borderTop:"1px solid var(--abh-rgba-255-255-255-14,rgba(255,255,255,.14))",fontSize:13,fontWeight:700,color:"var(--abh-e2e8f0,#e2e8f0)"}},
       "قوائم الدخل 2025 كاملة",React.createElement("span",{style:{fontSize:10.5,fontWeight:400,color:"#64748b",marginInlineStart:8}},
-        "12 شهرًا: يناير–مايو من نص القوائم · يونيو يحتاج بيانات · يوليو–ديسمبر المعتمدة · مقارنة بنفس أشهر 2026"))].concat(body);
+        (opt&&opt.noTable?"المؤشرات والملاحظات والمقارنة بنفس أشهر 2026 · الأرقام الشهرية في قائمة الدخل الموحدة أعلاه"
+          :"12 شهرًا: يناير–مايو من نص القوائم · يونيو يحتاج بيانات · يوليو–ديسمبر المعتمدة · مقارنة بنفس أشهر 2026")))].concat(body);
+  }
+
+  /* قائمة الدخل الموحدة يناير 2025 – يوليو 2026 (طلب الإدارة 27/10/2026): تحل محل جداول
+     «يوليو–ديسمبر 2025» و«2026» و«2025 الشهري» في قسم «قائمة الدخل»؛ باقي القسم كما هو.
+     ?nobi (أو أي خطأ هنا) يعيد القسم الأصلي كما هو. */
+  biPlOn(F){ return this.biOn()&&!!window.DASH_IS25&&!!window.DASH_IS26&&!!F&&!!F.income; }
+  /* شارة الفترة أعلى القسم: من أول شهر في القائمة الموحدة إلى آخره. */
+  biPlSpan(){
+    try{ const c=this.biPl().cols; return this.fsMon(c[0].m)+" – "+this.fsMon(c[c.length-1].m); }
+    catch(e){ return "يناير 2025 – يوليو 2026"; }
+  }
+  biIncomeMerged(body,F,T){
+    if(!this.biPlOn(F)) return body;
+    let card;
+    try{ card=this.biPlCard(F,T); }
+    catch(e){ return body.concat([this.advNote("biplerr","تعذّر عرض قائمة الدخل الموحدة ("+String(e&&e.message||e)+"). الجداول الأصلية معروضة كما هي.","warn")])
+      .concat(this.biIs25InIncome(T)); }
+    const i=body.findIndex(e=>e&&e.key==="fi1");
+    const out=body.filter(e=>!(e&&(e.key==="fi1"||e.key==="fi26")));
+    out.splice(i<0?0:i,0,card);
+    return out.concat(this.biIs25InIncome(T,{noTable:true}));
+  }
+  /* عمود لكل شهر. القيمة رقم، أو null = البند غير مطبوع في قائمة الشهر («—»)، أو "adm" = ضمن الإدارية،
+     أو "na" = لا ينطبق (لا يدخل الإجمالي). لا يُحسب بند لا تطبعه القائمة. */
+  biPl(){
+    const I=window.DASH_IS25, F=window.DASH_FS, cols=[], FI=F.income||{};
+    const m25=new Map(I.months.map(r=>[r.month,r])), miss=new Map(I.missing.map(r=>[r.month,r]));
+    for(let k=1;k<=12;k++){
+      const m="2025-"+String(k).padStart(2,"0"), r=m25.get(m), h=FI[m];
+      if(r){ const s=r.sections||{}, split=s.admin!=null;
+        cols.push({m,year:"2025",tag:r.needs_confirmation?"يحتاج تأكيد":"نص PDF",warn:!!r.needs_confirmation,
+          v:{net:r.net_sales,cogs:r.cogs,gp:r.gross_profit,op:split?"adm":null,admin:split?s.admin:null,selling:split?s.selling:null,
+             lump:split?"na":r.expenses,ebitda:split?r.gross_profit-s.admin-s.selling:null,fin:null,other:null,
+             np:r.net_profit,dep:null,npa:r.net_profit}}); }
+      else if(h) cols.push({m,year:"2025",tag:"معتمدة",
+          v:{net:h.net_sales,cogs:h.cogs,gp:h.gross_profit,op:"adm",admin:h.admin,selling:h.selling,lump:"na",ebitda:h.ebitda,
+             fin:h.finance,other:h.other_items,np:h.net_profit_pre_dep,dep:h.depreciation_booked,npa:h.net_profit_after_dep}});
+      else cols.push({m,year:"2025",need:(miss.get(m)||{}).reason||"لا قائمة دخل لهذا الشهر",tag:"لا قائمة",v:{}});
+    }
+    this.fs26Cols().forEach(c=>{ const p=c.p, S=p.sections, f=c.f, x=k=>S[k]==null?null:S[k]*f;
+      const op=S.operating==null?"adm":S.operating*f, gp=p.gross_profit*f;
+      cols.push({m:c.month,year:String(c.month).slice(0,4),est:c.est,tag:c.est?"تقدير":"كما صدرت",
+        v:{net:p.net_sales*f,cogs:p.cogs*f,gp,op,admin:x("admin"),selling:x("selling"),lump:"na",
+           ebitda:gp-(op==="adm"?0:op)-(S.admin||0)*f-(S.selling||0)*f,fin:x("financing"),other:null,
+           np:p.net_profit*f,dep:null,npa:p.net_profit*f}}); });
+    const ROWS=[["net","صافي المبيعات"],["cogs","تكلفة المبيعات"],["gp","مجمل الربح",1],["gpm","هامش مجمل الربح","pct"],
+      ["op","مصروفات تشغيلية"],["admin","مصروفات إدارية وعمومية"],["selling","مصروفات بيعية وتسويقية"],["lump","مصروفات بلا تقسيم"],
+      ["ebitda","EBITDA",1],["ebm","هامش EBITDA","pct"],["fin","تمويلية / فروق عملة"],["other","بنود أخرى"],
+      ["np","صافي الربح قبل الإهلاك",1],["npm","هامش صافي الربح","pct"],["dep","الإهلاك المحمّل"],["npa","صافي الربح بعد الإهلاك (كما بالقوائم)",1]];
+    const RATIO={gpm:["gp","net"],ebm:["ebitda","net"],npm:["np","net"]};
+    const years=[...new Set(cols.map(c=>c.year))];
+    const tot=years.map(y=>{ const cs=cols.filter(c=>c.year===y&&!c.need), t={}, part={};
+      ["net","cogs","gp","op","admin","selling","lump","ebitda","fin","other","np","dep","npa"].forEach(k=>{
+        let sum=0, n=0, gap=false, adm=0;
+        cs.forEach(c=>{ const v=c.v[k]; if(typeof v==="number"){sum+=v;n++;} else if(v==="adm") adm++; else if(v!=="na") gap=true; });
+        t[k]=n?sum:(adm?"adm":null); part[k]=n>0&&gap; });
+      return {year:y,label:"إجمالي "+y,months:cs.length,of:cols.filter(c=>c.year===y).length,t,part}; });
+    const val=(o,k)=>{ if(RATIO[k]){ const [a,b]=RATIO[k], x=o[a], z=o[b]; return typeof x==="number"&&typeof z==="number"&&z?x/z:null; } return o[k]; };
+    const rows=ROWS.map(([k,label,kind])=>({k,label,bold:kind===1,pct:kind==="pct",
+      vals:cols.map(c=>c.need?null:val(c.v,k)),
+      /* نسبة على إجمالي جزئي تخلط شهورًا مختلفة، فلا تُعرض. */
+      tots:tot.map(t=>{ const r=RATIO[k], part=r?(t.part[r[0]]||t.part[r[1]]):t.part[k];
+        return {v:r&&part?null:val(t.t,k),part:r?false:part}; })}));
+    return {cols,tot,rows};
+  }
+  biPlCard(F,T){
+    const P=this.biPl(), MS=m=>this.fsMon(m).split(" ")[0];
+    const bd="var(--abh-rgba-255-255-255-14,rgba(255,255,255,.14))", bg="var(--abh-111827,#111827)";
+    const th={padding:"6px 8px",fontSize:10.5,fontWeight:700,color:"var(--abh-94a3b8,#94a3b8)",whiteSpace:"nowrap",textAlign:"center",
+      background:bg,borderBottom:"1px solid "+bd};
+    const td={padding:"6px 8px",fontSize:11,whiteSpace:"nowrap",textAlign:"end",fontFamily:"'JetBrains Mono',monospace",
+      borderBottom:"1px solid var(--abh-rgba-255-255-255-05,rgba(255,255,255,.05))"};
+    const stick={position:"sticky",insetInlineStart:0,zIndex:2,background:bg,textAlign:"start",minWidth:150,whiteSpace:"normal",
+      fontFamily:"inherit",borderInlineEnd:"1px solid "+bd};
+    const sep={borderInlineStart:"2px solid "+bd};
+    const cellOf=(x,pct)=>x==="adm"?{v:"ضمن الإدارية",c:"var(--abh-64748b,#64748b)",t:1}:x==="na"?{v:"—"}:this.fsC(x,pct?"pct":undefined);
+    /* ترتيب الأعمدة: أشهر 2025، إجمالي 2025، أشهر 2026، إجمالي 2026. */
+    const seq=[]; P.tot.forEach((t,ti)=>{ P.cols.forEach((c,ci)=>{ if(c.year===t.year) seq.push({c,ci}); }); seq.push({t,ti}); });
+    const h1=[React.createElement("th",{key:"b",style:{...th,...stick,zIndex:3}},"")].concat(P.tot.map((t,i)=>
+      React.createElement("th",{key:"y"+t.year,colSpan:t.of+1,style:{...th,...sep,fontSize:12,color:"var(--abh-e2e8f0,#e2e8f0)",
+        textAlign:"start",background:i%2?"var(--abh-rgba-16-185-129-10,rgba(16,185,129,.10))":"var(--abh-rgba-59-130-246-10,rgba(59,130,246,.10))"}},
+        React.createElement("span",{style:{position:"sticky",insetInlineStart:160,padding:"0 6px"}},"سنة "+t.year))));
+    const h2=[React.createElement("th",{key:"l",style:{...th,...stick,zIndex:3}},"البند")].concat(seq.map((x,j)=>{
+      const first=j===0||(x.c&&seq[j-1].t);
+      if(x.t) return React.createElement("th",{key:"t"+x.t.year,style:{...th,...sep,color:"var(--abh-e2e8f0,#e2e8f0)"}},x.t.label,
+        React.createElement("div",{style:{fontSize:9,fontWeight:400,color:"#64748b"}},x.t.months+" شهرًا"+(x.t.months<x.t.of?" من "+x.t.of:"")));
+      const c=x.c;
+      return React.createElement("th",{key:"c"+c.m,style:{...th,...(first?sep:{})}},MS(c.m),
+        React.createElement("div",{style:{fontSize:9,fontWeight:400,color:c.need?"#c4b5fd":c.warn?"#fcd34d":c.est?"#f59e0b":"#64748b"}},c.tag));
+    }));
+    const body=P.rows.map(r=>React.createElement("tr",{key:r.k,style:r.bold?{background:"var(--abh-rgba-255-255-255-035,rgba(255,255,255,.035))"}:null},
+      [React.createElement("td",{key:"l",style:{...td,...stick,fontWeight:r.bold?800:r.pct?400:500,fontSize:r.pct?10.5:11,
+        color:r.pct?"var(--abh-94a3b8,#94a3b8)":"var(--abh-e2e8f0,#e2e8f0)",background:r.bold?"var(--abh-1a2232,#1a2232)":bg}},r.label)]
+      .concat(seq.map((x,j)=>{
+        const first=j===0||(x.c&&seq[j-1].t);
+        if(x.t){ const o=r.tots[x.ti], cv=cellOf(o.v,r.pct);
+          return React.createElement("td",{key:"t"+x.t.year,style:{...td,...sep,fontWeight:800,color:cv.c||"var(--abh-e2e8f0,#e2e8f0)",
+            background:"var(--abh-rgba-255-255-255-05,rgba(255,255,255,.05))"}},cv.v,o.part&&o.v!=null&&o.v!=="adm"?" *":""); }
+        const c=x.c, v=r.vals[x.ci];
+        if(c.need) return React.createElement("td",{key:"c"+c.m,style:{...td,...(first?sep:{}),background:"rgba(167,139,250,.06)",
+          color:"#c4b5fd",fontFamily:"inherit",fontSize:10}},r.k==="net"?"يحتاج بيانات":"—");
+        const cv=cellOf(v,r.pct);
+        return React.createElement("td",{key:"c"+c.m,style:{...td,...(first?sep:{}),fontWeight:r.bold?800:400,
+          fontStyle:c.est?"italic":null,fontSize:r.pct?10.5:11,fontFamily:cv.t?"inherit":td.fontFamily,
+          color:cv.c||(r.pct?"var(--abh-94a3b8,#94a3b8)":"var(--abh-cbd5e1,#cbd5e1)"),
+          background:c.est?"rgba(245,158,11,.05)":null}},cv.v);
+      }))));
+    const table=React.createElement("div",{key:"t","data-bi-pl":"1",style:{overflowX:"auto",maxWidth:"100%",borderRadius:10,border:"1px solid "+bd}},
+      React.createElement("table",{style:{borderCollapse:"separate",borderSpacing:0,width:"100%"}},
+        React.createElement("thead",null,React.createElement("tr",{key:"h1"},h1),React.createElement("tr",{key:"h2"},h2)),
+        React.createElement("tbody",null,body)));
+    const note=React.createElement("div",{key:"n",style:{fontSize:10.5,lineHeight:1.85,color:"var(--abh-94a3b8,#94a3b8)"}},
+      "يناير–مايو 2025 من نص القوائم المرفوع (يحتاج مراجعة بالـPDF، ومارس مطابق لفبراير بالقرش — يحتاج تأكيد) · يونيو 2025 لا قائمة: يحتاج بيانات · "
+      +"يوليو–ديسمبر 2025 من القوائم المعتمدة (إهلاك السنة محمّل في ديسمبر) · قائمة الربع الأول 2026 صدرت واحدة، وأعمدة يناير–مارس موزعة بأوزان المبيعات (تقدير) ومجموعها = القائمة · "
+      +"أبريل–يوليو 2026 كما صدرت · «—» بند لا تطبعه قائمة الشهر، ولا يُحسب · «ضمن الإدارية» قبل فصل المصروفات التشغيلية (مايو 2026) · "
+      +"قوائم يناير–مايو 2025 و2026 لا تطبع إهلاكًا، فالصافي كما بالقائمة · * إجمالي الشهور التي تطبع البند فقط.");
+    return this.card("قائمة الدخل الشهرية — يناير 2025 إلى يوليو 2026",[table,note],
+      {k:"bipl",sub:P.cols.filter(c=>!c.need).length+" شهرًا لها قائمة من "+P.cols.length+" · اسحب أفقيًا، وعمود البنود ثابت"});
   }
 
   /* ---- مساعدات ------------------------------------------------------------- */
@@ -81,6 +201,7 @@
     const R=D.receivables||{}, vals=window.DASH_OPS?this.opsVals():[], iv=vals[vals.length-1];
     const Al=this.biAlertRows(X,D,this.state.filters||{},T).rows;
     out.push(this.opsLegend("bel"));
+    this.biExecCards(this.biExecAnswers(D,T,Al)).forEach(c=>out.push(c));
     const dS=a&&b&&a.net_sales?(b.net_sales-a.net_sales)/Math.abs(a.net_sales):null;
     out.push(this.kpiTiles([
       b?["صافي المبيعات "+this.fsMon(m1),T.egpK(b.net_sales),dS==null?"":(dS>=0?"▲ ":"▼ ")+T.pct(Math.abs(dS))+" مقابل "+this.fsMon(m0),"#3b82f6"]
@@ -113,6 +234,99 @@
       hi.map(r=>[r.kpi,r.value,r.action,r.owner])),{k:"be3"}));
     out.push(this.advLink("bego","سجل التنبيهات الكامل","bi_alerts"));
     return out;
+  }
+
+  /* ---- أسئلة الإدارة الخمسة (خطة تنظيم اللوحة، المرحلة 3) --------------------
+     كل إجابة من البيانات المضمنة نفسها، ولكلٍّ قسم تفاصيلها. 1–3 من قوائم الدخل فلا تتبع فلاتر
+     الفواتير؛ 4–5 من سجل التنبيهات فتتبعها كما يتبعها السجل. لا موازنة ⇒ «يحتاج بيانات» لا مستهدف بديل. */
+  biExecAnswers(D,T,Al){
+    const [m0,m1]=this.biLastTwo(), out=[];
+    const P=window.DASH_IS25&&window.DASH_IS26&&window.DASH_FS?this.biPl():null, col=m=>P&&P.cols.find(c=>c.m===m)||null;
+    const c1=col(m1), c0=col(m0), y=m1?(+m1.slice(0,4)-1)+m1.slice(4):null, cy=col(y);
+    const chg=(x,b)=>typeof x==="number"&&typeof b==="number"&&b?(x-b)/Math.abs(b):null;
+    const gm=c=>c&&!c.need&&c.v.net?c.v.gp/c.v.net:null;
+    const sp=v=>v==null?"—":(v>=0?"▲ ":"▼ ")+T.pct(Math.abs(v));
+    /* 1) الأداء الحالي */
+    if(c1&&c0){
+      const rows=[["net","صافي المبيعات"],["gpm","هامش مجمل الربح"],["np","صافي الربح"]].map(([k,l])=>{
+        const v=c=>!c||c.need?null:k==="gpm"?gm(c):c.v[k];
+        const d=(x,b)=>k==="gpm"?(x==null||b==null?null:(x-b)*100):chg(x,b);
+        return {k,l,v1:v(c1),v0:v(c0),vy:v(cy),d0:d(v(c1),v(c0)),dy:d(v(c1),v(cy))}; });
+      const r=rows[0];
+      out.push({n:1,q:"ما حجم الأداء الحالي؟",go:"fs_income",basis:"مُتحقَّق",m0,m1,y,c1,c0,cy,rows,
+        src:"قوائم الدخل: "+this.fsMon(m1)+" ("+c1.tag+") · "+this.fsMon(m0)+" ("+c0.tag+") · "+this.fsMon(y)+" ("+(cy?cy.tag:"لا قائمة")+")",
+        answer:"صافي المبيعات "+this.fsMon(m1)+" "+T.egpK(r.v1)+": "+sp(r.d0)+" عن "+this.fsMon(m0)
+          +(r.vy==null?" · "+this.fsMon(y)+": يحتاج بيانات":" و"+sp(r.dy)+" عن "+this.fsMon(y))});
+    } else out.push({n:1,q:"ما حجم الأداء الحالي؟",go:"fs_income",basis:"يحتاج بيانات",src:"قوائم الدخل",
+      need:"قائمتا دخل مقيستان لشهرين متتاليين",answer:"يحتاج بيانات"});
+    /* 2) المستهدف — data/budget/budget_2026.csv عبر src/statements.py (DASH_FS.budget) */
+    const B=(window.DASH_FS&&window.DASH_FS.budget||{})[m1]||null;
+    const LN=[["net_sales","صافي المبيعات","net"],["cogs","تكلفة المبيعات","cogs"],["admin","المصروفات الإدارية","admin"],["selling","المصروفات البيعية","selling"]];
+    const brows=B&&c1?LN.filter(([k])=>typeof B[k]==="number").map(([k,l,ck])=>{ const act=c1.v[ck], ok=typeof act==="number";
+      return {k,l,bud:B[k],act:ok?act:null,var:ok?act-B[k]:null,pct:ok&&B[k]?(act-B[k])/Math.abs(B[k]):null}; }):[];
+    if(brows.length){ const r=brows.find(x=>x.k==="net_sales")||brows[0];
+      out.push({n:2,q:"هل نحقق المستهدف؟",go:"fs_exec",basis:"مُتحقَّق",rows:brows,src:"data/budget/budget_2026.csv · قائمة الدخل "+this.fsMon(m1),
+        answer:r.l+" "+this.fsMon(m1)+": الفعلي "+T.egpK(r.act)+" مقابل الموازنة "+T.egpK(r.bud)+" ("+sp(r.pct)+")"}); }
+    else out.push({n:2,q:"هل نحقق المستهدف؟",go:"fs_exec",basis:"يحتاج بيانات",src:"data/budget/budget_2026.csv",
+      need:"لا موازنة معتمدة لـ"+(m1?this.fsMon(m1):"آخر شهر")+" — املأ data/budget/budget_2026.csv (القالب موجود: الشهر والبند والمبلغ)",
+      answer:"يحتاج بيانات — لا موازنة معتمدة"});
+    /* 3) أين تحقق الربح أو حدثت الخسارة */
+    if(m0&&m1&&m0!==m1){
+      const Br=this.biPnlBridge(m0,m1), I=this.biItemBridge(m0,m1);
+      const ds=Br.steps.filter(s=>s.kind==="d").slice().sort((a,b)=>Math.abs(b.v)-Math.abs(a.v));
+      const it=I.items.filter(i=>typeof i.dgp==="number");
+      const up=it.slice().sort((a,b)=>b.dgp-a.dgp).filter(i=>i.dgp>0).slice(0,3), dn=it.slice().sort((a,b)=>a.dgp-b.dgp).filter(i=>i.dgp<0).slice(0,3);
+      out.push({n:3,q:"أين تحقق الربح أو حدثت الخسارة؟",go:"bi_bridge",basis:"مُتحقَّق",src:"جسر الربح "+this.fsMon(m0)+" ← "+this.fsMon(m1),
+        p0:Br.p0,p1:Br.p1,steps:ds.slice(0,3),up,dn,
+        answer:"صافي الربح من "+T.egpK(Br.p0)+" إلى "+T.egpK(Br.p1)+" · أكبر عامل: "+(ds[0]?ds[0].name+" ("+this.fsC(ds[0].v).v+")":"—")});
+    } else out.push({n:3,q:"أين تحقق الربح أو حدثت الخسارة؟",go:"bi_bridge",basis:"يحتاج بيانات",src:"قوائم الدخل",
+      need:"قائمتا دخل مقيستان لشهرين",answer:"يحتاج بيانات"});
+    /* 4–5) الانحرافات والإجراء: المفتوحة فقط، الأعلى أولوية، والأحدث داخل كل أولوية. */
+    const rank={high:0,medium:1,low:2};
+    const top=Al.map((r,i)=>({r,i})).filter(x=>this.biAlertState(x.r.id).s!=="مغلق")
+      .sort((a,b)=>(rank[a.r.sev]??3)-(rank[b.r.sev]??3)||String(b.r.updated||"").localeCompare(String(a.r.updated||""))||a.i-b.i)
+      .slice(0,3).map(x=>x.r);
+    out.push({n:4,q:"ما أهم الانحرافات والمخاطر؟",go:"bi_alerts",basis:top.length?"مُتحقَّق":"—",src:"سجل التنبيهات",alerts:top,
+      answer:top.length?top.map(r=>r.kpi).join(" · "):"لا تنبيهات مفتوحة"});
+    out.push({n:5,q:"ما الإجراء المطلوب؟",go:"bi_alerts",basis:top.length?"مُتحقَّق":"—",src:"سجل التنبيهات",alerts:top,
+      answer:top.length?top.map(r=>r.action+" ("+r.owner+")").join(" · "):"لا تنبيهات مفتوحة"});
+    return out;
+  }
+  biExecCards(A){
+    const T=this.state.T, money=v=>v==null?{v:"—"}:this.fsC(v), pctc=v=>v==null?{v:"—"}:{v:(v>=0?"▲ ":"▼ ")+T.pct(Math.abs(v)),c:v>=0?"#6ee7b7":"#fca5a5"};
+    const head=a=>React.createElement("div",{key:"h",style:{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",fontSize:10.5,color:"#64748b"}},
+      a.basis!=="—"?this.biStatusTag(a.basis):null,a.src);
+    return A.map(a=>{
+      const kids=[head(a)], k="bq"+a.n;
+      if(a.need) kids.push(this.biNeed(k+"n",a.need));
+      else if(a.n===1){
+        const ty=a.cy&&!a.cy.need, gp=r=>r.k==="gpm";
+        kids.push(this.fsTable(k+"t",["البند",this.fsMon(a.m1),this.fsMon(a.m0),"التغير",this.fsMon(a.y)+(a.cy?" ("+a.cy.tag+")":""),"التغير"],
+          a.rows.map(r=>[r.l,gp(r)?T.pct(r.v1):money(r.v1),gp(r)?T.pct(r.v0):money(r.v0),
+            gp(r)?{v:r.d0==null?"—":(r.d0>=0?"+":"−")+Math.abs(r.d0).toFixed(1)+" نقطة"}:pctc(r.d0),
+            !ty?{v:"يحتاج بيانات",c:"#94a3b8"}:gp(r)?T.pct(r.vy):money(r.vy),
+            !ty?{v:"—"}:gp(r)?{v:r.dy==null?"—":(r.dy>=0?"+":"−")+Math.abs(r.dy).toFixed(1)+" نقطة"}:pctc(r.dy)])));
+        kids.push(this.advNote(k+"x","المقارنة بالشهر نفسه من العام السابق مرجع لا مستهدف. صافي الربح كما في كل قائمة؛ وقوائم 2025 قبل الإهلاك (الإهلاك السنوي مُحمَّل على ديسمبر)."));
+      } else if(a.n===2){
+        kids.push(this.fsTable(k+"t",["البند","الموازنة","الفعلي","الانحراف","%"],
+          a.rows.map(r=>[r.l,money(r.bud),money(r.act),money(r.var),pctc(r.pct)])));
+      } else if(a.n===3){
+        kids.push(React.createElement("div",{key:k+"a",style:{fontSize:11.5,lineHeight:1.8,color:"#cbd5e1"}},a.answer+"."));
+        kids.push(this.fsTable(k+"s",["أكبر العوامل","الأثر"],a.steps.map(s=>[s.name,money(s.v)])));
+        const it=a.up.map(i=>({...i,dir:"ربح"})).concat(a.dn.map(i=>({...i,dir:"خسارة"})));
+        /* الصنف الجديد أو المتوقف كله أثر واحد، فلا يُقسَّم إلى سعر وتكلفة وكمية. */
+        const fx=(i,v)=>i.kind==="مشترك"?money(v):{v:"—"};
+        if(it.length) kids.push(this.fsTable(k+"i",["الصنف","الحالة","Δ مجمل الربح","أثر السعر","أثر التكلفة","الكمية والمزيج"],
+          it.map(i=>[i.name,i.kind,{...money(i.dgp),c:i.dgp>=0?"#6ee7b7":"#fca5a5"},fx(i,i.price),fx(i,i.cost),fx(i,i.vol)])));
+        kids.push(this.advNote(k+"x","الإجماليات من القوائم «مُتحقَّق»؛ أثر التكلفة بالصنف «تقدير» من تكلفة الصنف في جدول الربحية. التفصيل الكامل وكل الأصناف في «جسر الربح»."));
+      } else if(!a.alerts.length) kids.push(this.empty("لا تنبيهات مفتوحة"));
+      else if(a.n===4) kids.push(this.fsTable(k+"t",["المؤشر","القيمة","الحد","الانحراف"],a.alerts.map(r=>[r.kpi,r.value,r.thr,r.dev])));
+      else kids.push(this.fsTable(k+"t",["الإجراء","المسؤول","الحالة"],a.alerts.map(r=>[{v:React.createElement("span",{onClick:()=>this.go(r.go),
+          "data-bi-q5":r.go,style:{cursor:"pointer",color:"var(--abh-93c5fd,#93c5fd)",textDecoration:"underline",textUnderlineOffset:3}},r.action)},
+        r.owner,this.biAlertState(r.id).s])));
+      kids.push(this.advLink(k+"go","التفاصيل",a.go));
+      return this.card(a.n+" — "+a.q,kids,{k});
+    });
   }
 
   /* ======================= 2) جسر الربح (السعر × الكمية × التكلفة) ========== */
@@ -480,7 +694,7 @@
         confirm:a.some(r=>r&&r.confirm),missing:a.filter(r=>!r||r.net==null).map((r,i)=>ms[i])}; });
     return {rows,Y,cmp};
   }
-  biIs25Body(X,T,api){
+  biIs25Body(X,T,api,opt){
     if(!window.DASH_IS25) return [this.biNeed("bi25n","قوائم دخل 2025 غير مضمنة في هذا الملف.")];
     const Z=this.biIs25(), out=[], Y=Z.Y, need=Z.rows.filter(r=>r.need), conf=Z.rows.filter(r=>r.confirm);
     out.push(this.kpiTiles([
@@ -491,7 +705,7 @@
     out.push(this.advNote("bi25a","يناير–مايو 2025 من نص قوائم الدخل المرفوع (ملفات .pdf.txt — لم تُرفع ملفات PDF نفسها): كل رقم موجود حرفيًا في نص شهره، "
       +"والمبيعات − المردودات − الخصم = الصافي، والصافي − التكلفة = مجمل الربح، ومجمل الربح − المصروفات = صافي الربح. "
       +"تبقى «يحتاج مراجعة» حتى تُقارن بالـPDF. يوليو–ديسمبر من القوائم المالية المعتمدة (DASH_FS) كما هي، وصافي ربحها قبل الإهلاك (إهلاك السنة كله في ديسمبر)."));
-    out.push(this.card("قائمة الدخل الشهرية — 2025",[
+    if(!(opt&&opt.noTable)) out.push(this.card("قائمة الدخل الشهرية — 2025",[
       this.fsTable("bi25t",["الشهر","صافي المبيعات","تكلفة المبيعات","مجمل الربح","هامش المجمل","المصروفات","نسبة المصروفات","صافي الربح","هامش الصافي","مبيعات الفواتير","الأساس"],
         Z.rows.map(r=>r.need?[this.fsMon(r.month),{v:"يحتاج بيانات",c:"#c4b5fd"},"—","—","—","—","—","—","—","—",{v:r.need,c:"#c4b5fd"}]
           :[this.fsMon(r.month),this.fsC(r.net),this.fsC(r.cogs),this.fsC(r.gp),this.fsC(r.gpm,"pct"),this.fsC(r.exp),this.fsC(r.expr,"pct"),
@@ -688,6 +902,197 @@
     return out;
   }
 
+  /* ============== قسمان مدمجان (طلب الإدارة 29/10/2026) ============== */
+  /* محتوى قسم أصلي داخل قسم مدمج: عنوان، ثم جسم القسم كما هو في حاوية لها مفتاحها (فلا تتصادم
+     مفاتيح الأقسام المدمجة: «التكلفة المعيارية» و«دوران المخزون» تستعملان bsdn/bsdc/bsdx معًا)،
+     وخطأ في جزء يعرض رسالة مكانه ولا يوقف باقي القسم. */
+  biPart(k,title,sub,fn){
+    let body;
+    try{ body=fn()||[]; }
+    catch(e){ body=[this.advNote(k+"-err","تعذّر عرض هذا الجزء ("+String(e&&e.message||e)+"). باقي القسم يعمل كما هو.","warn")]; }
+    return React.createElement("div",{key:k,"data-bi-part":title,style:{display:"flex",flexDirection:"column",gap:11}},
+      React.createElement("div",{style:{marginTop:6,paddingTop:10,borderTop:"1px solid var(--abh-rgba-255-255-255-14,rgba(255,255,255,.14))",
+        fontSize:13,fontWeight:700,color:"var(--abh-e2e8f0,#e2e8f0)"}},title,
+        sub?React.createElement("span",{style:{fontSize:10.5,fontWeight:400,color:"#64748b",marginInlineStart:8}},sub):null),
+      ...body);
+  }
+
+  /* ----- «الإنتاج والتشغيل»: وصفات كل المنتجات بالكميات فقط -----
+     التسع من ملف وصفات الإدارة (DASH_BOM ← tools/export_bom.py)، والبانيه والاستربس والصويا من أوراقها
+     (DASH_RCP)، والمفروم والكبدة من وصفة الإدارة (DASH_STD.monthly.single). لا سعر هنا: الكيلو والعبوة
+     في «التكلفة والمخزون». ثم محتوى «وصفات البانيه والاستربس» كما كان. */
+  biProd(){
+    const B=window.DASH_BOM, C=window.DASH_RCP, S=window.DASH_STD&&window.DASH_STD.monthly;
+    const bom=B?B.recipes:[], sheets=C?C.recipes:[], singles=S?S.single:[];
+    const sig=r=>JSON.stringify(r.main.concat(r.sub)), same=[];
+    bom.forEach((r,i)=>bom.slice(i+1).forEach(x=>{ if(sig(x)===sig(r)) same.push([r.name,x.name]); }));
+    /* «توابيل» في الوصفة الرئيسية هي الخلطة الفرعية نفسها، لا خامة. */
+    const ings=new Set([].concat(...bom.map(r=>r.main.concat(r.sub).filter(x=>x.ing!=="توابيل").map(x=>x.ing)),
+      ...sheets.map(r=>r.lines.filter(l=>l.qty!=null).map(l=>l.name)),singles.map(r=>r.item)));
+    return {bom,sheets,singles,same,ings,basis:B&&B.basis,source:B&&B.source};
+  }
+  biProdBody(X,T,api){
+    const Z=this.biProd(), out=[], q=v=>v==null?{v:"—"}:{v:String(+(+v).toFixed(3))};
+    out.push(this.kpiTiles([
+      ["منتجات بوصفة كميات",T.int(Z.bom.length+Z.sheets.length+Z.singles.length),
+        T.int(Z.bom.length)+" من ملف الإدارة · "+T.int(Z.sheets.length)+" أوراق خلطة · "+T.int(Z.singles.length)+" خامة واحدة","#3b82f6"],
+      ["خامات مختلفة",T.int(Z.ings.size),"بأسمائها كما طُبعت","#14b8a6"],
+      ["أوزان عبوات",T.int(Z.bom.reduce((a,r)=>a+r.packs.length,0)+Z.sheets.reduce((a,r)=>a+r.packs.length,0)+Z.singles.length),"من أوراق الوصفات","#06b6d4"],
+      ["وصفات متطابقة البنود",T.int(Z.same.length),Z.same.length?Z.same.map(p=>p.join(" = ")).join(" · "):"لا تكرار","#f59e0b"]],"bprk"));
+    if(!Z.bom.length) out.push(this.biNeed("bpr0","ملف كميات الوصفات التسع (data/raw/cost/recipes_bom.json — tools/export_bom.py) غير مضمن في هذا الملف."));
+    out.push(this.advNote("bprn","الكميات فقط كما في أوراق الوصفات — بلا أسعار ولا تكلفة؛ كيلو كل خلطة شهريًا وتكلفة كل صنف تام في «التكلفة والمخزون». "
+      +(Z.bom.length?"الوصفات التسع من "+Z.source+": "+Z.basis+". بند «توابيل» في الوصفة الرئيسية هو الخلطة الفرعية المعروضة تحته. ":"")
+      +"«من الدفعة» نصيب البند من مجموع كميات الدفعة."));
+    if(Z.same.length) out.push(this.advNote("bprs","«"+Z.same.map(p=>p.join("» و«")).join("»، «")
+      +"» بنفس البنود والكميات تمامًا في ملف الوصفات، فكيلو خلطتها واحد في كل شهر — أكّد أن هذا مقصود لا نسخ.","warn"));
+    Z.bom.forEach((r,i)=>{
+      const tot=r.main_total, sp=r.main.filter(x=>x.ing==="توابيل").reduce((a,x)=>a+x.qty,0);
+      const spOff=r.sub.length&&Math.abs(sp-r.sub_total)>0.001;
+      out.push(this.card(r.name+" — "+r.brand,[
+        spOff?this.advNote("bprw"+i,"الوصفة الرئيسية تستعمل "+q(sp).v+" كجم توابيل من خلطة فرعية مجموعها "+q(r.sub_total).v
+          +" كجم كما في ملف الوصفات — أكّد أيهما الصحيح أو مصير الفرق.","warn"):null,
+        this.fsTable("bprm"+i,["الخامة","الكمية (كجم)","من الدفعة"],
+          r.main.map(x=>[x.ing+(x.ing==="توابيل"&&r.sub.length?" (الخلطة الفرعية)":""),q(x.qty),tot?this.fsC(x.qty/tot,"pct"):"—"])
+          .concat([{cells:["إجمالي الدفعة",q(tot),""],bold:true},[{v:"أساس الإنتاجية (ناتج الدفعة)",c:"#94a3b8"},q(r.yield_kg),""]])),
+        r.sub.length?this.fsTable("bprb"+i,["الخلطة الفرعية: "+(r.sub_name||""),"الكمية (كجم)"],
+          r.sub.map(x=>[x.ing,q(x.qty)]).concat([{cells:["إجمالي الخلطة الفرعية",q(r.sub_total)],bold:true}])):null,
+        this.advNote("bpry"+i,"العبوات: "+r.packs.map(p=>p.sku+" ("+q(p.kg).v+" كجم)").join(" · ")+(r.yield_note?" · "+r.yield_note:""),
+          Math.abs(r.yield_kg-tot)>0.01?"warn":null)].filter(Boolean),{k:"bpr"+i,sub:r.sheet}));
+    });
+    Z.sheets.forEach(r=>{
+      const tot=r.lines.reduce((a,l)=>a+(+l.qty||0),0);
+      out.push(this.card(r.name+(r.date?" — "+this.opsDmy(r.date):" — ورقة بلا تاريخ"),[
+        this.fsTable("bprr"+r.key,["البند","الكمية كما طُبعت","من الدفعة"],
+          r.lines.map(l=>[l.name,l.qty==null?{v:"قيمة بلا كمية",c:"#94a3b8"}:q(l.qty),l.qty==null||!tot?"—":this.fsC(l.qty/tot,"pct")])
+          .concat([{cells:["مجموع الكميات المطبوعة",q(tot),""],bold:true},
+            [{v:"كمية الإنتاج للدفعة — "+r.output_kg_basis,c:r.output_kg_basis==="مطبوع"?"#94a3b8":"#fcd34d"},q(r.output_kg),""]])),
+        this.advNote("bprp"+r.key,"العبوات: "+r.packs.map(p=>p.label||p.grams+" جرام").join(" · ")+" · الورقة لا تطبع وحدة الكمية.")],
+        {k:"bprc"+r.key,sub:r.uploaded_as}));
+    });
+    if(Z.singles.length) out.push(this.card("المفروم والكبدة — خامة واحدة",this.fsTable("bprg",["المنتج","صنف المبيعات","الخامة","الكمية للعبوة (كجم)"],
+      Z.singles.map(r=>[r.name,r.item_name_sales,r.item,q(r.kg)])),{k:"bprgc",sub:"وصفة الإدارة كما في المعيار الشهري — الكمية فقط"}));
+    out.push(this.biPart("bprx","وصفات البانيه والاستربس","كما كانت في قسمها: الأسعار وتكلفة العبوة وربط الأصناف وهامش الوصفة",
+      ()=>this.biRecipesBody(X,T,api)));
+    return out;
+  }
+
+  /* ----- «التكلفة والمخزون»: «التكلفة المعيارية» + «دوران المخزون والراكد» + «تمرير التكلفة» -----
+     يبدأ بجدولين جديدين ثم الأقسام الثلاثة بمحتواها كما هو. حقول DASH_OPS مسماة بأشهر 2026 (kg_jun…kg_sep). */
+  biCostMonths(){ return [["2026-06","jun"],["2026-07","jul"],["2026-08","aug"],["2026-09","sep"]]; }
+  /* كيلو كل خلطة على مدار الشهور: الوصفات التسع من ملف التقييم، أوراق الخلطة في شهر تاريخها،
+     المفروم والكبدة سعر كيلو الخامة. ما لا مصدر له في شهر = null (يُعرض «يحتاج بيانات»). */
+  biCostKilo(){
+    const O=window.DASH_OPS, C=window.DASH_RCP, S=window.DASH_STD&&window.DASH_STD.monthly, MS=this.biCostMonths(), rows=[];
+    const rc=(O&&O.inventory&&O.inventory.recipes)||[];
+    const twin=r=>rc.filter(x=>x!==r&&MS.every(([,k])=>x["kg_"+k]===r["kg_"+k])).map(x=>x.product);
+    rc.forEach(r=>{ const tw=twin(r);
+      rows.push({name:r.product,kind:"وصفة · "+r.brand,by:Object.fromEntries(MS.map(([m,k])=>[m,r["kg_"+k]==null?null:+r["kg_"+k]])),
+        basis:"ملف التقييم — خامات مباشرة فقط"+(tw.length?" · نفس قيم «"+tw.join("»، «")+"»":"")}); });
+    ((C&&C.recipes)||[]).forEach(r=>{ const m=r.date?r.date.slice(0,7):null;
+      rows.push({name:r.name,kind:"ورقة خلطة",by:Object.fromEntries(MS.map(([x])=>[x,x===m?r.per_kg:null])),
+        basis:r.date?"ورقة "+this.opsDmy(r.date)+" — إجماليها المطبوع (يشمل بنود التشغيل) ÷ كمية الدفعة"
+          :"ورقة بلا تاريخ: "+(+r.per_kg).toFixed(2)+" للكيلو — لا تُنسب لشهر"}); });
+    const items=new Map();
+    ((S&&S.single)||[]).forEach(r=>{ const o=items.get(r.item)||{r,names:[]}; o.names.push(r.name); items.set(r.item,o); });
+    items.forEach(({r,names},item)=>rows.push({name:item,kind:"خامة واحدة",by:Object.fromEntries(MS.map(([m])=>[m,r.by_month[m]?r.by_month[m].price:null])),
+      basis:"متوسط آخر الشهر (المعيار الشهري) · "+names.join("، ")}));
+    rows.forEach(r=>{ const v=MS.map(([m])=>r.by[m]).filter(x=>x!=null); r.chg=v.length>1?v[v.length-1]/v[0]-1:null; });
+    return {rows,months:MS.map(([m])=>m)};
+  }
+  /* تكلفة كل صنف تام: المعيار للعبوة في كل شهر، والفعلي = تكلفة المبيعات في قائمة الدخل × نصيب الأصناف
+     المربوطة من إيراد الفواتير، موزعًا عليها بنسبة تكلفتها المعيارية للكميات المباعة مع البونص (اختيار الإدارة).
+       المعيار: شهر له معيار شهري → هو؛ غيره → كيلو الشهر من ملف التقييم × الوزن + الهانك بسعر الملف + التغليف،
+       وحيث يختلف كيلو ملف التقييم عن عجينة المعيار الشهري (سجق أبو هاشم) → عجينة أول شهر × تغير الكيلو. «تقدير» في الحالتين.
+     التوزيع بالمعيار يعطي كل أصناف الشهر نسبة الانحراف نفسها (f − 1). */
+  biCostStd(D){
+    const S=window.DASH_STD, Mo=S&&S.monthly, O=window.DASH_OPS, MS=this.biCostMonths();
+    if(!S||!Mo||!Mo.months.length) return null;
+    const U=r=>r.std!=null?r.std:r.total, file=new Map(S.rows.filter(r=>r.item_code).map(r=>[String(r.item_code),r]));
+    const ops=new Map(((O&&O.inventory&&O.inventory.recipes)||[]).map(r=>[r.product,r]));
+    const m0=Mo.months[0], k0=(MS.find(x=>x[0]===m0)||[])[1], items=[], have=new Set();
+    Mo.rows.forEach(r=>{ const c=String(r.item_code), f=file.get(c), o=ops.get(r.recipe), a=r.by_month[m0], kb=o&&k0?o["kg_"+k0]:null;
+      const exact=!!a&&a.paste!=null&&kb!=null&&Math.abs(a.paste/r.kg-kb)<0.01, by={};
+      have.add(c);
+      MS.forEach(([m,k])=>{ const x=r.by_month[m], km=o?o["kg_"+k]:null;
+        if(x&&x.std!=null) by[m]={std:x.std,t:"شهري"};
+        else if(km==null||!a||a.paste==null||kb==null) by[m]={std:null,t:"يحتاج بيانات"};
+        else by[m]={std:(exact?r.kg*km:a.paste*km/kb)+(a.casing>0?(f&&f.hank_cost!=null?f.hank_cost:a.casing):0)+a.pack,
+          t:exact?"تقدير بالكيلو":"تقدير بالنسبة"}; });
+      items.push({code:c,key:r.key,recipe:r.recipe,by}); });
+    S.rows.filter(r=>r.item_code&&!have.has(String(r.item_code))).forEach(r=>items.push({code:String(r.item_code),key:r.key,recipe:"—",
+      by:Object.fromEntries(MS.map(([m])=>[m,{std:U(r),t:"الملف"}]))}));
+    Mo.single.forEach(r=>items.push({code:String(r.item_code),key:r.name,recipe:r.recipe,
+      by:Object.fromEntries(MS.map(([m])=>[m,r.by_month[m]&&r.by_month[m].std!=null?{std:r.by_month[m].std,t:"شهري"}:{std:r.mgmt,t:"الإدارة"}]))}));
+    const idx=new Map(items.map(it=>[it.code,it])), mon=Object.fromEntries(MS.map(([m])=>[m,{month:m,rev:0,covRev:0,stdCogs:0}]));
+    (D.lines||[]).forEach(l=>{ const o=mon[l.month]; if(!o) return; const t=+l.line_total||0, q=+l.qty||0, it=idx.get(String(l.item_code));
+      o.rev+=t; if(!it) return;
+      it.name=it.name||l.item_name; o.covRev+=t;
+      const s=it.by[l.month]; s.q=(s.q||0)+q; s.rev=(s.rev||0)+t; if(s.std!=null) o.stdCogs+=q*s.std; });
+    const months=MS.map(([m])=>{ const o=mon[m], st=this.biStmt(m), cogs=st&&st.cogs!=null?st.cogs:null;
+      const cov=o.rev?o.covRev/o.rev:null, alloc=cogs!=null&&cov!=null?cogs*cov:null, f=alloc!=null&&o.stdCogs?alloc/o.stdCogs:null;
+      return {...o,cov,cogs,alloc,f,sold:o.rev>0,measured:this.biMeasured(st)}; });
+    const fm=new Map(months.map(r=>[r.month,r.f]));
+    items.forEach(it=>{ it.name=it.name||it.key;
+      MS.forEach(([m])=>{ const s=it.by[m], f=fm.get(m); s.q=s.q||0; s.rev=s.rev||0;
+        s.act=f!=null&&s.q&&s.std!=null?s.std*f:null; s.var=s.act==null?null:s.act-s.std; }); });
+    const w=it=>MS.reduce((a,[m])=>a+it.by[m].rev,0);
+    items.sort((a,b)=>w(b)-w(a));
+    return {items,months,m0,list:MS.map(([m])=>m),ratio:items.filter(it=>MS.some(([m])=>it.by[m].t==="تقدير بالنسبة"))};
+  }
+  biCostBody(X,T,api){
+    const out=[], K=this.biCostKilo(), Z=window.DASH_STD?this.advMemo(api,"biCostStd",(X2,D)=>this.biCostStd(D)):null;
+    const r2=x=>x==null?{v:"—"}:{v:(Math.round(x*100)/100).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})};
+    const need={v:"يحتاج بيانات",c:"#c4b5fd"}, act=Z?Z.months.filter(r=>r.f!=null):[], last=act[act.length-1];
+    const wait=Z?Z.months.filter(r=>r.cogs==null).map(r=>this.fsMon(r.month)):[];
+    out.push(this.kpiTiles([
+      ["خلطات بكيلو شهري",T.int(K.rows.length),"الوصفات + أوراق الخلطة + المفروم والكبدة","#3b82f6"],
+      ["الفعلي ÷ المعيار",last?r2(last.f).v:"—",last?this.fsMon(last.month)+" · المحمَّل ÷ المعيارية":"","#f59e0b"],
+      ["تغطية الإيراد",last?T.pct(last.cov):"—",last?"أصناف لها معيار · "+this.fsMon(last.month):"","#06b6d4"],
+      ["أشهر تنتظر قائمة الدخل",T.int(wait.length),wait.join("، ")||"—","#a78bfa"]],"bcok"));
+    out.push(this.advNote("bcon","«التكلفة المعيارية» و«دوران المخزون والراكد» و«تمرير التكلفة» في قسم واحد بكل محتواها كما كانت (طلب الإدارة 29/10/2026)، "
+      +"يبدأ بجدولين: كيلو كل خلطة على مدار الشهور، وتكلفة كل صنف تام بالمعيار مقابل الفعلي. الأقسام الأصلية خارج القائمة، و?nobi في الرابط يعيد الملف كما كان."));
+    out.push(this.card("كيلو الخلطة على مدار الشهور",this.fsTable("bcoa",["الخلطة","النوع"].concat(K.months.map(m=>this.fsMon(m)),["التغير","الأساس"]),
+      K.rows.map(r=>[r.name,r.kind].concat(K.months.map(m=>r.by[m]==null?need:r2(r.by[m])),
+        [r.chg==null?"—":{v:T.pct(r.chg),c:r.chg>0?"#fca5a5":"#6ee7b7"},{v:r.basis,c:"#94a3b8"}]))),
+      {k:"bcoA",sub:"ج.م للكيلو · مُتحقَّق من مصدر كل صف · الوصفات بلا تعبئة ولا أجور · التغير من أول شهر له قيمة إلى آخره · الخانة الفارغة «يحتاج بيانات» لا تقدير"}));
+    if(!Z) out.push(this.biNeed("bco0","ملف التكلفة المعيارية بمعياره الشهري غير مضمن — لا معيار لتكلفة الأصناف."));
+    else {
+      out.push(this.card("تكلفة المنتج التام — المعيار مقابل الفعلي بالشهر",[
+        this.fsTable("bcob",["الشهر","تكلفة المبيعات (القائمة)","تغطية الإيراد","المحمَّل على الأصناف","المعيارية للكميات","الفعلي ÷ المعيار","الانحراف"],
+          Z.months.map(r=>[this.fsMon(r.month),r.cogs==null?need:{v:this.fsC(r.cogs).v+(r.measured?"":" (تقدير)")},
+            r.sold?this.fsC(r.cov,"pct"):{v:"لا مبيعات في اللقطة",c:"#94a3b8"},r.alloc==null?"—":this.fsC(r.alloc),
+            r.sold?this.fsC(r.stdCogs):"—",r.f==null?"—":r2(r.f),
+            r.f==null?"—":{v:T.pct(r.f-1)+" · "+T.egpK(r.alloc-r.stdCogs),c:r.f>1?"#fca5a5":"#6ee7b7"}])),
+        wait.length?this.biNeed("bcobn","قائمة دخل "+wait.join(" و")+" لحساب الفعلي؛ المعيار معروض لكل شهر في الجدول التالي."):null].filter(Boolean),
+        {k:"bcoB",approx:true,sub:"الفعلي = تكلفة المبيعات في قائمة الدخل × نصيب الأصناف المربوطة من إيراد الفواتير، موزعة عليها بنسبة تكلفتها المعيارية للكميات المباعة مع البونص"}));
+      const head=["الصنف","المعيار"];
+      Z.months.forEach(r=>{ const n=this.fsMon(r.month); head.push("معيار "+n,"فعلي "+n); if(r.f!=null) head.push("الانحراف "+n); });
+      const tags=it=>[...new Set(Z.list.map(m=>it.by[m].t))].join(" · ");
+      out.push(this.card("تكلفة المنتج التام لكل صنف — للعبوة",this.fsTable("bcoc",head,
+        Z.items.map(it=>{ const row=[it.name,{v:tags(it),c:"#94a3b8"}];
+          Z.months.forEach(r=>{ const s=it.by[r.month];
+            row.push(s.std==null?need:r2(s.std));
+            row.push(r.cogs==null?need:s.act==null?{v:s.q?"—":"لم يُبع",c:"#94a3b8"}:r2(s.act));
+            if(r.f!=null) row.push(s.var==null?"—":{v:r2(s.var).v,c:s.var>0?"#fca5a5":"#6ee7b7"}); });
+          return row; })),
+        {k:"bcoC",approx:true,sub:"«شهري» المعيار الشهري (الوصفة بمتوسط آخر الشهر) · «تقدير بالكيلو» كيلو الشهر من ملف التقييم × الوزن + الهانك بسعر الملف + التغليف · "
+          +"«تقدير بالنسبة» عجينة "+this.fsMon(Z.m0)+" × تغير كيلو ملف التقييم · «الإدارة» معيار الإدارة بلا شهر · «الملف» معيار الملف ثابت"}));
+      out.push(this.advNote("bcod","التوزيع بالتكلفة المعيارية (اختيار الإدارة) يعطي كل أصناف الشهر نسبة الانحراف نفسها = الفعلي ÷ المعيار − 1؛ الفرق بين الأصناف في الجنيه لا في النسبة. "
+        +"لا تكلفة فعلية مستقلة لكل صنف في البيانات، فالفعلي بالصنف تقدير بالتوزيع. تكلفة المبيعات في القائمة تشمل الأجور والأعباء والهالك وفرق المخزون، "
+        +"والمعيار خامات وتغليف فقط، فجزء من الانحراف فرق أساس قياس لا هدر. الأصناف بلا معيار ("+(last?T.pct(1-last.cov):"—")
+        +" من الإيراد) لا يُحمَّل عليها شيء ولا يُحمَّل نصيبها على غيرها."));
+      if(Z.ratio.length) out.push(this.advNote("bcor","كيلو ملف التقييم لـ"+[...new Set(Z.ratio.map(it=>"«"+it.recipe+"»"))].join("، ")
+        +" يختلف عن عجينة المعيار الشهري (الهانك منفصل في المعيار)، فمعيار الأشهر الأخرى = عجينة "+this.fsMon(Z.m0)+" × تغير الكيلو — «تقدير بالنسبة».","warn"));
+      out.push(this.opsDecision("bcox",[
+        wait.length?{t:"ارفع قائمة دخل "+wait.join(" و")+" لحساب الفعلي والانحراف لكل صنف.",tag:"v"}:null,
+        last&&last.f>1?{t:"الفعلي أعلى من المعيار "+T.pct(last.f-1)+" في "+this.fsMon(last.month)+": افصل الأجور والأعباء (خارج المعيار) قبل اعتباره هدرًا.",tag:"e"}:null]));
+    }
+    out.push(this.biPart("bcos","التكلفة المعيارية","كما كانت في قسمها",()=>this.biStdBody(X,T,api)));
+    out.push(this.biPart("bcot","دوران المخزون والراكد","كما كان في قسمه",()=>this.biStockBody(X,T,api)));
+    out.push(this.biPart("bcop","تمرير التكلفة","كما كان في «قرارات وتشغيل»",()=>this.opsCostPassBody(X,T,api)));
+    return out;
+  }
+
   /* ======================= 4) سجل التنبيهات الموحد ========================= */
   /* كل تنبيه: المؤشر، القيمة الفعلية، الحد، الانحراف، السبب المحتمل (مُتحقَّق أو فرضية)،
      الإجراء، المسؤول (دور مقترح)، الحالة، تاريخ آخر تحديث. الحالة تُحفظ في هذا الجهاز فقط. */
@@ -743,11 +1148,11 @@
       rules.push({id:"bi_dead",kpi:"خامات راكدة",thr:"0",on:V.dead.length>0,src:"جرود المخزون"});
       if(V.dead.length) out.push({id:"bi_dead",kpi:"خامات راكدة بلا حركة",value:T.egpK(dv)+" · "+V.dead.length+" صنف",thr:"0",dev:T.egpK(dv),
         cause:"الرصيد نفسه في كل جرد من "+this.opsDmy(V.firstDate)+" ولا مشتريات",ct:"v",action:"فحص الصلاحية واستعمالها أو إيقاف شرائها",
-        owner:"مدير المخزن / المشتريات",sev:"medium",updated:V.lastDate,go:"bi_stock",src:"جرود المخزون"});
+        owner:"مدير المخزن / المشتريات",sev:"medium",updated:V.lastDate,go:"bi_cost",src:"جرود المخزون"});
       rules.push({id:"bi_unpriced",kpi:"أصناف برصيد بلا متوسط تكلفة",thr:"0",on:V.unpriced.length>0,src:"جرود المخزون"});
       if(V.unpriced.length) out.push({id:"bi_unpriced",kpi:"أصناف برصيد بلا متوسط تكلفة",value:T.int(V.unpriced.length)+" صنف",thr:"0",dev:T.int(V.unpriced.length),
         cause:"لا سعر شراء لها في نموذج المتوسط المرجح، فقيمتها صفر في الجرد",ct:"v",action:"إدخال سعر الشراء الفعلي في نموذج الشهر",
-        owner:"المحاسب",sev:"medium",updated:V.lastDate,go:"bi_stock",src:"جرود المخزون"});
+        owner:"المحاسب",sev:"medium",updated:V.lastDate,go:"bi_cost",src:"جرود المخزون"});
       const Pu=this.opsPurchases(), sp=0.15, wide=Pu.items.filter(o=>o.spread!=null&&o.spread>sp), gap=wide.reduce((s,o)=>s+o.gap,0);
       rules.push({id:"bi_pspread",kpi:"تذبذب سعر شراء الصنف",thr:T.pct(sp)+" بين أعلى وأقل سعر (حد مقترح — افتراض)",on:wide.length>0,src:"المشتريات"});
       if(wide.length) out.push({id:"bi_pspread",kpi:"تذبذب سعر شراء الصنف",value:wide.length+" صنف · فوق أقل سعر "+T.egpK(gap),
@@ -761,7 +1166,7 @@
       if(under.length) out.push({id:"bi_std",kpi:"بيع دون التكلفة المعيارية ("+this.fsMon(Z.skuMonth)+")",
         value:under.length+" صنف · "+under.map(r=>r.name).join("، "),thr:"0%",dev:"أدنى هامش "+T.pct(Math.min(...under.map(r=>r.std_margin))),
         cause:"متوسط سعر البيع في الفواتير أقل من معيار الخلطة والتغليف",ct:"v",action:"رفع السعر أو إيقاف الخصم على الصنف",owner:"مدير المبيعات",
-        sev:"high",updated:this.opsMonEnd(Z.skuMonth),go:"bi_std",src:"التكلفة المعيارية"});
+        sev:"high",updated:this.opsMonEnd(Z.skuMonth),go:"bi_cost",src:"التكلفة المعيارية"});
     }
     const PG=(M&&M.pricing_gap)||[], below=PG.filter(p=>p.gap_pct>0);
     rules.push({id:"bi_floor",kpi:"أصناف تُباع دون سعر الأرضية",thr:"0",on:below.length>0,src:"ربحية الأصناف"});
@@ -908,6 +1313,101 @@
     return out;
   }
 
+  /* ======================= 10) دليل اللوحة ================================ */
+  /* الأقسام كلها في سبع مجموعات وظيفية (خطة تنظيم اللوحة، 27/10/2026). التنقل الأصلي لا يتغير:
+     الدليل قسم مضاف، والانتقال منه بـ go() إلى القسم نفسه في مكانه.
+     لكل قسم: [المجموعة، نطاق الفلاتر، مجال تاريخ البيانات]. نطاق الفلاتر مقيس لا مفترض:
+     tests/test_browser_bi.py::test_map_filter_scope يطبّق فلتر المندوب والشهر (وفلاتر «التحليل»)
+     ويتحقق أن كل قسم يتغير أو لا يتغير كما هو مكتوب هنا، ويفشل إن ظهر قسم لا مكان له في الدليل. */
+  biMapDef(){
+    const groups=[
+      ["الملخص التنفيذي","أهم المؤشرات والتنبيهات في شاشة"],
+      ["التحليل التجاري والمبيعات","المبيعات والعملاء والأصناف والمندوبون والمرتجعات"],
+      ["التحليل المالي والربحية","القوائم المالية والربحية والمصروفات ورأس المال العامل"],
+      ["المخزون والتكلفة","المخزون والمشتريات والتكلفة المعيارية والوصفات"],
+      ["التشغيل والإنتاج","الإنتاجية والهالك وتتبع التشغيلات"],
+      ["العملاء والتحصيل والمخاطر","المديونية وأعمارها والتحصيل والتنبيهات على المخاطر"],
+      ["التقارير والتفاصيل الأصلية","جداول التصدير وجودة البيانات وقاموس المؤشرات"]];
+    const keys={
+      bi_exec:[0,"rm","mix"], overview:[0,"rm","inv"], fs_exec:[0,"-","fs"], bi_alerts:[0,"rm","mix"],
+      sales:[1,"rm","inv"], customers:[1,"rm","inv"], products:[1,"rm","inv"], bonus:[1,"rm","inv"],
+      "r:sales":[1,"rf0","agg"], "r:customers":[1,"rf","agg"], "r:brands":[1,"rf","agg"], "r:products":[1,"rf","agg"],
+      "r:analysis":[1,"rf","agg"], "r:forecast":[1,"rf-","agg"],
+      adv_abc:[1,"rm","inv"], adv_season:[1,"rm","inv"], adv_basket:[1,"rm","inv"], adv_cohort:[1,"rm","inv"],
+      dec_rfm:[1,"rm","inv"], dec_reps:[1,"-","inv"], dec_leakage:[1,"rm","inv"], dec_returns:[1,"-","inv"],
+      fs_position:[2,"-","fs"], fs_income:[2,"-","pl"], fs_wc:[2,"-","fs"], "r:fin":[2,"rf-","agg"],
+      "r:margin":[2,"rf-","agg"], "r:expenses":[2,"rf-","agg"], bi_bridge:[2,"-","pl"], ops_wc:[2,"-","ops"],
+      dec_whatif:[2,"-","pl"], dec_valuation:[2,"-","fs"],
+      ops_inventory:[3,"-","ops"], ops_purchases:[3,"-","pur"], ops_costpass:[3,"-","pur"], bi_stock:[3,"-","ops"],
+      bi_std:[3,"-","std"], bi_recipes:[3,"-","rcp"], bi_cost:[3,"-","std"], bi_prod:[4,"-","rcp"],
+      receivables:[5,"r","inv"], overdue:[5,"r","inv"], aging:[5,"r","inv"], armove:[5,"-","inv"], collections:[5,"m","inv"],
+      "r:debt":[5,"rf","agg"], bi_arh:[5,"-","arh"], adv_alerts:[5,"rm","inv"],
+      "r:reports":[6,"mix","mix"], analytics:[6,"rm","inv"], quality:[6,"rm","inv"], snapdetail:[6,"m","inv"],
+      "r:quality":[6,"rf-","agg"], dq_clean:[6,"-","inv"], fs_quality:[6,"-","fs"], bi_kpis:[6,"-","mix"], bi_abm:[6,"-","abm"]};
+    const filt={
+      rm:["الشهر ✓ · المندوب ✓","#10b981"], r:["المندوب ✓ · الشهر ✗ (رصيد في تاريخ)","#f59e0b"],
+      m:["الشهر ✓ · المندوب ✗","#f59e0b"], "-":["لا تنطبق فلاتر الفواتير","#64748b"],
+      rf:["فلاتر «التحليل» ✓ (لا فلاتر الفواتير)","#3b82f6"], "rf-":["لا تنطبق — أرقام محسوبة مسبقًا للشركة","#64748b"],
+      rf0:["لا تنطبق أي فلاتر","#64748b"], mix:["كل جدول حسب قسمه","#a78bfa"]};
+    return {groups,keys,filt};
+  }
+  /* مصدر بيانات القسم وتاريخها، من التواريخ المضمنة نفسها (لا تاريخ يُكتب باليد). */
+  biMapDate(d,Fr){
+    const st=this.state, Bd=window.DASH_BUILD||{}, F=window.DASH_FS, fr=id=>Fr.rows.find(r=>r.id===id)||{};
+    if(d==="inv") return {src:fr("sales").source,as_of:fr("sales").as_of};
+    if(d==="agg"){ const P=st.RD&&st.RD.financial&&st.RD.financial.period;
+      return {src:"التجميعات الشهرية"+(P?" "+P.start+" – "+P.end:""),as_of:P?P.end:null}; }
+    if(d==="fs") return {src:"الميزانية العمومية — DASH_FS",as_of:F&&F.meta&&F.meta.as_of||null};
+    if(d==="pl") return {src:fr("pl").source,as_of:fr("pl").as_of};
+    if(d==="ops") return {src:fr("inv").source,as_of:Bd.inventory_as_of||null};
+    if(d==="pur") return {src:fr("pur").source,as_of:fr("pur").as_of};
+    if(d==="std"){ const M=window.DASH_STD&&window.DASH_STD.monthly, ms=M&&M.months||[], m=ms[ms.length-1];
+      return {src:"«سعر انتاج تام»"+(m?" + المعيار الشهري":""),as_of:m?this.opsMonEnd(m):null}; }
+    if(d==="arh"){ const ds=window.DASH_ARH&&window.DASH_ARH.meta.dates||[];
+      return {src:"تقارير أرصدة المناديب",as_of:ds[ds.length-1]||null}; }
+    if(d==="rcp") return {src:"أوراق الوصفات",as_of:window.DASH_RCP&&window.DASH_RCP.meta.as_of||null};
+    if(d==="abm") return {src:"Abohashem-main — لقطة",as_of:window.DASH_ABM&&window.DASH_ABM.as_of&&window.DASH_ABM.as_of.debt_as_of||null};
+    return {src:"عدة مجالات — لكلٍّ تاريخه في «حداثة البيانات»",as_of:null};
+  }
+  biMapRows(){
+    const Df=this.biMapDef(), Fr=this.biFresh(this.state.api?this.state.api.D:{}), ref=Fr.ref;
+    return this.registry().filter(s=>s.key!=="bi_map").map(s=>{
+      const k=Df.keys[s.key]||null, dt=k?this.biMapDate(k[2],Fr):{src:"",as_of:null};
+      const lag=dt.as_of&&ref?this.advDays(dt.as_of,ref):null;
+      return {key:s.key,label:s.label,nav:s.group,g:k?k[0]:null,group:k?Df.groups[k[0]][0]:"لم يُصنَّف",
+        filter:k?k[1]:null,filters:k?Df.filt[k[1]][0]:"—",source:dt.src,as_of:dt.as_of,lag,
+        fresh:dt.as_of==null?(k&&k[2]==="mix"?"—":"بلا تاريخ"):lag==null?"—":lag<=35?"حديثة":lag<=65?"متأخرة شهرًا":"قديمة"};
+    });
+  }
+  biMapBody(X,T,api){
+    const Df=this.biMapDef(), rows=this.biMapRows(), out=[], ref=this.biRef();
+    const lost=rows.filter(r=>r.g==null), noF=rows.filter(r=>r.filter&&r.filter!=="rm"&&r.filter!=="mix");
+    out.push(this.kpiTiles([
+      ["الأقسام",T.int(rows.length),"في "+T.int(new Set(rows.map(r=>r.nav)).size)+" مجموعات في القائمة","#3b82f6"],
+      ["المجموعات الوظيفية",T.int(Df.groups.length),T.int(Df.groups.filter((g,i)=>!rows.some(r=>r.g===i)).length)+" بلا قسم بعد","#14b8a6"],
+      ["لا تتبع كل فلاتر الفواتير",T.int(noF.length),"مكتوب لكل قسم أدناه","#f59e0b"],
+      ["أقسام لم تُصنَّف",T.int(lost.length),lost.length?"تُعرض في آخر الدليل":"كل الأقسام في الدليل",lost.length?"#ef4444":"#10b981"]],"bmk"));
+    out.push(this.advNote("bmn","الدليل لا يغيّر القائمة: كل قسم يبقى في مكانه وباسمه، والضغط على اسمه ينقلك إليه. "
+      +"«الفلاتر» مقيسة: ✓ يعني أن القسم يتغير بالفلتر، ✗ أنه لا يتغير. «حتى» تاريخ آخر بيانات القسم، "
+      +"والحداثة بالأيام حتى "+(ref?this.opsDmy(ref):"—")+" (آخر تحديث لبيانات التشغيل)."));
+    const fl={"حديثة":"#10b981","متأخرة شهرًا":"#f59e0b","قديمة":"#ef4444","بلا تاريخ":"#64748b"};
+    const link=r=>React.createElement("span",{onClick:()=>this.go(r.key),"data-bi-map":r.key,
+      style:{cursor:"pointer",color:"var(--abh-93c5fd,#93c5fd)",textDecoration:"underline",textUnderlineOffset:3}},r.label);
+    const table=(k,list)=>this.fsTable(k,["القسم","في القائمة","المصدر","حتى","الفلاتر"],
+      list.map(r=>[{v:link(r)},r.nav,r.source,{v:r.as_of?this.opsDmy(r.as_of):r.fresh,c:fl[r.fresh]},
+        {v:r.filters,c:(Df.filt[r.filter]||[])[1]}]));
+    Df.groups.forEach((g,i)=>{
+      const list=rows.filter(r=>r.g===i);
+      out.push(this.card((i+1)+" — "+g[0],list.length?table("bmt"+i,list)
+        :this.biNeed("bm-need"+i,i===4?this.biReadiness()[0].need+" — لا قسم إنتاج قبل وجودها":"لا قسم بعد"),
+        {k:"bm"+i,sub:g[1]+(list.length?" · الأقسام: "+T.int(list.length):"")}));
+    });
+    if(lost.length) out.push(this.card("لم يُصنَّف بعد",table("bmtx",lost),{k:"bmx",sub:"قسم جديد لم يُضف إلى الدليل"}));
+    out.push(this.advNote("bmr","لكل مؤشر معادلته ودالته ومصدره وحالته واختباراته في سجل المؤشرات docs/KPI_REGISTER.md؛ والقيم الحالية في «قاموس المؤشرات»."));
+    out.push(this.advLink("bmgo","قاموس المؤشرات","bi_kpis"));
+    return out;
+  }
+
   /* جداول «ذكاء الأعمال» لكتالوج التصدير وملف Excel. */
   biExport(out,col,num){
     const st=this.state;
@@ -979,6 +1479,14 @@
           col("مجمل الربح 2025",null,r=>r.gp25==null?"":num(r.gp25)), col("مجمل الربح 2026",null,r=>num(r.gp26)),
           col("صافي الربح 2025",null,r=>r.np25==null?"":num(r.np25)), col("صافي الربح 2026",null,r=>num(r.np26)), col("يحتاج تأكيد",null,r=>r.confirm?"نعم":"")]});
     }
+    if(window.DASH_IS25&&window.DASH_IS26&&window.DASH_FS){
+      const P=this.biPl(), seq=[];
+      P.tot.forEach((t,ti)=>{ P.cols.forEach((c,ci)=>{ if(c.year===t.year) seq.push({c,ci}); }); seq.push({t,ti}); });
+      const cv=(x,pct)=>x==="adm"?"ضمن الإدارية":x==="na"||x==null?"":num(x);
+      out.push({id:"bi_pl_2025_2026",label:"ذكاء الأعمال — قائمة الدخل يناير 2025 – يوليو 2026",rows:P.rows,columns:[col("البند","label")].concat(
+        seq.map(x=>x.t?col(x.t.label,null,r=>cv(r.tots[x.ti].v)+(r.tots[x.ti].part&&r.tots[x.ti].v!=null?" *":""))
+          :col(this.fsMon(x.c.m)+" — "+x.c.tag,null,r=>x.c.need?(r.k==="net"?"يحتاج بيانات":""):cv(r.vals[x.ci]))))});
+    }
     if(window.DASH_ARH){
       const Z=this.biArh(), per=p=>p.from+" ← "+p.to;
       out.push(
@@ -1014,6 +1522,25 @@
           col("عمولة البيع (مصروف بيعي — خارج التكلفة)",null,r=>r.selling_commission==null?"":num(r.selling_commission)),
           col("تكلفة النموذج التشغيلية (يونيو)",null,r=>r.model_cost?num(r.model_cost.op):""), col("الحالة","status")]});
     }
+    const P=this.biProd();
+    if(P.bom.length||P.sheets.length) out.push({id:"bi_prod_bom",label:"ذكاء الأعمال — وصفات المنتجات بالكميات",
+      rows:[].concat(...P.bom.map(r=>r.main.map(x=>({recipe:r.name,brand:r.brand,part:"الوصفة الرئيسية",ing:x.ing,qty:x.qty}))
+          .concat(r.sub.map(x=>({recipe:r.name,brand:r.brand,part:"الخلطة الفرعية",ing:x.ing,qty:x.qty})))),
+        ...P.sheets.map(r=>r.lines.map(l=>({recipe:r.name,brand:"",part:"ورقة الخلطة",ing:l.name,qty:l.qty}))),
+        P.singles.map(r=>({recipe:r.name,brand:"",part:"خامة واحدة",ing:r.item,qty:r.kg}))),columns:[
+        col("الوصفة","recipe"), col("العلامة","brand"), col("الجزء","part"), col("الخامة","ing"), col("الكمية",null,r=>r.qty==null?"":num(r.qty))]});
+    const K=this.biCostKilo();
+    if(K.rows.length) out.push({id:"bi_cost_kilo_monthly",label:"ذكاء الأعمال — كيلو الخلطة على مدار الشهور",rows:K.rows,columns:[
+      col("الخلطة","name"), col("النوع","kind")].concat(K.months.map(m=>col(m,null,r=>r.by[m]==null?"يحتاج بيانات":num(r.by[m]))),
+      [col("التغير",null,r=>r.chg==null?"":num(r.chg)), col("الأساس","basis")])});
+    if(window.DASH_STD){
+      const Z=this.advMemo(api,"biCostStd",(X2,D2)=>this.biCostStd(D2));
+      if(Z) out.push({id:"bi_cost_std_vs_actual",label:"ذكاء الأعمال — تكلفة المنتج التام: المعيار مقابل الفعلي",
+        rows:[].concat(...Z.items.map(it=>Z.months.map(m=>({...it.by[m.month],code:it.code,name:it.name,month:m.month,cogs:m.cogs})))),columns:[
+        col("الكود","code"), col("الصنف","name"), col("الشهر","month"), col("المعيار للعبوة",null,r=>r.std==null?"يحتاج بيانات":num(r.std)), col("أساس المعيار","t"),
+        col("الكمية مع البونص",null,r=>num(r.q)), col("الإيراد",null,r=>num(r.rev)),
+        col("الفعلي للعبوة (توزيع)",null,r=>r.cogs==null?"يحتاج بيانات":r.act==null?"":num(r.act)), col("الانحراف للعبوة",null,r=>r.var==null?"":num(r.var))]});
+    }
     const AB=window.DASH_ABM;
     if(AB&&AB.enabled) out.push(
       {id:"bi_abm_runs",label:"ذكاء الأعمال — تشغيل أكواد Abohashem-main",rows:AB.runs,columns:[col("السكربت","step"), col("النتيجة","status"), col("تفاصيل","detail")]},
@@ -1036,6 +1563,11 @@
         col("المؤشر","kpi"), col("القيمة","value"), col("الوحدة","unit"), col("المعادلة","formula"), col("المصدر","source"), col("الفترة","period"),
         col("حتى",null,r=>r.as_of||""), col("الفحص","check"), col("الأساس","status")]},
       {id:"bi_readiness",label:"ذكاء الأعمال — جاهزية البيانات",rows:this.biReadiness(),columns:[
-        col("الوحدة","module"), col("المطلوب","need"), col("من","owner"), col("الحالة","status")]});
+        col("الوحدة","module"), col("المطلوب","need"), col("من","owner"), col("الحالة","status")]},
+      {id:"bi_exec_answers",label:"ذكاء الأعمال — أسئلة الإدارة الخمسة",rows:this.biExecAnswers(D,T,A.rows),columns:[
+        col("#","n"), col("السؤال","q"), col("الإجابة","answer"), col("الأساس","basis"), col("المصدر","src"), col("القسم","go")]},
+      {id:"bi_map",label:"ذكاء الأعمال — دليل اللوحة",rows:this.biMapRows(),columns:[
+        col("المجموعة","group"), col("القسم","label"), col("المفتاح","key"), col("في القائمة","nav"), col("المصدر","source"),
+        col("حتى",null,r=>r.as_of||""), col("الحداثة","fresh"), col("الفلاتر","filters")]});
   }
 
