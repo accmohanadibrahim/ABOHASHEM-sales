@@ -97,8 +97,45 @@ def test_reports_use_the_named_table_navigator(built):
     assert "  repNav(tables,cur){" in out and "  repGroups(){" in out
 
 
+def test_build_line_and_data_dates(built):
+    """The header states the data dates and a version; the same rows are an Excel table."""
+    _original, out, _ins = built
+    assert out.count("(this.opsBuildLine?this.opsBuildLine():null)") == 1
+    i = out.index('"لوحة الأداء التنفيذي المالي")')
+    assert out.index("this.opsBuildLine()", i) < out.index('{"data-print":"actions"', i)
+    m = re.search(r"window\.DASH_BUILD = (\{.*?\});</script>", out)
+    info = json.loads(m.group(1))
+    ops = json.loads(rm.OPS_JSON.read_text(encoding="utf-8"))
+    assert info["inventory_as_of"] == ops["inventory"]["valuations"][-1]["date"]
+    assert info["purchases_through"] == max(ops["purchases"]) and len(info["version"]) == 10
+    assert 'id:"build_info"' in out
+
+
+def test_build_info_is_stable(built):
+    """Same inputs, same version — so the full file rebuilds byte for byte."""
+    ops = json.loads(rm.OPS_JSON.read_text(encoding="utf-8"))
+    val = json.loads(rm.VAL_JSON.read_text(encoding="utf-8"))
+    assert rm.build_info(ops, val, "m") == rm.build_info(json.loads(json.dumps(ops)), val, "m")
+    assert rm.build_info(ops, val, "m")["version"] != rm.build_info(ops, val, "m2")["version"]
+
+
 def test_committed_output_is_current(built):
     _original, out, _ins = built
     if not rm.OUT_HTML.exists():
         pytest.skip("full file not built")
     assert rm.OUT_HTML.read_text(encoding="utf-8") == out, "run python3 enrich_mobile.py"
+
+
+def test_income_2026_is_embedded_and_shown_after_the_2025_table(built):
+    """«قائمة الدخل الشهرية» gains the 2026 statements; the 2025 card and its rows stay as they were."""
+    _original, out, _ins = built
+    if not rm.IS26_JSON.exists():
+        pytest.skip("income_2026.json not built")
+    m = re.search(r"window\.DASH_IS26 = (\{.*?\});\n", out, re.S)
+    assert m and json.loads(m.group(1).replace("<\\/", "</")) == json.loads(rm.IS26_JSON.read_text(encoding="utf-8"))
+    i = out.index('{k:"fi1",sub:"الإهلاك السنوي مسجّل في ديسمبر ويُعرض موزّعًا كتقدير للمقارنة"}),\n')
+    assert out.index("...(this.fs26Cards?this.fs26Cards(F,T):[]),", i) < out.index('this.chartCard("التحليل الرأسي', i)
+    assert out.count('(window.DASH_IS26?" · قوائم دخل 2026: "+this.fs26Span():"")+') == 1
+    assert "قوائم دخل 7–12/2025 و1–7/2026 · من اللوحة التنفيذية" in out
+    for tid in ("fs_pl_2026", "fs_items_2026", "fs_yoy_2026"):
+        assert f'id:"{tid}"' in out, tid

@@ -10,6 +10,28 @@
      المستخدم أو الإدارة. لا تكلفة ولا كمية ولا تاريخ صلاحية ولا عميل مُختلَق.
      ========================================================================== */
 
+  /* تواريخ البيانات ونسخة الملف: تظهر تحت العنوان، وجدولًا في ملف Excel، فلا يُقرأ رقم بلا تاريخه.
+     النسخة بصمة لمدخلات البناء (enrich_mobile.py)، فملفان بالنسخة نفسها يحملان البيانات نفسها. */
+  opsBuildRows(){
+    const st=this.state, Bd=window.DASH_BUILD||{}, snaps=st.snaps||[], cur=snaps.find(x=>x.key===st.snap);
+    const F=window.DASH_FS;
+    return [
+      {id:"sales",k:"المبيعات والمديونية — تاريخ اللقطة",v:cur&&cur.as_of||"—"},
+      {id:"inv",k:"المخزون — آخر تقييم",v:Bd.inventory_as_of||"—"},
+      {id:"pur",k:"المشتريات — حتى شهر",v:Bd.purchases_through||"—"},
+      {id:"sup",k:"أرصدة الموردين — في",v:Bd.suppliers_as_of||"—"},
+      {id:"fs",k:"القوائم المالية — حتى",v:F&&F.meta&&F.meta.as_of||"—"},
+      {id:"ver",k:"النسخة",v:Bd.version||"—"},
+      {id:"built",k:"تاريخ آخر تغيير في بيانات التشغيل",v:Bd.built||"—"}];
+  }
+  opsBuildLine(){
+    /* يوم/شهر فقط: السنة في سطر المصدر تحته، والسطر يلتف ولا يُقص على شاشة الهاتف. */
+    const r=this.opsBuildRows(), g=id=>(r.find(x=>x.id===id)||{}).v, d=x=>x&&x!=="—"?this.opsDmy(x).split("/").slice(0,2).join("/"):"—";
+    return React.createElement("span",{key:"bl","data-build":"line",title:r.map(x=>x.k+": "+x.v).join("\n"),
+        style:{fontSize:9.5,lineHeight:1.5,color:"#64748b"}},
+      "مبيعات "+this.ltr(d(g("sales")))+" · مخزون "+this.ltr(d(g("inv")))+" · نسخة "+this.ltr(String(g("ver")).slice(0,7)));
+  }
+
   opsTag(kind){
     const c=kind==="v"?"#10b981":kind==="e"?"#f59e0b":"#a78bfa";
     const t=kind==="v"?"مُتحقَّق":kind==="e"?"تقدير":"افتراض";
@@ -83,23 +105,40 @@
   }
 
   /* ======================= 1) المخزون ===================================== */
+  /* «30/9/2026» من تاريخ ISO، و«سبتمبر» من الشهر — كل تسمية تُقرأ من البيانات، لا تُكتب. */
+  opsDmy(d){ d=String(d||""); return d?(+d.slice(8,10))+"/"+(+d.slice(5,7))+"/"+d.slice(0,4):"—"; }
+  opsMonName(m){ return this.fsMon(String(m||"").slice(0,7)).split(" ")[0]; }
+  opsMonDays(m){ return new Date(Date.UTC(+m.slice(0,4),+m.slice(5,7),0)).getUTCDate(); }
+  opsMonEnd(m){ return m.slice(0,7)+"-"+String(this.opsMonDays(m)).padStart(2,"0"); }
+  opsMonRange(ms){ return ms.length?ms.length>1?this.opsMonName(ms[0])+"–"+this.opsMonName(ms[ms.length-1]):this.opsMonName(ms[0]):"—"; }
+  /* التقييمات بترتيب التاريخ. ملف بلا valuations (قبل تقييمَي أغسطس وسبتمبر) يُقرأ من يونيو ويوليو. */
+  opsVals(){
+    const I=window.DASH_OPS.inventory;
+    return (I.valuations||["jun","jul"].map(k=>({key:k,date:I[k].date,raw_value:I[k].raw_value,fg_value:I[k].fg_value})))
+      .map(v=>({...v,total:v.raw_value+v.fg_value,src:I[v.key]}));
+  }
   opsInventory(D){
     const O=window.DASH_OPS, I=O.inventory, B=this.opsBase(D);
-    const jun=I.jun, jul=I.jul, junTot=jun.raw_value+jun.fg_value, julTot=jul.raw_value+jul.fg_value;
-    /* القيمة بالموقع = كمية جرد يوليو في الموقع × متوسط تكلفة يوليو للخامة. */
-    const wac=new Map(jul.raw.map(r=>[r.name,r.wac]));
+    const vals=this.opsVals(), cur=vals[vals.length-1], prev=vals[vals.length-2]||cur;
+    /* القيمة بالموقع من أحدث جرد بالموقع. جرد 30/9 مُسعَّر في الملف نفسه: كمية الموقع × سعر السطر،
+       وإجماليه يطابق نموذج سبتمبر (شرط البناء). الجرد الأقدم بلا سعر يُسعَّر بمتوسط تكلفة يوليو بمطابقة الاسم. */
+    const cKey=Object.keys(I.counts).sort().pop(), cnt=I.counts[cKey].raw||[];
+    const priced=cnt.some(r=>r.price!=null), wac=new Map(I.jul.raw.map(r=>[r.name,r.wac]));
     const locV={}, locN={}; I.locations.forEach(l=>{ locV[l]=0; locN[l]=0; });
     let unpriced=0;
-    (I.counts["2026-07"].raw||[]).forEach(r=>{ const w=wac.get(r.name);
+    cnt.forEach(r=>{ const w=priced?r.price:wac.get(r.name);
       if(w==null){ if(r.qty_total>0) unpriced++; return; }
       I.locations.forEach(l=>{ const q=r.qty[l]||0; if(q>0){ locV[l]+=q*w; locN[l]++; } }); });
     const locRows=I.locations.map(l=>({loc:l,value:locV[l],n:locN[l]}));
     const locTot=locRows.reduce((s,r)=>s+r.value,0);
-    /* تغطية المنتج التام في 31/8: الكمية ÷ متوسط الخروج اليومي في 30 يومًا حتى آخر فاتورة. */
+    const locDate=this.opsMonEnd(cKey), locBasis=priced?this.opsMonName(cKey):"يوليو";
+    /* تغطية المنتج التام: جرد التقييم الأقرب إلى آخر فاتورة في اللقطة، بأسعاره، ÷ متوسط الخروج اليومي
+       في 30 يومًا حتى آخر فاتورة (31/8 للقطة 3/9، و30/6 للقطة 16/7) — لا الأحدث. */
     const to=B.last, from=this.opsAddDays(to,-29);
-    const fgJulPrice=new Map(jul.fg.map(r=>[r.name,r.price]));
-    const cov=(I.counts["2026-08"].fg||[]).filter(r=>r.qty>0).map(r=>{
-      const price=fgJulPrice.get(r.name);
+    const near=vals.slice().sort((a,b)=>Math.abs(this.opsDays(a.date,to))-Math.abs(this.opsDays(b.date,to))||b.date.localeCompare(a.date))[0];
+    const covDate=near.date, priceLbl=this.opsMonName(near.date);
+    const cov=near.src.fg.filter(r=>r.qty>0).map(r=>{
+      const price=r.price;
       const o={name:r.name,qty:r.qty,item_code:r.item_code,match:r.match,price:price==null?null:price,
         value:price==null?null:price*r.qty};
       if(!r.item_code){ o.status="غير مربوط"; return o; }
@@ -111,74 +150,86 @@
     const over=cov.filter(r=>r.status==="تكدّس"||r.status==="بلا بيع ≥60 يومًا"||r.status==="بلا بيع في 30 يومًا")
       .sort((a,b)=>(b.value||0)-(a.value||0));
     const unl=cov.filter(r=>r.status==="غير مربوط").sort((a,b)=>(b.value||0)-(a.value||0));
-    const rawTop=jul.raw.filter(r=>r.value>0).sort((a,b)=>b.value-a.value);
-    const rawUp=jul.raw.filter(r=>r.chg_vs_jun!=null&&r.value>0).sort((a,b)=>b.chg_vs_jun-a.chg_vs_jun);
-    return {junTot,julTot,jun,jul,locRows,locTot,unpriced,cov,risk,over,unl,rawTop,rawUp,from,to};
+    const chg=r=>r.chg_vs_prev!=null?r.chg_vs_prev:r.chg_vs_jun!=null?r.chg_vs_jun:null;
+    const rawRows=(cur.src.raw||[]).map(r=>({...r,chg:chg(r)}));
+    const rawTop=rawRows.filter(r=>r.value>0).sort((a,b)=>b.value-a.value);
+    const rawUp=rawRows.filter(r=>r.chg!=null&&r.value>0).sort((a,b)=>b.chg-a.chg);
+    /* رصيد أول المدة في النموذج قد يختلف عن التقييم السابق كما صدر (جرد معدَّل): يُعلن ولا يُخفى. */
+    const openGap=cur.src.open_value!=null&&prev!==cur?prev.raw_value-cur.src.open_value:null;
+    return {vals,cur,prev,locRows,locTot,locDate,locBasis,priced,unpriced,cov,covDate,priceLbl,risk,over,unl,
+      rawTop,rawUp,openGap,from,to};
   }
   opsInventoryBody(X,T,api){
     if(!window.DASH_OPS) return [this.opsMissing("oi0")];
     const V=this.advMemo(api,"opsInv",(X2,D)=>this.opsInventory(D)), C=this.state.C, b=C.ecBase(), out=[];
-    const d=V.julTot-V.junTot;
+    const cur=V.cur, prev=V.prev, d=cur.total-prev.total, dmy=x=>this.opsDmy(x);
     out.push(this.opsLegend("oil"));
     out.push(this.kpiTiles([
-      ["قيمة المخزون 31/7/2026",T.egpK(V.julTot),"خامات "+T.egpK(V.jul.raw_value)+" · تام "+T.egpK(V.jul.fg_value),"#3b82f6"],
-      ["التغير عن 30/6/2026",(d<0?"▼ ":"▲ ")+T.egpK(Math.abs(d)),T.pct(Math.abs(d)/V.junTot)+(d<0?" انخفاض":" زيادة"),d<0?"#10b981":"#f59e0b"],
-      ["أصناف تام في خطر نفاد",T.int(V.risk.length),"تغطية أقل من 7 أيام في 31/8","#ef4444"],
-      ["أصناف تام متكدّسة أو راكدة",T.int(V.over.length),V.over.reduce((s,r)=>s+(r.value||0),0)?"بقيمة ≈ "+T.egpK(V.over.reduce((s,r)=>s+(r.value||0),0))+" بسعر يوليو":"","#f59e0b"]],"oik"));
-    out.push(this.card("تقييم المخزون — يونيو مقابل يوليو",[
+      ["قيمة المخزون "+dmy(cur.date),T.egpK(cur.total),"خامات "+T.egpK(cur.raw_value)+" · تام "+T.egpK(cur.fg_value),"#3b82f6"],
+      ["التغير عن "+dmy(prev.date),(d<0?"▼ ":"▲ ")+T.egpK(Math.abs(d)),T.pct(Math.abs(d)/prev.total)+(d<0?" انخفاض":" زيادة"),d<0?"#10b981":"#f59e0b"],
+      ["أصناف تام في خطر نفاد",T.int(V.risk.length),"تغطية أقل من 7 أيام في "+dmy(V.covDate),"#ef4444"],
+      ["أصناف تام متكدّسة أو راكدة",T.int(V.over.length),V.over.reduce((s,r)=>s+(r.value||0),0)?"بقيمة ≈ "+T.egpK(V.over.reduce((s,r)=>s+(r.value||0),0))+" بسعر "+V.priceLbl:"","#f59e0b"]],"oik"));
+    const cats=V.vals.map(v=>dmy(v.date));
+    out.push(this.card("تقييم المخزون — "+this.opsMonRange(V.vals.map(v=>v.date)),[
       React.createElement(EChart,{key:"c",h:C.H.short,title:"تقييم المخزون",option:{...b,
         tooltip:{...b.tooltip,trigger:"axis",valueFormatter:T.egp},legend:{...b.legend,data:["خامات","منتج تام"]},
-        grid:{...b.grid,top:32},xAxis:this.fsAx(b,{type:"category",data:["30/6/2026","31/7/2026"]}),
+        grid:{...b.grid,top:32},xAxis:this.fsAx(b,{type:"category",data:cats}),
         yAxis:this.fsAx(b,{type:"value",axisLabel:{color:b._muted,fontSize:10,formatter:T.egpK}}),
-        series:[{name:"خامات",type:"bar",stack:"s",data:[Math.round(V.jun.raw_value),Math.round(V.jul.raw_value)],itemStyle:{color:T.PAL[0]}},
-          {name:"منتج تام",type:"bar",stack:"s",data:[Math.round(V.jun.fg_value),Math.round(V.jul.fg_value)],itemStyle:{color:T.PAL[2]}}]}}),
-      this.fsTable("oiv",["البند","30/6/2026","31/7/2026","التغير"],[
-        ["خامات",this.fsC(V.jun.raw_value),this.fsC(V.jul.raw_value),this.fsC(V.jul.raw_value-V.jun.raw_value)],
-        ["منتج تام (المُسعَّر)",this.fsC(V.jun.fg_value),this.fsC(V.jul.fg_value),this.fsC(V.jul.fg_value-V.jun.fg_value)],
-        {cells:["الإجمالي (= المطبوع في ملف المصدر)",this.fsC(V.junTot),this.fsC(V.julTot),this.fsC(d)],bold:true}])],
-      {k:"oi1",sub:"مُتحقَّق · ملفا تسعير الجرد · بتكلفة الخامات والتعبئة فقط"}));
+        series:[{name:"خامات",type:"bar",stack:"s",data:V.vals.map(v=>Math.round(v.raw_value)),itemStyle:{color:T.PAL[0]}},
+          {name:"منتج تام",type:"bar",stack:"s",data:V.vals.map(v=>Math.round(v.fg_value)),itemStyle:{color:T.PAL[2]}}]}}),
+      this.fsTable("oiv",["البند"].concat(cats,["التغير الأخير"]),[
+        ["خامات"].concat(V.vals.map(v=>this.fsC(v.raw_value)),[this.fsC(cur.raw_value-prev.raw_value)]),
+        ["منتج تام (المُسعَّر)"].concat(V.vals.map(v=>this.fsC(v.fg_value)),[this.fsC(cur.fg_value-prev.fg_value)]),
+        {cells:["الإجمالي (= المطبوع في ملف المصدر)"].concat(V.vals.map(v=>this.fsC(v.total)),[this.fsC(d)]),bold:true}])],
+      {k:"oi1",sub:"مُتحقَّق · ملفات تسعير الجرد ونموذج متوسط التكلفة · بتكلفة الخامات والتعبئة فقط"}));
     out.push(this.advNote("oin","تقييم المخزون في ملفات المصدر لا يشمل أجورًا مباشرة ولا أعباء صناعية غير مباشرة، "
       +"وبعض أصناف التام بلا وصفة فبقيت بلا سعر. لذلك القيمة هنا أقل من تكلفة الإنتاج الكاملة ولا تُقارن مباشرةً بمخزون الميزانية.","warn"));
+    if(V.openGap!=null&&Math.abs(V.openGap)>=1) out.push(this.advNote("oing","رصيد أول "+this.opsMonName(cur.date)+" في نموذج متوسط التكلفة "
+      +T.egpK(cur.src.open_value)+" يقوم على الجرد المعدَّل "+dmy(prev.date)+"، فيختلف عن خامات تقييم "+dmy(prev.date)+" كما صدر بـ "
+      +T.egpK(Math.abs(V.openGap))+" (فروق كميات بين الجردين). التقييمان معروضان كما صدرا.","warn"));
     out.push(this.card("أين تقف قيمة الخامات — حسب الموقع",[
       React.createElement(EChart,{key:"c",h:C.H.short,title:"قيمة الخامات حسب الموقع",option:{...b,
         tooltip:{...b.tooltip,trigger:"item",valueFormatter:T.egp},legend:{show:false},
         series:[{type:"pie",radius:["42%","70%"],label:{color:b._muted,fontSize:10,formatter:"{b}\n{d}%"},
           data:V.locRows.filter(r=>r.value>0).map((r,i)=>({name:r.loc,value:Math.round(r.value),itemStyle:{color:T.PAL[i%T.PAL.length]}}))}]}}),
-      this.fsTable("oiloc",["الموقع","القيمة التقديرية","الحصة","أصناف لها رصيد"],
+      this.fsTable("oiloc",["الموقع",V.priced?"القيمة":"القيمة التقديرية","الحصة","أصناف لها رصيد"],
         V.locRows.map(r=>[r.loc,this.fsC(r.value),V.locTot?T.pct(r.value/V.locTot):"—",T.int(r.n)]))],
-      {k:"oi2",approx:true,sub:"تقدير = كمية جرد 31/7 بالموقع × متوسط تكلفة يوليو"+(V.unpriced?" · "+V.unpriced+" صنف بلا سعر خارج الحساب":"")}));
-    const covCols=[["الصنف",r=>r.name],["الحالة",r=>r.status],["الكمية 31/8",r=>T.num(r.qty)],
+      {k:"oi2",approx:!V.priced,sub:(V.priced?"مُتحقَّق = ":"تقدير = ")+"كمية جرد "+dmy(V.locDate)+" بالموقع × متوسط تكلفة "+V.locBasis
+        +(V.unpriced?" · "+V.unpriced+" صنف بلا سعر خارج الحساب":"")}));
+    const covCols=[["الصنف",r=>r.name],["الحالة",r=>r.status],["الكمية "+dmy(V.covDate),r=>T.num(r.qty)],
       ["تغطية (يوم)",r=>r.cover==null?"—":r.cover.toFixed(1)],["خروج يومي",r=>r.daily==null?"—":r.daily.toFixed(1)],
-      ["آخر بيع",r=>r.last_sale||"—"],["القيمة بسعر يوليو",r=>r.value==null?"—":T.num(r.value)]];
+      ["آخر بيع",r=>r.last_sale||"—"],["القيمة بسعر "+V.priceLbl,r=>r.value==null?"—":T.num(r.value)]];
     out.push(this.card("خطر نفاد — تغطية أقل من 7 أيام",this.pagedList("oir",V.risk,covCols,r=>r.item_code&&this.set("item",r.item_code)),
-      {k:"oi3",approx:true,sub:"جرد 31/8 ÷ متوسط الخروج اليومي "+this.ltr(V.from)+" – "+this.ltr(V.to)}));
+      {k:"oi3",approx:true,sub:"جرد "+dmy(V.covDate)+" ÷ متوسط الخروج اليومي "+this.ltr(V.from)+" – "+this.ltr(V.to)}));
     out.push(this.card("تكدّس وركود — تغطية أكثر من 45 يومًا أو بلا بيع",this.pagedList("oio",V.over,covCols,r=>r.item_code&&this.set("item",r.item_code)),
       {k:"oi4",approx:true,sub:"مرتبة بالقيمة"}));
-    out.push(this.card("كل أصناف التام في جرد 31/8",this.pagedList("oia",V.cov.slice().sort((a,b2)=>(b2.value||0)-(a.value||0)),covCols,
+    out.push(this.card("كل أصناف التام في جرد "+dmy(V.covDate),this.pagedList("oia",V.cov.slice().sort((a,b2)=>(b2.value||0)-(a.value||0)),covCols,
       r=>r.item_code&&this.set("item",r.item_code)),{k:"oi5",sub:V.cov.length+" صنف بكمية · "+V.unl.length+" غير مربوط بكود مبيعات"}));
     out.push(this.advNote("oin2","التغطية تفترض أن وحدة الجرد = وحدة البيع (طبق/كيس). الأيام الناتجة (من أقل من يوم إلى بضعة أسابيع) "
-      +"تتسق مع ذلك لكنها لا تُثبته. الصنف غير المربوط بكود مبيعات بتوقيع مطابق لا تُحسب له تغطية ولا يُخمَّن ربطه."));
+      +"تتسق مع ذلك لكنها لا تُثبته. الصنف غير المربوط بكود مبيعات بتوقيع مطابق لا تُحسب له تغطية ولا يُخمَّن ربطه. "
+      +"الجرد المستخدم هو الأقرب إلى آخر فاتورة في اللقطة، لا الأحدث."));
+    const curM=this.opsMonName(cur.date), prevM=this.opsMonName(prev.date);
     out.push(this.card("أعلى الخامات قيمةً وتغيّر متوسط تكلفتها",this.pagedList("oiraw",V.rawTop,[
-      ["الخامة",r=>r.name],["القيمة 31/7",r=>T.num(r.value)],["الكمية",r=>T.num(r.qty)],["متوسط التكلفة",r=>r.wac==null?"—":r.wac.toFixed(2)],
-      ["التغير عن يونيو",r=>r.chg_vs_jun==null?"—":T.pct(r.chg_vs_jun)],["مشتريات يوليو",r=>T.num(r.purch_value)]]),
-      {k:"oi6",sub:"مُتحقَّق · ورقة «جرد الخامات آخر يوليو» بمتوسط التكلفة المرجح"}));
-    const ov=V.over.reduce((s,r)=>s+(r.value||0),0), up=V.rawUp.filter(r=>r.chg_vs_jun>0.05).slice(0,3);
+      ["الخامة",r=>r.name],["القيمة "+dmy(cur.date),r=>T.num(r.value)],["الكمية",r=>T.num(r.qty)],["متوسط التكلفة",r=>r.wac==null?"—":r.wac.toFixed(2)],
+      ["التغير عن "+prevM,r=>r.chg==null?"—":T.pct(r.chg)],["مشتريات "+curM,r=>T.num(r.purch_value)]]),
+      {k:"oi6",sub:"مُتحقَّق · تقييم الخامات "+dmy(cur.date)+" بمتوسط التكلفة المرجح"}));
+    const ov=V.over.reduce((s,r)=>s+(r.value||0),0), up=V.rawUp.filter(r=>r.chg>0.05).slice(0,3);
     out.push(this.opsDecision("oid",[
       V.risk.length?{t:"جدولة إنتاج فورية لـ "+V.risk.length+" صنف تغطيته أقل من 7 أيام، أولها "+V.risk.slice(0,3).map(r=>r.name+" ("+r.cover.toFixed(1)+" يوم)").join("، ")+".",tag:"e"}:null,
-      V.over.length?{t:"إيقاف إنتاج أو تصريف "+V.over.length+" صنف متكدّس/راكد (≈ "+T.egpK(ov)+" بسعر يوليو) قبل أي دفعة جديدة؛ الأولوية "+V.over.slice(0,3).map(r=>r.name).join("، ")+".",tag:"e"}:null,
-      up.length?{t:"مراجعة أسعار شراء "+up.map(r=>r.name+" (+"+Math.round(r.chg_vs_jun*100)+"%)").join("، ")+" — ارتفع متوسط تكلفتها عن يونيو.",tag:"v"}:null,
+      V.over.length?{t:"إيقاف إنتاج أو تصريف "+V.over.length+" صنف متكدّس/راكد (≈ "+T.egpK(ov)+" بسعر "+V.priceLbl+") قبل أي دفعة جديدة؛ الأولوية "+V.over.slice(0,3).map(r=>r.name).join("، ")+".",tag:"e"}:null,
+      up.length?{t:"مراجعة أسعار شراء "+up.map(r=>r.name+" (+"+Math.round(r.chg*100)+"%)").join("، ")+" — ارتفع متوسط تكلفتها في "+curM+" عن "+prevM+".",tag:"v"}:null,
       V.unl.length?{t:"اعتماد ربط "+V.unl.length+" صنف تام بأكواد المبيعات (القائمة في «سجل تنظيف البيانات») حتى تُحسب تغطيته.",tag:"v"}:null]));
     return out;
   }
 
   /* ======================= 2) المشتريات والموردون ========================== */
   opsPurchases(){
-    const O=window.DASH_OPS, P=O.purchases;
-    const rows=[].concat((P["2026-07"].rows||[]).map(r=>({...r,month:"2026-07"})),(P["2026-08"].rows||[]).map(r=>({...r,month:"2026-08"})));
+    const O=window.DASH_OPS, P=O.purchases, months=Object.keys(P).sort();
+    const rows=[].concat(...months.map(m=>(P[m].rows||[]).map(r=>({...r,month:m}))));
     const by=new Map();
     rows.forEach(r=>{ const k=String(r.code); let o=by.get(k);
-      if(!o) by.set(k,o={code:k,name:r.name,spend:0,qty:0,n:0,m7:0,m8:0,prices:[],first:null,last:null});
-      o.spend+=r.total; o.qty+=r.qty; o.n++; if(r.month==="2026-07") o.m7+=r.total; else o.m8+=r.total;
+      if(!o) by.set(k,o={code:k,name:r.name,spend:0,qty:0,n:0,mon:{},prices:[],first:null,last:null});
+      o.spend+=r.total; o.qty+=r.qty; o.n++; o.mon[r.month]=(o.mon[r.month]||0)+r.total;
       if(r.price>0) o.prices.push({p:r.price,q:r.qty,d:r.date});
       if(!o.first||r.date<o.first.d) o.first={d:r.date,p:r.price}; if(!o.last||r.date>=o.last.d) o.last={d:r.date,p:r.price}; });
     const items=[...by.values()].map(o=>{ const ps=o.prices.map(x=>x.p), mn=ps.length?Math.min(...ps):null, mx=ps.length?Math.max(...ps):null;
@@ -193,22 +244,31 @@
     const S=O.suppliers, sup=S.rows.map(r=>({...r,net:r.credit-r.debit})).sort((a,b)=>b.net-a.net);
     const pos=sup.filter(r=>r.net>=50), posTot=pos.reduce((s,r)=>s+r.net,0);
     const adv=sup.filter(r=>r.net<=-50).sort((a,b)=>a.net-b.net);
-    const p7=P["2026-07"].total, p8=P["2026-08"].total;
-    return {items,tot,p7,p8,daily,sup,pos,posTot,adv,dust:sup.filter(r=>Math.abs(r.net)<50).length,
-      net:S.net_credit,asOf:S.as_of,dpo:S.net_credit/((p7+p8)/62),n80:items.filter(o=>o.cum-o.share<0.8).length};
+    /* أيام السداد: رصيد الموردين في تاريخه ÷ متوسط المشتريات اليومية للأشهر الكاملة قبل ذلك التاريخ
+       (رصيد 2/9 تراكم من مشتريات يوليو وأغسطس، لا من سبتمبر اللاحق). */
+    const before=months.filter(m=>this.opsMonEnd(m)<=S.as_of);
+    const pDays=before.reduce((s,m)=>s+this.opsMonDays(m),0), pSum=before.reduce((s,m)=>s+P[m].total,0);
+    const pDay=pDays?pSum/pDays:null;
+    const fixes=months.filter(m=>P[m].total_recorded!=null&&Math.abs(P[m].total-P[m].total_recorded)>=1)
+      .map(m=>({m,used:P[m].total,recorded:P[m].total_recorded,printed:P[m].total_printed}));
+    return {items,tot,months,mt:months.map(m=>P[m].total),daily,sup,pos,posTot,adv,dust:sup.filter(r=>Math.abs(r.net)<50).length,
+      net:S.net_credit,asOf:S.as_of,before,pDay,dpo:pDay?S.net_credit/pDay:null,fixes,n80:items.filter(o=>o.cum-o.share<0.8).length};
   }
   opsPurchasesBody(X,T,api){
     if(!window.DASH_OPS) return [this.opsMissing("op0")];
     const V=this.advMemo(api,"opsPur",()=>this.opsPurchases()), C=this.state.C, b=C.ecBase(), out=[];
     out.push(this.opsLegend("opl"));
-    const top5=V.pos.slice(0,5).reduce((s,r)=>s+r.net,0);
+    const top5=V.pos.slice(0,5).reduce((s,r)=>s+r.net,0), n=V.months.length;
+    const range=this.opsMonRange(V.months), lastM=V.months[n-1], cur=V.mt[n-1], prv=V.mt[n-2];
     out.push(this.kpiTiles([
-      ["مشتريات يوليو 2026",T.egpK(V.p7),"= إجمالي ورقة المشتريات التفصيلية","#3b82f6"],
-      ["مشتريات أغسطس 2026",T.egpK(V.p8),(V.p8>=V.p7?"▲ ":"▼ ")+T.pct(Math.abs(V.p8-V.p7)/V.p7)+" عن يوليو","#8b5cf6"],
+      ["مشتريات "+range+" 2026",T.egpK(V.tot),n+" أشهر · = إجمالي كل تقرير","#3b82f6"],
+      ["مشتريات "+this.opsMonName(lastM)+" 2026",T.egpK(cur),prv?(cur>=prv?"▲ ":"▼ ")+T.pct(Math.abs(cur-prv)/prv)+" عن "+this.opsMonName(V.months[n-2]):"","#8b5cf6"],
       ["أرصدة الموردين "+this.ltr(V.asOf),T.egpK(V.net),"صافي دائن · "+V.sup.length+" مورد","#f59e0b"],
-      ["أيام السداد التقديرية",V.dpo.toFixed(1)+" يوم","الرصيد ÷ متوسط المشتريات اليومية يوليو–أغسطس","#10b981"]],"opk"));
+      ["أيام السداد التقديرية",V.dpo==null?"—":V.dpo.toFixed(1)+" يوم","الرصيد ÷ متوسط المشتريات اليومية "+this.opsMonRange(V.before),"#10b981"]],"opk"));
+    V.fixes.forEach(f=>out.push(this.advNote("opfx"+f.m,"مشتريات "+this.fsMon(f.m)+" هنا "+T.egpK(f.used)+" بعد تصحيح الفاتورة 1111115217 "
+      +"(سعرا مفروم فراخ C و A معكوسان، بتأكيد الإدارة). الإجمالي كما طُبع في التقرير "+T.egpK(f.printed)+"؛ السطران محفوظان بقيمتهما المطبوعة في سجل المصدر.","warn")));
     const dates=Object.keys(V.daily).sort();
-    out.push(this.card("المشتريات اليومية — يوليو وأغسطس",React.createElement(EChart,{key:"c",h:C.H.short,title:"المشتريات اليومية",option:{...b,
+    out.push(this.card("المشتريات اليومية — "+range,React.createElement(EChart,{key:"c",h:C.H.short,title:"المشتريات اليومية",option:{...b,
         tooltip:{...b.tooltip,trigger:"axis",valueFormatter:T.egp},grid:{...b.grid,top:14},
         xAxis:this.fsAx(b,{type:"category",data:dates.map(d=>d.slice(8,10)+"/"+d.slice(5,7))}),
         yAxis:this.fsAx(b,{type:"value",axisLabel:{color:b._muted,fontSize:10,formatter:T.egpK}}),
@@ -217,13 +277,14 @@
     out.push(this.card("باريتو الخامات المشتراة",[
       this.kpiTiles([["أصناف تصنع 80% من الإنفاق",T.int(V.n80)+" من "+T.int(V.items.length),"","#3b82f6"],
         ["أكبر صنف",V.items[0]?V.items[0].name:"—",V.items[0]?T.pct(V.items[0].share)+" من الإنفاق":"","#8b5cf6"]],"op2k"),
-      this.pagedList("opp",V.items,[["الصنف",r=>r.name],["الإنفاق",r=>T.num(r.spend)],["الحصة / التراكمي",r=>T.pct(r.share)+" / "+T.pct(r.cum)],
-        ["يوليو",r=>T.num(r.m7)],["أغسطس",r=>T.num(r.m8)],["الكمية",r=>T.num(r.qty)],["مرات الشراء",r=>T.int(r.n)],["الكود",r=>r.code]])],
-      {k:"op2",sub:"يوليو + أغسطس 2026 · مجمّعة بكود الصنف"}));
+      this.pagedList("opp",V.items,[["الصنف",r=>r.name],["الإنفاق",r=>T.num(r.spend)],["الحصة / التراكمي",r=>T.pct(r.share)+" / "+T.pct(r.cum)]]
+        .concat(V.months.map(m=>[this.opsMonName(m),r=>T.num(r.mon[m]||0)]),
+          [["الكمية",r=>T.num(r.qty)],["مرات الشراء",r=>T.int(r.n)],["الكود",r=>r.code]]))],
+      {k:"op2",sub:range+" 2026 · مجمّعة بكود الصنف"}));
     const vol=V.items.filter(o=>o.n_prices>1).sort((a,b2)=>b2.gap-a.gap);
     const gapTot=vol.reduce((s,o)=>s+o.gap,0);
     out.push(this.card("تذبذب سعر الشراء",[
-      this.advNote("opvn","«الفرق عن أقل سعر» = Σ الكمية × (السعر المدفوع − أقل سعر دُفع للصنف نفسه في الشهرين). "
+      this.advNote("opvn","«الفرق عن أقل سعر» = Σ الكمية × (السعر المدفوع − أقل سعر دُفع للصنف نفسه في الفترة "+range+"). "
         +"هو حد أعلى لما كان يمكن توفيره لو اشتُري كل شيء بأفضل سعر تحقق فعلًا — ليس وعدًا بالتوفير: الجودة والكمية والتوقيت قد تختلف."),
       this.kpiTiles([["أصناف بأكثر من سعر",T.int(vol.length),"","#f59e0b"],["الفرق عن أقل سعر (حد أعلى)",T.egpK(gapTot),
         T.pct(V.tot?gapTot/V.tot:0)+" من الإنفاق","#ef4444"]],"opvk"),
@@ -240,8 +301,8 @@
     const top=vol.slice(0,3);
     out.push(this.opsDecision("opd",[
       top.length?{t:"تفاوض على سعر ثابت شهري لـ "+top.map(o=>o.name).join("، ")+" — أكبر فرق عن أقل سعر محقق ("+T.egpK(top.reduce((s,o)=>s+o.gap,0))+" حد أعلى).",tag:"e"}:null,
-      {t:"أيام السداد ≈ "+V.dpo.toFixed(0)+" يومًا مقابل "+((window.DASH_FS&&window.DASH_FS.working_capital)?window.DASH_FS.working_capital.dpo+" يومًا في 31/12/2025":"—")
-        +"؛ كل يوم إضافي متفق عليه مع الموردين يحرر ≈ "+T.egpK((V.p7+V.p8)/62)+" نقدًا.",tag:"e"},
+      V.dpo!=null?{t:"أيام السداد ≈ "+V.dpo.toFixed(0)+" يومًا مقابل "+((window.DASH_FS&&window.DASH_FS.working_capital)?window.DASH_FS.working_capital.dpo+" يومًا في 31/12/2025":"—")
+        +"؛ كل يوم إضافي متفق عليه مع الموردين يحرر ≈ "+T.egpK(V.pDay)+" نقدًا.",tag:"e"}:null,
       V.posTot&&top5/V.posTot>0.5?{t:"أكثر من نصف الأرصدة الدائنة لدى 5 موردين — جدولة سداد مسبقة معهم تحمي التوريد.",tag:"v"}:null,
       V.adv.length?{t:"تسوية "+V.adv.length+" رصيد مدين لدى موردين (دفعات مقدمة) أو خصمها من الفواتير القادمة.",tag:"v"}:null]));
     return out;
@@ -261,50 +322,69 @@
     // August and only half of July. A month it does not cover is dropped, never shown as an empty column.
     const lines=(D&&D.lines)||[], has=new Set(lines.map(l=>l.month));
     const last=lines.reduce((m,l)=>l.invoice_date>m?l.invoice_date:m,"");
+    /* تغيّر التكلفة داخل ملف واحد دائمًا: يوليو عن يونيو من تقييم يوليو، وسبتمبر عن أغسطس من نموذج سبتمبر.
+       لا يُقارن رقم من ملف برقم من آخر. */
     const rows=O.inventory.recipes.map(r=>{
       let rev=0,gp=0; r.sales_codes.forEach(c=>{ const g=gmBy.get(c); if(g){ rev+=g.revenue_costed||0; gp+=g.gross_profit||0; } });
       const k=rev?1-gp/rev:null, c=(r.kg_jul-r.kg_jun)/r.kg_jun;
-      return {...r,cost_chg:c,p_jul:idx(r.sales_codes,"2026-07"),p_aug:idx(r.sales_codes,"2026-08"),cost_share:k,
-        room:k==null?null:k*c,names:r.sales_codes.map(cd=>{ const g=gmBy.get(cd); return g?g.item_name:cd; })};
+      const cs=r.kg_sep!=null&&r.kg_aug?(r.kg_sep-r.kg_aug)/r.kg_aug:null;
+      return {...r,cost_chg:c,cost_chg_sep:cs,p_jul:idx(r.sales_codes,"2026-07"),p_aug:idx(r.sales_codes,"2026-08"),cost_share:k,
+        room:k==null?null:k*c,room_sep:k==null||cs==null?null:k*cs,
+        names:r.sales_codes.map(cd=>{ const g=gmBy.get(cd); return g?g.item_name:cd; })};
     });
     rows.hasAug=has.has("2026-08"); rows.julPartial=has.has("2026-07")&&last<"2026-07-31"; rows.last=last;
+    rows.hasSep=rows.some(r=>r.cost_chg_sep!=null);
     return rows;
   }
   opsCostPassBody(X,T,api){
     if(!window.DASH_OPS) return [this.opsMissing("oc0")];
     const V=this.advMemo(api,"opsCost",(X2,D)=>this.opsCostPass(D)), C=this.state.C, b=C.ecBase(), out=[];
+    const sep=V.hasSep;
     out.push(this.opsLegend("ocl"));
     out.push(this.advNote("ocn","تكلفة الكيلو من ورقة «سعر الكجم من الوصفات»: خامات مباشرة فقط لتسع وصفات (بلا تعبئة ولا أجور). "
+      +(sep?"يونيو ويوليو من تقييم يوليو، وأغسطس وسبتمبر من نموذج سبتمبر؛ كل تغيّر محسوب داخل ملف واحد. ":"")
       +"تغيّر سعر البيع = مؤشر لاسبيرز لأسعار بيع أحجام العائلة نفسها في الفواتير، بأوزان كميات يونيو 2026 (بنود مدفوعة فقط)."));
     // Plain-text date in a Unicode LTR isolate: it is concatenated into strings (note, series name), not JSX.
-    const dt=d=>"\u2066"+d.slice(8,10)+"/"+d.slice(5,7)+"/"+d.slice(0,4)+"\u2069";
+    const dt=d=>"⁦"+d.slice(8,10)+"/"+d.slice(5,7)+"/"+d.slice(0,4)+"⁩";
     const aug=V.hasAug, julL="البيع يوليو"+(V.julPartial?" (حتى "+dt(V.last)+")":"");
     if(!aug||V.julPartial) out.push(this.advNote("ocsn","اللقطة النشطة فيها فواتير حتى "+dt(V.last)+": "
       +(V.julPartial?"سعر يوليو محسوب من النصف الأول من الشهر فقط، ":"")
       +(aug?"":"ولا فواتير أغسطس فيها، فعمود أغسطس غير معروض. ")+"لقطة 3/9 تغطي يوليو وأغسطس كاملين.","warn"));
-    const ser=[{name:"تكلفة الكجم",type:"bar",data:V.map(r=>r.cost_chg),itemStyle:{color:T.PAL[3]}},
-      // Short Arabic-only legend name: ECharts mis-measures RTL text mixed with an isolated date.
-      {name:V.julPartial?"البيع نصف يوليو":"البيع يوليو",type:"bar",data:V.map(r=>r.p_jul),itemStyle:{color:T.PAL[0]}}];
+    if(sep) out.push(this.advNote("ocsp","سعر بيع سبتمبر غير معروض: آخر لقطة فواتير تنتهي في "+dt(V.last)
+      +"، فلا تُقارن تكلفة سبتمبر بسعر بيع الشهر نفسه بعد."));
+    const ser=[{name:"تكلفة يوليو",type:"bar",data:V.map(r=>r.cost_chg),itemStyle:{color:T.PAL[3]}}];
+    if(sep) ser.push({name:"تكلفة سبتمبر",type:"bar",data:V.map(r=>r.cost_chg_sep),itemStyle:{color:T.PAL[4%T.PAL.length]}});
+    // Short Arabic-only legend name: ECharts mis-measures RTL text mixed with an isolated date.
+    ser.push({name:V.julPartial?"البيع نصف يوليو":"البيع يوليو",type:"bar",data:V.map(r=>r.p_jul),itemStyle:{color:T.PAL[0]}});
     if(aug) ser.push({name:"البيع أغسطس",type:"bar",data:V.map(r=>r.p_aug),itemStyle:{color:T.PAL[2]}});
-    out.push(this.card("تكلفة الخامات للكيلو مقابل سعر البيع — يوليو عن يونيو",
+    out.push(this.card(sep?"تكلفة الخامات للكيلو مقابل سعر البيع — يونيو إلى سبتمبر":"تكلفة الخامات للكيلو مقابل سعر البيع — يوليو عن يونيو",
       React.createElement(EChart,{key:"c",h:C.H.base,title:"تمرير التكلفة",option:{...b,
         tooltip:{...b.tooltip,trigger:"axis",valueFormatter:v=>v==null?"—":(v*100).toFixed(1)+"%"},
         legend:{...b.legend,data:ser.map(s=>s.name)},grid:{...b.grid,top:40},
         xAxis:this.fsAx(b,{type:"category",data:V.map(r=>r.product),axisLabel:{color:b._muted,fontSize:9.5,rotate:30,interval:0}}),
         yAxis:this.fsAx(b,{type:"value",axisLabel:{color:b._muted,fontSize:10,formatter:v=>Math.round(v*100)+"%"}}),
         series:ser}}),
-      {k:"oc1"}));
+      {k:"oc1",sub:"«تكلفة يوليو» = يوليو عن يونيو"+(sep?" · «تكلفة سبتمبر» = سبتمبر عن أغسطس":"")+" · البيع عن يونيو"}));
     const pc=v=>v==null?"—":this.fsC(v,"pct");
-    out.push(this.card("الجدول التفصيلي",this.fsTable("oct",["المنتج","كجم يونيو","كجم يوليو","تغير التكلفة","سعر "+julL]
-      .concat(aug?["سعر البيع أغسطس"]:[],["حصة التكلفة من السعر","السعر اللازم لحفظ ربح الوحدة"]),
-      V.map(r=>[r.product,r.kg_jun.toFixed(2),r.kg_jul.toFixed(2),this.fsC(r.cost_chg,"pct"),pc(r.p_jul)]
-        .concat(aug?[pc(r.p_aug)]:[],[r.cost_share==null?"—":T.pct(r.cost_share),r.room==null?"—":this.fsC(r.room,"pct")]))),
+    const room=r=>sep?r.room_sep:r.room;
+    out.push(this.card("الجدول التفصيلي",this.fsTable("oct",["المنتج","كجم يونيو","كجم يوليو","تغير يوليو"]
+      .concat(sep?["كجم أغسطس","كجم سبتمبر","تغير سبتمبر"]:[],["سعر "+julL],aug?["سعر البيع أغسطس"]:[],
+        ["حصة التكلفة من السعر",sep?"السعر اللازم بعد سبتمبر":"السعر اللازم لحفظ ربح الوحدة"]),
+      V.map(r=>[r.product,r.kg_jun.toFixed(2),r.kg_jul.toFixed(2),this.fsC(r.cost_chg,"pct")]
+        .concat(sep?[r.kg_aug.toFixed(2),r.kg_sep.toFixed(2),pc(r.cost_chg_sep)]:[],[pc(r.p_jul)],aug?[pc(r.p_aug)]:[],
+          [r.cost_share==null?"—":T.pct(r.cost_share),room(r)==null?"—":this.fsC(room(r),"pct")]))),
       {k:"oc2",approx:true,sub:"«حصة التكلفة» = 1 − هامش المجمل من جدول الربحية لأصناف العائلة"}));
-    out.push(this.advNote("ocn2","«السعر اللازم لحفظ ربح الوحدة» = حصة التكلفة × تغيّر تكلفة الخامات، بافتراض أن كل تكلفة الوحدة تتحرك "
-      +"بنسبة الخامات. هو حد أعلى للحركة اللازمة: الخامات ليست كل التكلفة. قيمة سالبة = مساحة لخفض السعر دون خسارة ربح الوحدة.","warn"));
+    out.push(this.advNote("ocn2","«السعر اللازم لحفظ ربح الوحدة» = حصة التكلفة × تغيّر تكلفة الخامات"+(sep?" (سبتمبر عن أغسطس)":"")
+      +"، بافتراض أن كل تكلفة الوحدة تتحرك بنسبة الخامات. هو حد أعلى للحركة اللازمة: الخامات ليست كل التكلفة. "
+      +"قيمة سالبة = مساحة لخفض السعر دون خسارة ربح الوحدة.","warn"));
     const fell=V.filter(r=>r.cost_chg<0), kept=fell.filter(r=>r.p_jul!=null&&r.p_jul>=0);
+    const rose=V.filter(r=>r.cost_chg_sep!=null&&r.cost_chg_sep>0).sort((a,b2)=>b2.cost_chg_sep-a.cost_chg_sep);
+    const need=rose.filter(r=>r.room_sep!=null).sort((a,b2)=>b2.room_sep-a.room_sep);
     out.push(this.opsDecision("ocd",[
-      fell.length?{t:"تكلفة خامات "+fell.length+" من "+V.length+" وصفات انخفضت في يوليو (حتى "+T.pct(Math.min(...fell.map(r=>r.cost_chg)))+")؛ "
+      sep&&rose.length?{t:"تكلفة خامات "+rose.length+" من "+V.length+" وصفات ارتفعت في سبتمبر عن أغسطس (حتى "+T.pct(rose[0].cost_chg_sep)+"، أعلاها "
+        +rose.slice(0,3).map(r=>r.product).join("، ")+")"+(need.length?"؛ السعر اللازم لحفظ ربح الوحدة حتى "+T.pct(need[0].room_sep)+" (حد أعلى)":"")
+        +". القرار: مراجعة قائمة أسعار هذه العائلات بعد التحقق من استمرار ارتفاع أسعار الشراء في أكتوبر، لا قبل ذلك.",tag:"e"}:null,
+      !sep&&fell.length?{t:"تكلفة خامات "+fell.length+" من "+V.length+" وصفات انخفضت في يوليو (حتى "+T.pct(Math.min(...fell.map(r=>r.cost_chg)))+")؛ "
         +(kept.length?kept.length+" منها حافظت على سعر البيع أو رفعته، فالفرق يذهب للهامش.":"")+" القرار: الإبقاء على الأسعار الحالية واحتساب الوفر في هامش يوليو–أغسطس، لا خفض السعر قبل التأكد أن الانخفاض مستمر.",tag:"e"}:null,
       {t:"تحديث الوصفات الثلاث غير المرفوعة (مفروم، كبدة، استربس وغيرها) حتى يُحسب سعر كيلو لكل الأصناف — حاليًا 9 وصفات فقط.",tag:"v"}]));
     return out;
@@ -313,7 +393,10 @@
   /* ======================= 4) رأس المال العامل ============================= */
   opsWc(D){
     const O=window.DASH_OPS, F=window.DASH_FS, M=window.DASH_MARGIN, R=D.receivables||{};
-    const AR=R.total_outstanding||0, INV=O.inventory.jul.raw_value+O.inventory.jul.fg_value, AP=O.suppliers.net_credit;
+    /* المخزون = التقييم الأقرب إلى تاريخ لقطة المديونية (31/8 للقطة 3/9): الأرصدة الثلاثة في تاريخ متقارب. */
+    const vals=this.opsVals(), asOf=R.as_of||vals[vals.length-1].date;
+    const iv=vals.slice().sort((a,b)=>Math.abs(this.opsDays(a.date,asOf))-Math.abs(this.opsDays(b.date,asOf))||b.date.localeCompare(a.date))[0];
+    const AR=R.total_outstanding||0, INV=iv.total, AP=O.suppliers.net_credit;
     const lines=(D.lines||[]).filter(l=>!l.is_bonus&&(+l.line_total||0)>0);
     const months=[...new Set(lines.map(l=>l.month))].sort(), last3=months.slice(-3);
     const s3=lines.filter(l=>last3.includes(l.month)).reduce((s,l)=>s+(+l.line_total),0);
@@ -321,11 +404,11 @@
     const st=((M&&M.statements&&M.statements.by_month)||[]).filter(r=>String(r.period||"").slice(0,4)==="2026");
     const st3=st.slice(-3), cogs3=st3.reduce((s,r)=>s+(r.cogs||0),0);
     const cDays=st3.reduce((s,r)=>{ const m=r.period; return s+new Date(Date.UTC(+m.slice(0,4),+m.slice(5,7),0)).getUTCDate(); },0);
-    const P=O.purchases, pDay=(P["2026-07"].total+P["2026-08"].total)/62;
+    const Pu=this.opsPurchases(), pDay=Pu.pDay;
     const salesDay=dayCount?s3/dayCount:0, cogsDay=cDays?cogs3/cDays:0;
     const dso=salesDay?AR/salesDay:null, dio=cogsDay?INV/cogsDay:null, dpo=pDay?AP/pDay:null;
     const bs=F&&F.balance_sheets&&F.balance_sheets["2025-12-31"], wc=F&&F.working_capital;
-    return {AR,INV,AP,net:AR+INV-AP,arAsOf:R.as_of,last3,s3,salesDay,cogsDay,pDay,dso,dio,dpo,
+    return {AR,INV,AP,invDate:iv.date,pMonths:Pu.before,net:AR+INV-AP,arAsOf:R.as_of,last3,s3,salesDay,cogsDay,pDay,dso,dio,dpo,
       ccc:dso!=null&&dio!=null&&dpo!=null?dso+dio-dpo:null,st3:st3.map(r=>r.period),
       dec:bs?{AR:bs.receivables,INV:bs.inventory,AP:bs.payables,net:bs.receivables+bs.inventory-bs.payables}:null,wc};
   }
@@ -336,7 +419,7 @@
     out.push(this.kpiTiles([
       ["رأس المال العامل التجاري",T.egpK(V.net),"عملاء + مخزون − موردون","#3b82f6"],
       ["العملاء "+this.ltr(V.arAsOf||""),T.egpK(V.AR),"مُتحقَّق · لقطة المديونية","#8b5cf6"],
-      ["المخزون 31/7/2026",T.egpK(V.INV),"مُتحقَّق · تقييم الجرد","#10b981"],
+      ["المخزون "+this.opsDmy(V.invDate),T.egpK(V.INV),"مُتحقَّق · التقييم الأقرب لتاريخ المديونية","#10b981"],
       ["الموردون 02/09/2026",T.egpK(V.AP),"مُتحقَّق · حسابات الموردين","#f59e0b"]],"owk"));
     const rows=[["العملاء",this.fsC(V.dec&&V.dec.AR),this.fsC(V.AR),this.fsC(V.dec?V.AR-V.dec.AR:null)],
       ["المخزون",this.fsC(V.dec&&V.dec.INV),this.fsC(V.INV),this.fsC(V.dec?V.INV-V.dec.INV:null)],
@@ -350,7 +433,7 @@
     out.push(this.card("أيام الدورة النقدية",this.fsTable("owd",["المؤشر","2026 (تقدير)","31/12/2025","الأساس 2026"],[
       ["أيام التحصيل DSO",f(V.dso),w.dso!=null?w.dso+" يوم":"—","العملاء ÷ مبيعات "+V.last3.map(m=>this.fsMon(m).split(" ")[0]).join("–")+" اليومية"],
       ["أيام المخزون DIO",f(V.dio),w.dio!=null?w.dio+" يوم":"—","المخزون ÷ تكلفة مبيعات "+V.st3.map(m=>this.fsMon(m).split(" ")[0]).join("–")+" اليومية"],
-      ["أيام السداد DPO",f(V.dpo),w.dpo!=null?w.dpo+" يوم":"—","الموردون ÷ مشتريات يوليو–أغسطس اليومية"],
+      ["أيام السداد DPO",f(V.dpo),w.dpo!=null?w.dpo+" يوم":"—","الموردون ÷ مشتريات "+this.opsMonRange(V.pMonths)+" اليومية"],
       {cells:["الدورة النقدية CCC",f(V.ccc),w.ccc!=null?w.ccc+" يوم":"—","DSO + DIO − DPO"],bold:true}]),
       {k:"ow2",approx:true}));
     out.push(this.opsDecision("owd2",[
@@ -638,16 +721,17 @@
     const p=g("wiP",0), v=g("wiV",0), c=g("wiC",0), o=g("wiO",0);
     const base=this.opsWhatIfCalc(B0,0,0,0,0), r=this.opsWhatIfCalc(B0,p,v,c,o);
     const chips=a=>a.map(x=>[x,(x>0?"+":"")+Math.round(x*100)+"%"]);
+    const LV=[-0.3,-0.2,-0.1,-0.05,0,0.05,0.1,0.2,0.3]; // كل الروافع من −30% إلى +30%
     out.push(this.opsLegend("dwl"));
     out.push(this.advNote("dwn","الأساس: قوائم 2026 المقيسة "+this.fsMon(B0.months[0])+" – "+this.fsMon(B0.months[B0.months.length-1])
       +" ("+B0.months.length+" شهور"+(B0.skipped.length?"؛ استُبعدت "+B0.skipped.map(m=>this.fsMon(m).split(" ")[0]).join("، ")
         +" لأنها موزَّعة من قائمة ربعية بلا تفصيل للمصروفات":"")+"). "
       +"الافتراضات المعلنة: مصروفات البيع تتحرك مع الإيراد؛ الإدارية والتشغيلية والتمويلية ثابتة إلا بتغيير «المصروفات الثابتة»؛ تغيّر التكلفة يطبَّق على تكلفة الوحدة كلها."));
     out.push(this.card("الروافع",[
-      React.createElement("div",{key:"l1",style:{fontSize:11,color:"#94a3b8"}},"تغيير سعر البيع"),this.fsPick("wip",chips([-0.1,-0.05,-0.02,0,0.02,0.05,0.1]),p,"wiP"),
-      React.createElement("div",{key:"l2",style:{fontSize:11,color:"#94a3b8"}},"تغيير الكمية المباعة"),this.fsPick("wiv",chips([-0.2,-0.1,-0.05,0,0.05,0.1,0.2]),v,"wiV"),
-      React.createElement("div",{key:"l3",style:{fontSize:11,color:"#94a3b8"}},"تغيير تكلفة الوحدة"),this.fsPick("wic",chips([-0.1,-0.05,0,0.05,0.1,0.15,0.2]),c,"wiC"),
-      React.createElement("div",{key:"l4",style:{fontSize:11,color:"#94a3b8"}},"تغيير المصروفات الثابتة"),this.fsPick("wio",chips([-0.1,-0.05,0,0.05,0.1]),o,"wiO")],
+      React.createElement("div",{key:"l1",style:{fontSize:11,color:"#94a3b8"}},"تغيير سعر البيع"),this.fsPick("wip",chips(LV),p,"wiP"),
+      React.createElement("div",{key:"l2",style:{fontSize:11,color:"#94a3b8"}},"تغيير الكمية المباعة"),this.fsPick("wiv",chips(LV),v,"wiV"),
+      React.createElement("div",{key:"l3",style:{fontSize:11,color:"#94a3b8"}},"تغيير تكلفة الوحدة"),this.fsPick("wic",chips(LV),c,"wiC"),
+      React.createElement("div",{key:"l4",style:{fontSize:11,color:"#94a3b8"}},"تغيير المصروفات الثابتة"),this.fsPick("wio",chips(LV),o,"wiO")],
       {k:"dw1",sub:"افتراض — اختر قيمة لكل رافعة"}));
     const dlt=(a,b2)=>{ const d=a-b2; return (d>=0?"▲ ":"▼ ")+T.egpK(Math.abs(d)); };
     out.push(this.kpiTiles([["صافي المبيعات",T.egpK(r.rev),dlt(r.rev,base.rev),"#3b82f6"],
@@ -756,10 +840,10 @@
         O.cleaning.map(r=>[r.title,T.int(r.count),(r.examples||[]).map(e=>Array.isArray(e)?e.join("، "):String(e)).join(" · ")])),{k:"dq4",sub:"مُتحقَّق · من ops_ingest.py"}));
       const I=O.inventory, P=O.purchases, R=O.returns_items;
       out.push(this.card("مطابقة الإجماليات بالمطبوع في المصدر",this.fsTable("dqr",["الملف","المستخرج","المطبوع","الفرق"],[
-        ["جرد 30/6/2026",this.fsC(I.jun.raw_value+I.jun.fg_value),this.fsC(I.jun.total_printed),this.fsC(I.jun.raw_value+I.jun.fg_value-I.jun.total_printed)],
-        ["جرد 31/7/2026",this.fsC(I.jul.raw_value+I.jul.fg_value),this.fsC(I.jul.total_printed),this.fsC(I.jul.raw_value+I.jul.fg_value-I.jul.total_printed)],
-        ["مشتريات يوليو",this.fsC(P["2026-07"].total),this.fsC(P["2026-07"].total),this.fsC(0)],
-        ["مشتريات أغسطس",this.fsC(P["2026-08"].total),this.fsC(P["2026-08"].total_printed),this.fsC(P["2026-08"].total-P["2026-08"].total_printed)],
+        ...this.opsVals().map(v=>["جرد "+this.opsDmy(v.date),this.fsC(v.total),this.fsC(v.src.total_printed),this.fsC(v.total-v.src.total_printed)]),
+        /* المطبوع غير متاح لمشتريات يوليو خارج ورقة المشتريات التفصيلية نفسها؛ سبتمبر يُطابَق كما سُجّل قبل التصحيح. */
+        ...Object.keys(P).sort().map(m=>{ const x=P[m], got=x.total_recorded!=null?x.total_recorded:x.total, pr=x.total_printed!=null?x.total_printed:x.total;
+          return ["مشتريات "+this.opsMonName(m)+(x.total_recorded!=null?" (كما سُجّلت)":""),this.fsC(got),this.fsC(pr),this.fsC(got-pr)]; }),
         ["حسابات الموردين",this.fsC(O.suppliers.net_credit),this.fsC(O.suppliers.total_printed),this.fsC(O.suppliers.net_credit-O.suppliers.total_printed)]]
         .concat(Object.keys(R).sort().map(m=>["مرتجعات "+this.fsMon(m),this.fsC(R[m].total),this.fsC(R[m].total_printed),this.fsC(R[m].total-R[m].total_printed)]))),
         {k:"dq5",sub:"الفروق أقل من 1 ج.م (تقريب) — شرط البناء"}));
@@ -952,6 +1036,9 @@
   /* جداول «قرارات وتشغيل» لكتالوج التصدير وملف Excel. */
   opsExport(out,col,num){
     const st=this.state;
+    out.push({id:"build_info", label:"معلومات البناء وتواريخ البيانات", rows:this.opsBuildRows(), columns:[
+      col("البند","k"), col("القيمة","v")]});
+    this.fs26Export(out,col,num);
     if(!st.api) return;
     const api=st.api, O=window.DASH_OPS;
     const Rf=this.advMemo(api,"opsRfm",(X2,D,f2)=>this.opsRfm(D,f2));
@@ -995,34 +1082,44 @@
     const Cp=this.advMemo(api,"opsCost",(X2,D)=>this.opsCostPass(D));
     const Rt=this.advMemo(api,"opsRet",(X2,D)=>this.opsRet(D));
     out.push(
-      {id:"ops_fg_cover", label:"تشغيل — تغطية المنتج التام 31/8", rows:Iv.cov, columns:[
+      {id:"ops_valuations", label:"تشغيل — تقييمات المخزون", rows:this.opsVals(), columns:[
+        col("التاريخ","date"), col("خامات",null,r=>num(r.raw_value)), col("منتج تام",null,r=>num(r.fg_value)),
+        col("الإجمالي",null,r=>num(r.total)), col("المطبوع في المصدر",null,r=>num(r.src.total_printed))]},
+      {id:"ops_fg_cover", label:"تشغيل — تغطية المنتج التام "+this.opsDmy(Iv.covDate), rows:Iv.cov, columns:[
         col("الصنف","name"), col("كود المبيعات","item_code"), col("الحالة","status"), col("الكمية",null,r=>num(r.qty)),
         col("خروج يومي",null,r=>num(r.daily)), col("تغطية (يوم)",null,r=>num(r.cover)), col("آخر بيع","last_sale"),
-        col("القيمة بسعر يوليو",null,r=>num(r.value))]},
-      {id:"ops_raw_jul", label:"تشغيل — جرد الخامات 31/7", rows:O.inventory.jul.raw, columns:[
-        col("الخامة","name"), col("رصيد أول",null,r=>num(r.open_qty)), col("مشتريات",null,r=>num(r.purch_qty)),
-        col("متوسط التكلفة",null,r=>num(r.wac)), col("الكمية",null,r=>num(r.qty)), col("القيمة",null,r=>num(r.value)),
-        col("التغير عن يونيو",null,r=>num(r.chg_vs_jun))]},
-      {id:"ops_fg_jul", label:"تشغيل — جرد المنتج التام 31/7", rows:O.inventory.jul.fg, columns:[
-        col("الصنف","name"), col("كود المبيعات","item_code"), col("الربط","match"), col("الكمية",null,r=>num(r.qty)),
-        col("السعر",null,r=>num(r.price)), col("القيمة",null,r=>num(r.value)), col("ملاحظة","note")]},
-      {id:"ops_inv_loc", label:"تشغيل — قيمة الخامات بالموقع (تقدير)", rows:Iv.locRows, columns:[
+        col("القيمة بسعر "+Iv.priceLbl,null,r=>num(r.value))]},
+      ...this.opsVals().filter(v=>v.key!=="jun").flatMap(v=>[
+        {id:"ops_raw_"+v.key, label:"تشغيل — جرد الخامات "+this.opsDmy(v.date), rows:v.src.raw, columns:[
+          col("الخامة","name"), col("رصيد أول",null,r=>num(r.open_qty)), col("سعر أول",null,r=>num(r.open_price)),
+          col("مشتريات",null,r=>num(r.purch_qty)), col("قيمة المشتريات",null,r=>num(r.purch_value)),
+          col("متوسط التكلفة",null,r=>num(r.wac)), col("الكمية",null,r=>num(r.qty)), col("القيمة",null,r=>num(r.value)),
+          col("التغير عن الشهر السابق",null,r=>num(r.chg_vs_prev!=null?r.chg_vs_prev:r.chg_vs_jun))]},
+        {id:"ops_fg_"+v.key, label:"تشغيل — جرد المنتج التام "+this.opsDmy(v.date), rows:v.src.fg, columns:[
+          col("الصنف","name"), col("كود المبيعات","item_code"), col("الربط","match"), col("الكمية",null,r=>num(r.qty)),
+          col("السعر",null,r=>num(r.price)), col("القيمة",null,r=>num(r.value)), col("ملاحظة","note")]}]),
+      {id:"ops_inv_loc", label:"تشغيل — قيمة الخامات بالموقع "+this.opsDmy(Iv.locDate)+(Iv.priced?"":" (تقدير)"), rows:Iv.locRows, columns:[
         col("الموقع","loc"), col("القيمة",null,r=>num(r.value)), col("أصناف",null,r=>num(r.n))]},
       {id:"ops_purch_items", label:"تشغيل — المشتريات بالصنف", rows:Pu.items, columns:[
-        col("الكود","code"), col("الصنف","name"), col("الإنفاق",null,r=>num(r.spend)), col("يوليو",null,r=>num(r.m7)),
-        col("أغسطس",null,r=>num(r.m8)), col("الكمية",null,r=>num(r.qty)), col("أقل سعر",null,r=>num(r.min)),
-        col("أعلى سعر",null,r=>num(r.max)), col("المتوسط المرجح",null,r=>num(r.wavg)), col("الفرق عن أقل سعر",null,r=>num(r.gap))]},
-      {id:"ops_purch_rows", label:"تشغيل — سطور المشتريات", rows:[].concat(O.purchases["2026-07"].rows,O.purchases["2026-08"].rows), columns:[
-        col("التاريخ","date"), col("الكود","code"), col("الصنف","name"), col("الكمية",null,r=>num(r.qty)),
-        col("السعر",null,r=>num(r.price)), col("الإجمالي",null,r=>num(r.total)), col("الفاتورة","invoice")]},
+        col("الكود","code"), col("الصنف","name"), col("الإنفاق",null,r=>num(r.spend))]
+        .concat(Pu.months.map(m=>col(this.opsMonName(m),null,r=>num(r.mon[m]||0))),[
+        col("الكمية",null,r=>num(r.qty)), col("أقل سعر",null,r=>num(r.min)),
+        col("أعلى سعر",null,r=>num(r.max)), col("المتوسط المرجح",null,r=>num(r.wavg)), col("الفرق عن أقل سعر",null,r=>num(r.gap))])},
+      {id:"ops_purch_rows", label:"تشغيل — سطور المشتريات", rows:[].concat(...Pu.months.map(m=>O.purchases[m].rows.map(r=>({...r,month:m})))), columns:[
+        col("الشهر","month"), col("التاريخ","date"), col("الكود","code"), col("الصنف","name"), col("الكمية",null,r=>num(r.qty)),
+        col("السعر",null,r=>num(r.price)), col("الإجمالي",null,r=>num(r.total)),
+        col("الإجمالي كما سُجّل",null,r=>num(r.total_recorded!=null?r.total_recorded:r.total)),
+        col("الصنف المقابل بالجرد",null,r=>r.stock_item||""), col("الفاتورة","invoice")]},
       {id:"ops_suppliers", label:"تشغيل — أرصدة الموردين", rows:Pu.sup, columns:[
         col("المورد","name"), col("دائن",null,r=>num(r.credit)), col("مدين",null,r=>num(r.debit)), col("الصافي",null,r=>num(r.net))]},
       {id:"ops_costpass", label:"تشغيل — تمرير التكلفة", rows:Cp, columns:[
         col("المنتج","product"), col("كجم يونيو",null,r=>num(r.kg_jun)), col("كجم يوليو",null,r=>num(r.kg_jul)),
-        col("تغير التكلفة",null,r=>num(r.cost_chg)),
-        col(Cp.julPartial?"سعر البيع يوليو (حتى "+Cp.last+")":"سعر البيع يوليو",null,r=>num(r.p_jul))]
+        col("تغير التكلفة",null,r=>num(r.cost_chg))].concat(Cp.hasSep?[col("كجم أغسطس",null,r=>num(r.kg_aug)),
+        col("كجم سبتمبر",null,r=>num(r.kg_sep)), col("تغير سبتمبر",null,r=>num(r.cost_chg_sep))]:[],[
+        col(Cp.julPartial?"سعر البيع يوليو (حتى "+Cp.last+")":"سعر البيع يوليو",null,r=>num(r.p_jul))])
         .concat(Cp.hasAug?[col("سعر البيع أغسطس",null,r=>num(r.p_aug))]:[],[
-        col("حصة التكلفة",null,r=>num(r.cost_share)), col("التغير اللازم",null,r=>num(r.room)), col("أكواد العائلة",null,r=>r.sales_codes.join("، "))])},
+        col("حصة التكلفة",null,r=>num(r.cost_share)), col("التغير اللازم",null,r=>num(r.room))],
+        Cp.hasSep?[col("التغير اللازم بعد سبتمبر",null,r=>num(r.room_sep))]:[],[col("أكواد العائلة",null,r=>r.sales_codes.join("، "))])},
       {id:"ops_returns_items", label:"تشغيل — المرتجعات بالصنف (يوليو–أغسطس)", rows:Rt.items, columns:[
         col("الصنف","name"), col("الكود","code"), col("القيمة",null,r=>num(r.value)), col("الكمية",null,r=>num(r.qty)),
         col("النسبة من المبيعات",null,r=>num(r.rate))]},
@@ -1033,3 +1130,113 @@
         col("القاعدة","id"), col("الوصف","title"), col("العدد",null,r=>num(r.count))]});
   }
 
+
+  /* ======================= قوائم الدخل 2026 (DASH_IS26) ======================
+     من ملفات PDF كما صدرت (src/income_2026.py): الربع الأول قائمة واحدة، وأبريل–يوليو
+     شهرية. كل قائمة مطابقة لمطبوعها ولقوائم الربحية المضمنة (شرط البناء). الربع الأول
+     يُعرض ثلاثة أشهر موزعة بأوزان المبيعات (allocation_weight في قوائم الربحية) — تقدير،
+     ومجموعها = القائمة الربعية. لا إهلاك في قوائم 2026 فلا يُضاف. */
+  fs26Sec(){ return [["operating","مصروفات تشغيلية"],["admin","مصروفات إدارية وعمومية"],["selling","مصروفات بيعية وتسويقية"],
+    ["financing","مصاريف تمويلية"]]; }
+  fs26PeriodName(p){ return p.months.length>1?"الربع الأول "+p.period.slice(0,4):this.fsMon(p.period); }
+  /* الأعمدة: شهر بشهر، والربع الأول مقسومًا بالأوزان إن وُجدت ومجموعها 1، وإلا عمودًا واحدًا كما صدر. */
+  fs26Cols(){
+    const P=window.DASH_IS26.periods, SM=(window.DASH_MARGIN&&window.DASH_MARGIN.statements&&window.DASH_MARGIN.statements.by_month)||[];
+    const w=m=>{ const r=SM.find(x=>x.period===m); return r&&r.allocation_weight!=null?r.allocation_weight:null; };
+    const cols=[];
+    P.forEach(p=>{
+      const ws=p.months.map(w);
+      if(p.months.length>1&&ws.every(x=>x!=null)&&Math.abs(ws.reduce((a,x)=>a+x,0)-1)<1e-6)
+        p.months.forEach((m,i)=>cols.push({label:this.fsMon(m)+" (تقدير)",p,f:ws[i],est:true,month:m}));
+      else cols.push({label:this.fs26PeriodName(p),p,f:1,est:false,month:p.period});
+    });
+    return cols;
+  }
+  fs26Rows(){
+    const cols=this.fs26Cols(), P=window.DASH_IS26.periods;
+    const sec=(p,k)=>p.sections[k], v=(c,k)=>c.p[k]*c.f;
+    const op=c=>sec(c.p,"operating")==null?null:sec(c.p,"operating")*c.f;
+    const S=(c,k)=>(sec(c.p,k)||0)*c.f;
+    const ebitda=c=>v(c,"gross_profit")-(op(c)||0)-S(c,"admin")-S(c,"selling");
+    const T={net_sales:0,cogs:0,gross_profit:0,net_profit:0,operating:0,admin:0,selling:0,financing:0};
+    P.forEach(p=>{ ["net_sales","cogs","gross_profit","net_profit"].forEach(k=>T[k]+=p[k]);
+      ["operating","admin","selling","financing"].forEach(k=>T[k]+=p.sections[k]||0); });
+    T.ebitda=T.gross_profit-T.operating-T.admin-T.selling;
+    const opMonths=P.filter(p=>p.sections.operating!=null).map(p=>this.fsMon(p.period).split(" ")[0]);
+    const R=(label,f,tot,kind,bold)=>({label,kind,bold:!!bold,vals:cols.map(f),total:tot});
+    return {cols,opMonths,rows:[
+      R("صافي المبيعات",c=>v(c,"net_sales"),T.net_sales),
+      R("تكلفة المبيعات",c=>v(c,"cogs"),T.cogs),
+      R("مجمل الربح",c=>v(c,"gross_profit"),T.gross_profit,null,1),
+      R("هامش مجمل الربح",c=>v(c,"gross_profit")/v(c,"net_sales"),T.gross_profit/T.net_sales,"pct"),
+      R("مصروفات تشغيلية",op,T.operating,"op"),
+      R("مصروفات إدارية وعمومية",c=>S(c,"admin"),T.admin),
+      R("الإدارية % من المبيعات",c=>S(c,"admin")/v(c,"net_sales"),T.admin/T.net_sales,"pct"),
+      R("مصروفات بيعية وتسويقية",c=>S(c,"selling"),T.selling),
+      R("البيعية % من المبيعات",c=>S(c,"selling")/v(c,"net_sales"),T.selling/T.net_sales,"pct"),
+      R("EBITDA",ebitda,T.ebitda,null,1),
+      R("هامش EBITDA",c=>ebitda(c)/v(c,"net_sales"),T.ebitda/T.net_sales,"pct"),
+      R("مصاريف تمويلية",c=>S(c,"financing"),T.financing),
+      R("صافي الربح (كما بالقائمة)",c=>v(c,"net_profit"),T.net_profit,null,1),
+      R("هامش صافي الربح",c=>v(c,"net_profit")/v(c,"net_sales"),T.net_profit/T.net_sales,"pct")]};
+  }
+  fs26Span(){
+    const P=window.DASH_IS26.periods, a=P[0].months[0], b=P[P.length-1].months.slice(-1)[0];
+    return this.fsMon(a).split(" ")[0]+"–"+this.fsMon(b);
+  }
+  fs26YoY(F){
+    const P=window.DASH_IS26.periods, I=(F&&F.income)||{};
+    const pairs=P.filter(p=>p.months.length===1&&I[(+p.period.slice(0,4)-1)+p.period.slice(4)]).map(p=>[I[(+p.period.slice(0,4)-1)+p.period.slice(4)],p]);
+    if(!pairs.length) return null;
+    const [a,b]=pairs[pairs.length-1], s=b.sections;
+    /* في 2025 كانت بنود التشغيل داخل «الإدارية»، فتُقارن الإدارية + التشغيلية بالإدارية. */
+    const L=[["صافي المبيعات",a.net_sales,b.net_sales],["تكلفة المبيعات",a.cogs,b.cogs],["مجمل الربح",a.gross_profit,b.gross_profit,1],
+      ["هامش مجمل الربح",a.gross_profit/a.net_sales,b.gross_profit/b.net_sales,0,"pct"],
+      ["الإدارية والتشغيلية",a.admin,(s.admin||0)+(s.operating||0)],["البيعية",a.selling,s.selling||0],
+      ["التمويلية",a.finance,s.financing||0],["صافي الربح قبل الإهلاك",a.net_profit_pre_dep,b.net_profit,1]];
+    return {m:b.period,m0:(+b.period.slice(0,4)-1)+b.period.slice(4),rows:L.map(([l,x,y,bold,k])=>({label:l,a:x,b:y,bold:!!bold,kind:k,
+      d:k==="pct"?y-x:y-x,dp:k==="pct"||!x?null:(y-x)/Math.abs(x)}))};
+  }
+  fs26Cards(F,T){
+    if(!window.DASH_IS26||!(window.DASH_IS26.periods||[]).length) return [];
+    const R=this.fs26Rows(), P=window.DASH_IS26.periods, out=[];
+    const cell=(x,k)=>k==="op"&&x==null?{v:"ضمن الإدارية",c:"#94a3b8"}:this.fsC(x,k==="pct"?"pct":undefined);
+    const q=P.find(p=>p.months.length>1), est=R.cols.some(c=>c.est);
+    out.push(this.card("قائمة الدخل 2026 ("+this.fs26Span()+")",[
+      this.fsTable("pl26",["البند"].concat(R.cols.map(c=>c.label),["إجمالي "+this.fs26Span()]),
+        R.rows.map(r=>({bold:r.bold,cells:[r.label].concat(r.vals.map(x=>cell(x,r.kind)),[cell(r.total,r.kind==="op"?null:r.kind)])}))),
+      React.createElement("div",{key:"n",style:{fontSize:10.5,lineHeight:1.8,color:"#94a3b8"}},
+        (est&&q?"قائمة "+this.fs26PeriodName(q)+" صدرت قائمة واحدة؛ أعمدة "+q.months.map(m=>this.fsMon(m).split(" ")[0]).join(" و")
+          +" موزعة بأوزان المبيعات (تقدير) ومجموعها = القائمة الربعية. ":"")
+        +"«المصروفات التشغيلية» بند مستقل في قوائم "+R.opMonths.join(" و")+" فقط، وقبلها داخل «الإدارية»؛ وإجماليها لهذه الشهور. "
+        +"لا إهلاك في قوائم 2026، فالصافي كما بالقائمة.")],
+      {k:"fi26",sub:"من قوائم الدخل كما صدرت · كل قائمة مطابقة لمطبوعها"}));
+    const Y=this.fs26YoY(F);
+    if(Y) out.push(this.card(this.fsMon(Y.m)+" مقابل "+this.fsMon(Y.m0),this.fsTable("yoy26",["البند",this.fsMon(Y.m0),this.fsMon(Y.m),"التغير","التغير %"],
+      Y.rows.map(r=>({bold:r.bold,cells:[r.label,this.fsC(r.a,r.kind),this.fsC(r.b,r.kind),
+        r.kind==="pct"?{v:((r.d>=0?"+":"−")+Math.abs(r.d*100).toFixed(1))+" نقطة",c:r.d<0?"#fca5a5":null}:this.fsC(r.d),
+        r.dp==null?"—":this.fsC(r.dp,"pct")]}))),
+      {k:"fi27",sub:"الشهر الوحيد الموجود في السنتين · الإدارية تُقارن مع التشغيلية لأنها كانت داخلها في 2025"}));
+    const keys=P.map(p=>p.period), mon=keys.includes(this.state.fs26Month)?this.state.fs26Month:keys[keys.length-1], p=P.find(x=>x.period===mon);
+    const SN={operating:"تشغيلية",admin:"إدارية",selling:"بيعية",financing:"تمويلية"};
+    out.push(this.fsPick("fi26m",P.map(x=>[x.period,this.fs26PeriodName(x)]),mon,"fs26Month"));
+    const outside=p.items.filter(i=>!i.in_total);
+    out.push(this.card("بنود مصروفات "+this.fs26PeriodName(p),[
+      this.fsTable("it26",["القسم","البند","القيمة"],p.items.map(i=>[SN[i.section]||i.section,i.label+(i.in_total?"":" (خارج إجمالي القائمة)"),
+        i.in_total?this.fsC(i.amount):{v:this.fsC(i.amount).v,c:"#fcd34d"}])),
+      outside.length?this.advNote("it26o","القائمة تذكر "+outside.length+" بند بقيمة "+this.fsC(outside.reduce((a,i)=>a+i.amount,0)).v
+        +" لا يدخل في إجمالي قسمه المطبوع ولا في صافي الربح؛ يُعرض كما ورد ولا يُحسب. راجع المحاسب: هل يُضاف للقائمة أم يُحذف من التفصيل؟","warn"):null].filter(Boolean),
+      {k:"fi28",sub:p.items.length+" بند · المصدر: "+p.source}));
+    return out;
+  }
+  fs26Export(out,col,num){
+    if(!window.DASH_IS26) return;
+    const R=this.fs26Rows(), F=window.DASH_FS, Y=this.fs26YoY(F), v=(x,k)=>k==="op"&&x==null?"ضمن الإدارية":num(x);
+    out.push({id:"fs_pl_2026",label:"القوائم — قائمة الدخل 2026",rows:R.rows,
+      columns:[col("البند","label")].concat(R.cols.map((c,i)=>col(c.label,null,r=>v(r.vals[i],r.kind))),[col("الإجمالي",null,r=>num(r.total))])},
+      {id:"fs_items_2026",label:"القوائم — بنود مصروفات 2026",rows:[].concat(...window.DASH_IS26.periods.map(p=>p.items.map(i=>({...i,period:p.period})))),
+      columns:[col("الفترة","period"),col("القسم","section"),col("البند","label"),col("القيمة",null,r=>num(r.amount)),
+        col("داخل الإجمالي المطبوع",null,r=>r.in_total?"نعم":"لا"),col("النص في الملف","label_raw")]});
+    if(Y) out.push({id:"fs_yoy_2026",label:"القوائم — "+Y.m+" مقابل "+Y.m0,rows:Y.rows,columns:[col("البند","label"),
+      col(Y.m0,null,r=>num(r.a)),col(Y.m,null,r=>num(r.b)),col("التغير",null,r=>num(r.d)),col("التغير %",null,r=>r.dp==null?"":num(r.dp))]});
+  }
