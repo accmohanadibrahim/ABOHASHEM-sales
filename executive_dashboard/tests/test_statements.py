@@ -87,3 +87,56 @@ def test_retained_earnings_movement_flag(fs):
     """Jan-Jun 2025 profit is inside retained earnings, so any 31/7 -> 31/12 move is flagged."""
     f = next(f for f in fs["quality_flags"] if f["id"] == "retained_earnings_movement")
     assert f["movement"] == pytest.approx(-443_367, abs=1)
+
+def test_gross_margin_matches_fs_dictionary_and_monthly_values(fs):
+    """K016: the FS dictionary definition matches each detailed monthly statement."""
+    definition = next(x for x in fs["kpi_dictionary"] if x["kpi"] == "هامش مجمل الربح")
+    assert "تكلفة المبيعات" in definition["formula"]
+    assert "صافي المبيعات" in definition["formula"]
+    for month, row in fs["income"].items():
+        expected = ((row["net_sales"] - row["cogs"]) / row["net_sales"]
+                    if row["net_sales"] else None)
+        assert row["gross_margin"] == pytest.approx(expected, abs=1e-4) if expected is not None else row["gross_margin"] is None, month
+
+
+def test_quick_ratio_formula_and_zero_liabilities():
+    """K023: quick ratio excludes inventory and is unavailable when current liabilities are zero."""
+    from datetime import datetime
+    from openpyxl import Workbook
+
+    def parse(current_liabilities):
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "B.S."
+        ws["A1"] = "DATE (Day, Month, Year)"
+        ws["D1"] = datetime(2025, 7, 31)
+        values = {
+            "04": 100, "08": 600, "16": 1000,
+            "25": current_liabilities, "42": 1000,
+        }
+        for row_no, (code, value) in enumerate(values.items(), start=2):
+            ws.cell(row=row_no, column=1, value=code)
+            ws.cell(row=row_no, column=4, value=value)
+        return statements.parse_balance_sheets(wb)[0]["2025-07-31"]
+
+    balanced = parse(250)
+    assert balanced["quick_ratio"] == pytest.approx((600 - 100) / 250)
+    no_current_liabilities = parse(0)
+    assert no_current_liabilities["quick_ratio"] is None
+
+
+def test_equity_other_movements_matches_change_in_equity_less_net_income():
+    """K029: this is a residual movement, not a direct ledger-level partner-current reconciliation."""
+    bs = {
+        "2025-07-31": {"total_equity": 1_000, "cash_and_deposits": 500},
+        "2025-08-31": {"total_equity": 1_250, "cash_and_deposits": 600},
+    }
+    months = {
+        "2025-08": {"net_profit_after_dep": 150, "depreciation_booked": 0},
+    }
+    result = statements.cash_flows(bs, months)[0]
+    assert result["equity_other_movements"] == pytest.approx(
+        (1_250 - 1_000) - 150
+    )
+    assert result["equity_other_movements"] == pytest.approx(100)
+
