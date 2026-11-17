@@ -96,7 +96,10 @@ def test_gross_margin_matches_fs_dictionary_and_monthly_values(fs):
     for month, row in fs["income"].items():
         expected = ((row["net_sales"] - row["cogs"]) / row["net_sales"]
                     if row["net_sales"] else None)
-        assert row["gross_margin"] == pytest.approx(expected, abs=1e-4) if expected is not None else row["gross_margin"] is None, month
+        if expected is None:
+            assert row["gross_margin"] is None, month
+        else:
+            assert row["gross_margin"] == pytest.approx(expected, abs=1e-4), month
 
 
 def test_quick_ratio_formula_and_zero_liabilities():
