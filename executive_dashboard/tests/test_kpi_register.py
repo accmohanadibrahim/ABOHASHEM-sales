@@ -121,7 +121,8 @@ def test_gross_margin_catalog_matches_statement(page):
       const row = A.biKpiRows(D, T).find(x => x.kpi === "هامش مجمل الربح");
       const month = A.biLastTwo()[1], s = A.biStmt(month);
       return {row: row && {kpi: row.kpi, value: row.value, formula: row.formula},
-              month, statement: {net_sales: s.net_sales, cogs: s.cogs, gross_margin: s.gross_margin}};
+              month, statement: {net_sales: s.net_sales, cogs: s.cogs,
+                                 gross_margin: (s.net_sales - s.cogs) / s.net_sales}};
     }""")
     assert r["row"] is not None
     assert r["row"]["kpi"] == "هامش مجمل الربح"
