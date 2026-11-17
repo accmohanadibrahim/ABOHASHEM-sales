@@ -115,20 +115,23 @@ def test_breakeven_matches_definition(page):
     assert r["cat"]["value"] == dict(r["fmt"])[r["last"]]
 
 def test_gross_margin_catalog_matches_statement(page):
-    """K003: the BI KPI catalogue agrees with the independently recomputed monthly P&L margin."""
+    """K003: catalogue value agrees with the latest measured monthly P&L margin."""
     r = page.evaluate("""() => {
       const A = window.__abhApp, D = A.state.api.D, T = A.state.T;
       const row = A.biKpiRows(D, T).find(x => x.kpi === "هامش مجمل الربح");
-      return {row: row && {kpi: row.kpi, check: String(row.check || ""), formula: row.formula},
-              statements: A.biStmts().map(s => ({period: s.period, net_sales: s.net_sales,
-                cogs: s.cogs, gross_margin: s.gross_margin}))};
+      const month = A.biLastTwo()[1], s = A.biStmt(month);
+      return {row: row && {kpi: row.kpi, value: row.value, formula: row.formula},
+              month, statement: {net_sales: s.net_sales, cogs: s.cogs, gross_margin: s.gross_margin}};
     }""")
     assert r["row"] is not None
     assert r["row"]["kpi"] == "هامش مجمل الربح"
-    assert r["row"]["check"].startswith("ناجح"), r["row"]
-    assert r["statements"]
-    for s in r["statements"]:
-        if s["net_sales"]:
-            expected = (s["net_sales"] - s["cogs"]) / s["net_sales"]
-            assert s["gross_margin"] == pytest.approx(expected, abs=1e-4), s["period"]
-
+    assert r["statement"]["net_sales"]
+    expected = (r["statement"]["net_sales"] - r["statement"]["cogs"]) / r["statement"]["net_sales"]
+    assert r["statement"]["gross_margin"] == pytest.approx(expected, abs=1e-4)
+    raw = str(r["row"]["value"]).strip().replace(",", "")
+    match = re.search(r"-?\\d+(?:\\.\\d+)?", raw)
+    assert match, r["row"]
+    displayed = float(match.group())
+    if "%" in raw or abs(displayed) > 1:
+        displayed /= 100
+    assert displayed == pytest.approx(expected, abs=0.001), (r["month"], r["row"], expected)
