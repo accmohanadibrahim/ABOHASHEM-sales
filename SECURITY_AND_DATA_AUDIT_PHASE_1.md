@@ -183,7 +183,7 @@ The workflow is configured to:
 
 The checkout action is pinned to a full commit SHA. The Gitleaks container currently uses a version tag rather than a digest; supply-chain hardening of the scanner image remains a follow-up.
 
-**Execution status:** The workflow file was committed, but the Actions runs endpoint returned zero runs for this branch after the commit. The available GitHub connection exposes read access to workflow runs but no workflow-dispatch action. Therefore none of these scans is claimed to have executed. A repository owner must manually run **Isolated security audit** from the Actions tab (or enable the branch push trigger if Actions are restricted), then provide the run result for review.
+**Execution status (updated 2026-11-18):** GitHub Actions did execute the workflow on the audit branch. The first run was cancelled during a branch update. The latest run (`44212039539`, head SHA `93087482c9a51e1f05959fb9b3e4ab923baa9cfc`) completed with a failure in the Bandit step. Gitleaks and pip-audit completed successfully. See Section 10 for the recorded results. The earlier statement that no runs existed is superseded.
 
 ### Additional processed-data inventory
 The `data/processed/` directory includes customer balance/history extracts, customer dimension and sales/bonus summaries, detailed sales transaction exports, financial statement outputs, forecasts, cost/recipe data, and operations datasets. This strengthens the conclusion that the public tree contains operationally and commercially sensitive company data. No record-level values were copied into this report.
@@ -193,3 +193,51 @@ The `data/processed/` directory includes customer balance/history extracts, cust
 - [ ] Obtain and review an actual successful or failed execution of the new security workflow.
 - [ ] Triage findings without disclosing secret values or customer-level records.
 - [ ] Confirm whether any credentials require rotation; do not rotate unless a credential is actually validated as exposed.
+
+
+## 10. Security scan results — 2026-11-18
+
+**Run:** [44212039539](https://github.com/accmohanadibrahim/ABOHASHEM-sales/actions/runs/44212039539)  
+**Branch:** `audit/phase-1-security-ci-2026-11`  
+**Scanned commit:** `93087482c9a51e1f05959fb9b3e4ab923baa9cfc`  
+**Overall result:** failed at the Bandit static-analysis gate; this is a findings-driven failure, not evidence that the scanner failed to execute.
+
+### 10.1 Gitleaks — completed
+- Current working tree and full Git history were scanned.
+- Reported finding count: **0**.
+- The scanner step completed successfully.
+- Scope limitation: this does not establish that confidential business/customer data is absent. It only reports no matches from the configured Gitleaks ruleset.
+
+### 10.2 pip-audit — completed
+- Both `analysis/requirements.txt` and `executive_dashboard/requirements.txt` were audited.
+- Both manifests reported: **No known vulnerabilities found**.
+- The dependency audit step completed successfully.
+- Scope limitation: manifests are not fully locked; transitive/runtime environment reproducibility and JavaScript dependencies were not covered by this result.
+
+### 10.3 Bandit — findings require triage
+- Scope: `analysis/` and `executive_dashboard/`, excluding the configured test and virtual-environment paths.
+- Total findings: **84**.
+- Severity counts: **4 HIGH**, **1 MEDIUM**, **79 LOW**.
+- The Bandit step exited non-zero because findings were present.
+- These are automated static-analysis findings, not yet confirmed exploitable vulnerabilities. Each must be reviewed for reachability, input trust, context, and compensating controls.
+- No source snippets, finding text, file paths, or line-level details are included in this public report.
+
+### 10.4 Workflow follow-up
+- The workflow's Bandit summary has been adjusted to print counts by severity and Bandit rule ID only. It intentionally suppresses paths, line numbers, source snippets, and finding text from public logs.
+- A subsequent run is required to capture this sanitized rule-level breakdown.
+- Do not suppress or waive HIGH findings without documented triage and owner approval.
+
+### 10.5 Current conclusions
+- Secret scanner: **no findings reported by configured Gitleaks scan**.
+- Python dependency scan: **no known vulnerabilities reported for the two manifests**.
+- Python SAST: **not cleared; 4 HIGH, 1 MEDIUM, 79 LOW findings require triage**.
+- Confidential business-data exposure: **confirmed in the public repository tree**, independent of the scanner results.
+- No change to repository visibility, `main`, production deployment, or business source data was performed.
+
+### 10.6 Remaining work
+- [ ] Run the updated workflow and capture the Bandit rule-ID counts.
+- [ ] Triage all 4 HIGH and 1 MEDIUM findings in a controlled review.
+- [ ] Review LOW findings and document false positives/accepted risks.
+- [ ] Assess JavaScript dependencies and JavaScript static analysis separately.
+- [ ] Complete content-level classification of customer/company data and agree containment with the data owner.
+- [ ] Keep the audit isolated; no merge or production deployment without explicit approval.
