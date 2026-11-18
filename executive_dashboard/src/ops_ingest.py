@@ -71,6 +71,11 @@ DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "012345678901
 BIDI = re.compile(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069]")
 
 
+def _require_condition(condition: bool, message: str) -> None:
+    if not condition:
+        raise ValueError(message)
+
+
 class Log:
     """Counts what each cleaning rule touched (published, not hidden)."""
 
