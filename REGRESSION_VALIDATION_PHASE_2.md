@@ -1,6 +1,6 @@
 # Regression Validation — Phase 2
 
-**Status:** Implementation added; execution evidence pending.  
+**Status:** Focused pytest suite passed on the latest commit; full security workflow is still running / awaiting scanner completion.  
 **Branch:** `audit/regression-tests-2026-11`  
 **Base:** `audit/phase-1-security-ci-2026-11` at the reviewed Phase 1 report commit.  
 **Scope:** Security-remediation regression coverage and optimization-safe financial reconciliations.
@@ -27,9 +27,10 @@
 
 ## Validation status and limitations
 
-- The test file currently contains focused tests; successful execution has **not yet been evidenced** by a completed GitHub Actions job.
-- The commit combined-status endpoint currently shows Vercel build contexts failing with an account/build-rate-limit response. These are hosting/build checks, not evidence that pytest or the security scanner failed.
-- The connector's available workflow-run lookup does not expose a run ID for this push-triggered execution, so no successful Actions run is claimed here.
+- Latest focused test run: GitHub Actions run [44221792749](https://github.com/accmohanadibrahim/ABOHASHEM-sales/actions/runs/44221792749), commit `706b5818ee47e8c772bac2651d230128a2355de0`. The `Run focused security remediation regression tests` step completed successfully. Gitleaks, pip-audit, and Bandit steps had not yet completed at the time of this report update.
+- Earlier run 44221716574 exposed three test-design issues: synthetic income values did not exceed the configured one-unit tolerance, and a compact test harness needed correction. Those were corrected on the isolated branch; latest pytest step now passes.
+- The commit combined-status endpoint may show Vercel build contexts failing with an account/build-rate-limit response. These are hosting/build checks, not evidence that pytest or the security scanner failed.
+- Do not treat the focused pytest success as a successful full security workflow until the remaining scanner steps complete.
 - The focused changes do not replace all production assertions. `executive_dashboard/src/standard_cost.py` and additional parsing/reconciliation paths in `ops_ingest.py` still contain assertions and require a separate inventory, conversion, and regression coverage.
 - No production dataset, generated dashboard output, published deployment, repository visibility, or default branch was changed.
 
