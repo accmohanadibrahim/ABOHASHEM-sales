@@ -154,7 +154,7 @@ def test_financial_reconciliation_checks_remain_active_under_python_optimized_mo
         "failed = False; "
         "try: ops_ingest.check_valuation([{'value': 10}], [], 9, 0, 9); "
         "except ValueError: failed = True; "
-        "assert failed, 'valuation mismatch was not rejected'; "
+        "if not failed: raise SystemExit('valuation mismatch was not rejected'); "
         "p = {'source':'optimized-test','period':'2026-01','months':['2026-01'],"
         "'net_sales':100,'cogs':60,'gross_profit':41,"
         "'sections':{'operating':10,'admin':5,'selling':5,'financing':0},"
@@ -162,7 +162,7 @@ def test_financial_reconciliation_checks_remain_active_under_python_optimized_mo
         "failed = False; "
         "try: income_2026.check(p, []); "
         "except ValueError: failed = True; "
-        "assert failed, 'income mismatch was not rejected'"
+        "if not failed: raise SystemExit('income mismatch was not rejected')"
     )
     import subprocess
     result = subprocess.run(
