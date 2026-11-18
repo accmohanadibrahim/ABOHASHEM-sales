@@ -5,7 +5,7 @@ name: Python application
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "verify/kpi-coverage-2026-11", "verify/kpi-evidence-matrix-2026-11" ]
   pull_request:
     branches: [ "main" ]
 
@@ -15,7 +15,7 @@ permissions:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
     - uses: actions/checkout@v4
@@ -49,7 +49,7 @@ jobs:
   # The zip's own workflows (abohashem_main/.github/, including the PyPI publish) are not enabled.
   abohashem-main:
     if: ${{ vars.ABOHASHEM_MAIN != 'off' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python 3.10
