@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - audit/phase-1-security-ci-2026-11
+      - audit/regression-tests-2026-11
 
 permissions:
   contents: read
@@ -22,6 +23,12 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
+
+      - name: Run focused security remediation regression tests
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check pytest
+          python -m pytest executive_dashboard/tests/test_security_regressions.py -q
 
       - name: Scan current tree and full Git history for secrets
         shell: bash
