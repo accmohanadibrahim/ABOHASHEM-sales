@@ -162,7 +162,7 @@ def check(p: dict, outside: list) -> None:
     accepted only when the excess is exactly the items the embedded statements record as
     outside the totals for this period; those items are marked in_total=False."""
     src = p["source"]
-    if abs(p["net_sales"] - p["cogs"] - p["gross_profit"]) > TOL:
+    if not abs(p["net_sales"] - p["cogs"] - p["gross_profit"]) <= TOL:
         raise ValueError(f"{src}: GP ≠ sales − COGS")
     out_amounts = [r["amount"] for r in outside if r["period"] in (p["period"], *p["months"])]
     for it in p["items"]:
@@ -174,7 +174,7 @@ def check(p: dict, outside: list) -> None:
         gap = sum(i["amount"] for i in sec) - tot
         if abs(gap) > TOL:
             marked = [i for i in sec if i["amount"] and i["amount"] in out_amounts]
-            if not marked or abs(sum(i["amount"] for i in marked) - gap) > TOL:
+            if not marked or not abs(sum(i["amount"] for i in marked) - gap) <= TOL:
                 raise ValueError(
                     f"{src}: {k} items exceed the printed total by {gap:,.2f}, "
                     "not explained by rows_outside_totals"
@@ -182,7 +182,7 @@ def check(p: dict, outside: list) -> None:
             for i in marked:
                 i["in_total"] = False
     exp = sum(v for v in p["sections"].values() if v is not None)
-    if abs(p["gross_profit"] - exp - p["net_profit"]) > TOL:
+    if not abs(p["gross_profit"] - exp - p["net_profit"]) <= TOL:
         raise ValueError(f"{src}: GP − expenses ≠ printed net profit")
 
 
@@ -202,7 +202,7 @@ def cross_check(p: dict, dm: dict) -> None:
     exp = sum(v for v in p["sections"].values() if v is not None)
     for key, mine in (("net_sales", p["net_sales"]), ("cogs", p["cogs"]), ("total_expenses", exp)):
         theirs = sum(r[key] for r in rows)
-        if abs(mine - theirs) > TOL * len(rows) + 0.01:
+        if not abs(mine - theirs) <= TOL * len(rows) + 0.01:
             raise ValueError(f"{p['source']}: {key} {mine:,.2f} ≠ DASH_MARGIN {theirs:,.2f}")
 
 
