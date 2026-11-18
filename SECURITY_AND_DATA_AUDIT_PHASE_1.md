@@ -264,3 +264,39 @@ The Bandit rule IDs were mapped to their documented checks and the corresponding
 **Triage status:** the four HIGH findings now have a source-level preliminary explanation. None is currently confirmed as an exploitable vulnerability from the reviewed context. The three B613 findings should still be remediated as source-hygiene issues and re-scanned. The B324 call should be changed to SHA-256 in a separate reviewed change. No application source file has been modified during this audit.
 
 **Important scope note:** this review was limited to the exact flagged lines and their immediate context. It is not a full manual audit of the parser, data-ingestion, or build pipeline.
+
+
+## 10.8 Updated scan and MEDIUM finding triage — 2026-11-18
+
+**Run:** [44218887824](https://github.com/accmohanadibrahim/ABOHASHEM-sales/actions/runs/44218887824)  
+**Scanned workflow commit:** `d5eea4178868ca0582a8fcd52dde7654a68866c9`  
+**Source baseline reviewed:** `27233c9bf79057e906f06cbe8cc5fbec892d7025`  
+**Overall result:** failed at the Bandit step because findings remain.
+
+The updated workflow completed all scanner steps and emitted sanitized locations for HIGH/MEDIUM findings (path and line only):
+- HIGH B324: 1
+- HIGH B613: 3
+- MEDIUM B307: 1
+- LOW: 79
+- Gitleaks: 0 findings in the current tree and full Git history.
+- pip-audit: both Python requirements manifests reported no known vulnerabilities.
+
+**B307 — one MEDIUM finding**
+- Location: `analysis/07_forecasting.py:174`.
+- The flagged operation is `eval(best_model.replace("ARIMA", ""))`.
+- Source review shows `best_model` is selected from the keys of the locally computed cross-validation summary. Those keys are constructed by the forecasting script from a fixed internal model-name list; they are not read from a request, uploaded file, or external configuration. The evaluated expression is therefore constrained by this internal model-name set in the reviewed execution path.
+- Preliminary assessment: **no direct attacker-controlled input path was identified in the reviewed context; likely low practical exploitability / constrained use**, but `eval` is unnecessary and should be removed.
+- Recommended safe replacement: parse the tuple using `ast.literal_eval` after validating the expected `ARIMA(...)` prefix and tuple shape, or map each allowed model name to a fixed tuple. Add a test for valid model names and rejection of unexpected strings.
+- This is a preliminary source-context review, not proof that every upstream data path is safe. No code change has been applied.
+
+### Updated phase status
+- [x] Run the updated workflow and capture sanitized HIGH/MEDIUM locations.
+- [x] Perform preliminary source-context triage for the one MEDIUM B307 finding.
+- [ ] Implement and test the proposed source cleanups (SHA-256, escaped bidi controls, and removal of `eval`) on a separately approved remediation branch.
+- [ ] Review LOW findings and document false positives/accepted risks.
+- [ ] Complete content-level classification and containment planning for exposed business/customer data.
+- [ ] Review JavaScript dependencies and JavaScript static analysis.
+
+The latest workflow run is findings-driven failure, not a clean security pass. The zero Gitleaks result and clean pip-audit results do not mitigate or disprove the confirmed public exposure of business-sensitive files in the repository.
+
+No application source files, business datasets, repository visibility settings, `main`, or production deployment were changed. The report update is confined to the audit branch.
