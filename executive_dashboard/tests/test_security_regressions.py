@@ -14,7 +14,7 @@ APP_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = APP_DIR.parent
 sys.path.insert(0, str(APP_DIR))
 
-from src import ops_ingest, ar_history, income_2026  # noqa: E402
+from src import ops_ingest, ar_history, income_2026, standard_cost  # noqa: E402
 import build_all  # noqa: E402
 
 
@@ -189,6 +189,37 @@ else:
     raise SystemExit("income mismatch was not rejected")
 """
     import subprocess
+    result = subprocess.run(
+        [sys.executable, "-O", "-c", code],
+        cwd=APP_DIR,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+
+
+def test_standard_cost_validation_raises_explicit_exception():
+    with pytest.raises(ValueError, match="synthetic standard-cost failure"):
+        standard_cost._require(False, "synthetic standard-cost failure")
+
+
+def test_standard_cost_has_no_runtime_assert_statements():
+    source_path = APP_DIR / "src" / "standard_cost.py"
+    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    assert not [node for node in ast.walk(tree) if isinstance(node, ast.Assert)]
+
+
+def test_standard_cost_validation_remains_active_under_python_optimized_mode():
+    code = """
+from src import standard_cost
+try:
+    standard_cost._require(False, "optimized standard-cost validation failed")
+except ValueError:
+    pass
+else:
+    raise SystemExit("standard-cost validation was disabled")
+"""
     result = subprocess.run(
         [sys.executable, "-O", "-c", code],
         cwd=APP_DIR,
