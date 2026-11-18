@@ -130,7 +130,7 @@ def test_gross_margin_catalog_matches_statement(page):
     expected = (r["statement"]["net_sales"] - r["statement"]["cogs"]) / r["statement"]["net_sales"]
     assert r["statement"]["gross_margin"] == pytest.approx(expected, abs=1e-4)
     raw = str(r["row"]["value"]).strip().replace(",", "")
-    match = re.search(r"-?\\d+(?:\\.\\d+)?", raw)
+    match = re.search(r"-?\d+(?:\.\d+)?", raw)
     assert match, r["row"]
     displayed = float(match.group())
     if "%" in raw or abs(displayed) > 1:
