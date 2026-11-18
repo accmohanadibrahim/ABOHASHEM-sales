@@ -126,6 +126,7 @@ def test_valuation_reconciliation_accepts_matching_totals():
     (61.0, 40.0, 100.0),
     (60.0, 41.0, 101.0),
     (60.0, 40.0, 99.0),
+    (float("nan"), 40.0, 100.0),
 ])
 def test_valuation_reconciliation_rejects_mismatches(raw_total, fg_total, all_total):
     with pytest.raises(ValueError):
@@ -140,6 +141,7 @@ def test_income_statement_reconciliation_accepts_matching_totals():
 @pytest.mark.parametrize("field, value", [
     ("gross_profit", 41.0),
     ("net_profit", 19.0),
+    ("gross_profit", float("nan")),
 ])
 def test_income_statement_reconciliation_rejects_mismatches(field, value):
     statement = _valid_income_statement()
