@@ -46,13 +46,16 @@ def test_cleaning_preserves_arabic_words_and_normalizes_compatibility_forms():
 def test_forecasting_uses_literal_eval_not_eval():
     source_path = REPO_ROOT / "analysis" / "07_forecasting.py"
     tree = ast.parse(source_path.read_text(encoding="utf-8"))
-    calls = [
-        node.func.id
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-    ]
-    assert "literal_eval" in calls
-    assert "eval" not in calls
+    call_names = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if isinstance(node.func, ast.Name):
+            call_names.append(node.func.id)
+        elif isinstance(node.func, ast.Attribute):
+            call_names.append(node.func.attr)
+    assert "literal_eval" in call_names
+    assert "eval" not in call_names
 
 
 @pytest.mark.parametrize("literal, expected", [
