@@ -82,6 +82,11 @@ SINGLE_CONFIRMED = {
 }
 
 
+def _require(condition: bool, message: str) -> None:
+    if not condition:
+        raise ValueError(message)
+
+
 def _cells(row) -> list:
     return [v for v in row if v not in (None, "") and not (isinstance(v, str) and not v.strip())]
 
@@ -111,7 +116,7 @@ def parse(path: Path = SRC) -> tuple[list, list]:
             name, (mix, pack, total) = txt[0], nums
         else:
             continue
-        assert abs(mix + pack - total) <= 0.01, f"row {i}: {mix} + {pack} ≠ {total}"
+        _require(abs(mix + pack - total) <= 0.01, f"row {i}: {mix} + {pack} ≠ {total}")
         nn = norm_name(name)
         own = next((p for p in TYPES if p in nn), None)
         if own:
@@ -120,7 +125,7 @@ def parse(path: Path = SRC) -> tuple[list, list]:
         rec = {"row": i, "brand": brand, "name": name, "mix": round(mix, 4), "pack": round(pack, 4), "total": round(total, 4)}
         if i in CONFIRMED:
             cname, cprod, _code = CONFIRMED[i]
-            assert name == cname, f"row {i}: «{name}» is not the confirmed «{cname}»"
+            _require(name == cname, f"row {i}: «{name}» is not the confirmed «{cname}»")
             rec["product"] = cprod
             brand_word = "" if any(w in nn for w, _ in BRANDS) else brand
             rec["key"] = clean_text(f"{name if cprod in nn else cprod + ' ' + name} {brand_word}")
@@ -167,14 +172,14 @@ def read_casing(path: Path = SRC) -> dict:
         col = None
         if header:
             hs = [c for c in cells if clean_text(c.value) == header]
-            assert len(hs) == 1, f"{sheet}: header «{header}» found {len(hs)} times"
+            _require(len(hs) == 1, f"{sheet}: header «{header}» found {len(hs)} times")
             col = hs[0].column
         hits = [c for c in cells if clean_text(c.value) == label and (col is None or c.column == col)]
-        assert len(hits) == 1, f"{sheet}: casing label «{label}» found {len(hits)} times"
+        _require(len(hits) == 1, f"{sheet}: casing label «{label}» found {len(hits)} times")
         lab = hits[0]
         val = next(((ws.cell(lab.row, c).coordinate, _num(ws.cell(lab.row, c).value))
                     for c in range(lab.column + 1, lab.column + 4) if _num(ws.cell(lab.row, c).value) is not None), None)
-        assert val and val[1] > 0, f"{sheet}: no casing cost next to «{label}»"
+        _require(val and val[1] > 0, f"{sheet}: no casing cost next to «{label}»")
         out[brand] = (val[1], f"{sheet}!{val[0]}")
     return out
 
@@ -185,21 +190,21 @@ def apply_hank(rows: list, casing: dict) -> float:
     that sheet's casing cost, and every الهنا sausage mix = paste-per-kg × weight + casing."""
     by = {r["row"]: r for r in rows}
     paste, ref = by.get(HANK_PASTE[0]), by.get(HANK_REF[0])
-    assert paste and paste["name"] == HANK_PASTE[1], f"row {HANK_PASTE[0]} is not «{HANK_PASTE[1]}»"
-    assert ref and ref["name"] == HANK_REF[1], f"row {HANK_REF[0]} is not «{HANK_REF[1]}»"
+    _require(paste and paste["name"] == HANK_PASTE[1], f"row {HANK_PASTE[0]} is not «{HANK_PASTE[1]}»")
+    _require(ref and ref["name"] == HANK_REF[1], f"row {HANK_REF[0]} is not «{HANK_REF[1]}»")
     per_kg = paste["mix"] / _kg(paste)
-    assert abs((ref["mix"] - paste["mix"]) / _kg(ref) - casing["الهنا"][0]) <= 0.01, "الهنا casing ≠ its recipe sheet"
+    _require(abs((ref["mix"] - paste["mix"]) / _kg(ref) - casing["الهنا"][0]) <= 0.01, "الهنا casing ≠ its recipe sheet")
     sausages = [r for r in rows if (signature(r["key"]) or ("",))[0] == "سجق"
                 or r["row"] in CONFIRMED and CONFIRMED[r["row"]][1] == "سجق"]  # paste is «عجينه-سجق», not sausage
-    assert {r["brand"] for r in sausages} == set(casing), "a sausage brand has no casing in its recipe sheet"
+    _require({r["brand"] for r in sausages} == set(casing), "a sausage brand has no casing in its recipe sheet")
     for r in sausages:
         kg = _kg(r)
-        assert kg, f"row {r['row']}: sausage without a weight"
+        _require(kg, f"row {r['row']}: sausage without a weight")
         kg_cost, cell = casing[r["brand"]]
         price = kg_cost / HANK_PER_KG                       # per casing: 300 (الهنا, أبو هاشم), 250 (اسباشيل)
         qty, cost = HANK_PER_KG * kg, kg_cost * kg
         if r["brand"] == "الهنا":
-            assert abs(per_kg * kg + cost - r["mix"]) <= 0.01, f"row {r['row']}: mix ≠ paste + casing"
+            _require(abs(per_kg * kg + cost - r["mix"]) <= 0.01, f"row {r['row']}: mix ≠ paste + casing")
         r.update(hank_per_kg=HANK_PER_KG, hank_qty=round(qty, 6), hank_price=round(price, 4), hank_cost=round(cost, 4),
                  hank_source=cell, cons_ok=True,
                  std_basis=f"الملف — يشمل الهانك {qty:.4g} × {price:,.2f} = {cost:,.2f} ({cell})")
@@ -213,8 +218,8 @@ def monthly(rows: list, names: dict) -> dict | None:
         return None
     months = [json.loads(f.read_text(encoding="utf-8")) for f in files]
     for f, m in zip(files, months):
-        assert m["month"] == f.stem, f"{f.name}: month {m['month']}"
-        assert abs(m["hank_per_kg"] - HANK_PER_KG) < 1e-9, f"{f.name}: casing per kg {m['hank_per_kg']}"
+        _require(m["month"] == f.stem, f"{f.name}: month {m['month']}")
+        _require(abs(m["hank_per_kg"] - HANK_PER_KG) < 1e-9, f"{f.name}: casing per kg {m['hank_per_kg']}")
     out = []
     for r in rows:
         if not r.get("item_code"):
@@ -224,7 +229,7 @@ def monthly(rows: list, names: dict) -> dict | None:
         by = {}
         for m in months:
             rc = m["recipes"].get(recipe)
-            assert rc, f"{m['month']}: no recipe «{recipe}»"
+            _require(rc, f"{m['month']}: no recipe «{recipe}»")
             paste = None if kg is None else kg * rc["paste_kg"]
             casing = HANK_PER_KG * kg * m["hank_price"] if kg is not None and r.get("hank_qty") is not None else 0.0
             by[m["month"]] = {"paste": None if paste is None else round(paste, 4), "casing": round(casing, 4),
@@ -233,7 +238,7 @@ def monthly(rows: list, names: dict) -> dict | None:
                     "kg": kg, "file_std": r["std"], "by_month": by})
     single = []
     for name, (code, mgmt, mgmt_basis) in SINGLE_CONFIRMED.items():
-        assert code in names, f"{name}: sales code {code} is not a sales item"
+        _require(code in names, f"{name}: sales code {code} is not a sales item")
         rec = [m["single"][name] for m in months]
         single.append({"name": name, "item_code": code, "item_name_sales": names[code],
                        "recipe": f"{rec[0]['kg']:g} كجم {rec[0]['item']} + تغليف {rec[0]['pack']:.2f}",
@@ -253,7 +258,7 @@ def build() -> dict:
     for r in rows:
         c = CONFIRMED.get(r["row"])
         if c:
-            assert c[2] in names, f"row {r['row']}: confirmed code {c[2]} is not a sales item"
+            _require(c[2] in names, f"row {r['row']}: confirmed code {c[2]} is not a sales item")
             r.update({"item_code": c[2], "item_name_sales": names[c[2]], "match": "عالية",
                       "match_basis": f"{DECIDED} — «{r['name']}» = «{names[c[2]]}»"})
         else:
@@ -263,8 +268,8 @@ def build() -> dict:
         r["signature"] = None if not sig else f"{sig[0]}/{sig[1] or '—'}/{sig[2]}"
     linked = {r["item_code"] for r in rows if r.get("item_code")}
     dup = [c for c in linked if sum(r.get("item_code") == c for r in rows) > 1]
-    assert not dup, f"two standard costs for one sales item: {dup}"
-    assert not set(CONFIRMED) - {r["row"] for r in rows}, "a confirmed row was not read"
+    _require(not dup, f"two standard costs for one sales item: {dup}")
+    _require(not set(CONFIRMED) - {r["row"] for r in rows}, "a confirmed row was not read")
     hank_price = apply_hank(rows, read_casing())
     mon = monthly(rows, names)
     return {**({"monthly": mon} if mon else {}), "meta": {"source": str(SRC.relative_to(REPO_ROOT)), "sheet": SHEET,

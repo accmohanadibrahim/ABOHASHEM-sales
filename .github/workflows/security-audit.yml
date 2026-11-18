@@ -1,0 +1,114 @@
+name: Isolated security audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - audit/phase-1-security-ci-2026-11
+      - audit/regression-tests-2026-11
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-audit-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout full history for secret scanning
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Run focused security remediation regression tests
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check pytest
+          python -m pytest executive_dashboard/tests/test_security_regressions.py -q
+
+      - name: Scan current tree and full Git history for secrets
+        shell: bash
+        run: |
+          set +e
+          docker run --rm --pull=always \
+            -v "${GITHUB_WORKSPACE}:/repo" -w /repo \
+            zricethezav/gitleaks:v8.24.2 \
+            detect --source=. --redact --no-banner \
+            --report-format json --report-path /repo/.gitleaks-report.json \
+            --exit-code 1 --log-opts=--all >/tmp/gitleaks-console.log 2>&1
+          scan_status=$?
+          python - <<'PY'
+          import json, os
+          p = os.path.join(os.environ["GITHUB_WORKSPACE"], ".gitleaks-report.json")
+          findings = json.load(open(p)) if os.path.exists(p) else []
+          print("Gitleaks finding count:", len(findings))
+          os.remove(p) if os.path.exists(p) else None
+          print("Finding details intentionally suppressed; inspect only through an authorized, secure process.")
+          PY
+          if [ "$scan_status" -gt 1 ]; then
+            echo "Gitleaks scanner execution error; inspect the redacted scanner log."
+            tail -n 30 /tmp/gitleaks-console.log
+            exit "$scan_status"
+          fi
+          if [ "$scan_status" -eq 1 ]; then
+            echo "Potential secret findings detected. Details are withheld from workflow output."
+            exit 1
+          fi
+
+      - name: Audit Python dependencies
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check pip-audit
+          status=0
+          for req in analysis/requirements.txt executive_dashboard/requirements.txt; do
+            if [ -f "$req" ]; then
+              echo "Auditing dependency manifest: $req"
+              if ! pip-audit -r "$req" --progress-spinner off; then status=1; fi
+            fi
+          done
+          exit "$status"
+
+      - name: Static analysis for Python security issues
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check bandit
+          set +e
+          bandit -r analysis executive_dashboard \
+            -x 'executive_dashboard/tests,executive_dashboard/.venv' \
+            -f json -o /tmp/bandit-report.json -q
+          scan_status=$?
+          python - <<'PY'
+          import json
+          import sys
+          report = json.load(open("/tmp/bandit-report.json"))
+          results = report.get("results", [])
+          from collections import Counter
+          severity_counts = Counter(item.get("issue_severity", "UNKNOWN") for item in results)
+          test_counts = Counter(
+              (item.get("issue_severity", "UNKNOWN"), item.get("test_id", "UNKNOWN"))
+              for item in results
+          )
+          print("Bandit finding counts by severity:", dict(severity_counts))
+          print("Bandit counts by severity and rule ID:")
+          for (severity, test_id), count in sorted(test_counts.items()):
+              print(f"  {severity} {test_id}: {count}")
+          blocking = [
+              item for item in results
+              if item.get("issue_severity") in ("HIGH", "MEDIUM")
+          ]
+          print("High/medium finding locations (path and line only; no source text):")
+          for item in blocking:
+              print(
+                  f"  {item.get('issue_severity')} {item.get('test_id')} "
+                  f"{item.get('filename')}:{item.get('line_number')}"
+              )
+          print("Source snippets and finding text are intentionally suppressed.")
+          if blocking:
+              sys.exit(1)
+          print("No high/medium Bandit findings; low findings remain reported for review.")
+          PY
+          if [ "$scan_status" -gt 1 ]; then exit "$scan_status"; fi

@@ -17,6 +17,7 @@ weekly data for its changepoint and yearly-seasonality priors, and pulling in
 the full Stan toolchain is not justified for an 18-point monthly series where
 the statsmodels alternatives already span the same model space.
 """
+import ast
 import json
 import warnings
 import numpy as np
@@ -171,7 +172,7 @@ def main():
     # trend model, if the CV winner cannot produce a valid prediction interval)
     h = 7
     if best_model.startswith("ARIMA"):
-        order = eval(best_model.replace("ARIMA", ""))
+        order = ast.literal_eval(best_model.replace("ARIMA", ""))
         model_fit = ARIMA(y, order=order).fit()
         fc = model_fit.get_forecast(h)
         point = fc.predicted_mean

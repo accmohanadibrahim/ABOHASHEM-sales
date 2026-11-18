@@ -148,9 +148,11 @@ def parse(text: str, source: str) -> dict:
             items.append({"section": cur, "label": name, "label_raw": raw, "amount": n[-1]})
             pending = None
     missing = [k for k in ("net_sales", "cogs", "gross_profit", "net_profit") if k not in head]
-    assert not missing, f"{source}: {missing} not found"
+    if missing:
+        raise ValueError(f"{source}: required statement fields missing: {missing}")
     if any(v is None for v in sections.values()):
-        assert len(after_net) == len(order), f"{source}: section totals under the net profit do not match the sections"
+        if len(after_net) != len(order):
+            raise ValueError(f"{source}: section totals under the net profit do not match the sections")
         sections = dict(zip(order, after_net))
     return {**head, "sections": {k: sections.get(k) for _, k in SECTIONS}, "items": items, "source": source}
 
@@ -160,7 +162,8 @@ def check(p: dict, outside: list) -> None:
     accepted only when the excess is exactly the items the embedded statements record as
     outside the totals for this period; those items are marked in_total=False."""
     src = p["source"]
-    assert abs(p["net_sales"] - p["cogs"] - p["gross_profit"]) <= TOL, f"{src}: GP ≠ sales − COGS"
+    if not abs(p["net_sales"] - p["cogs"] - p["gross_profit"]) <= TOL:
+        raise ValueError(f"{src}: GP ≠ sales − COGS")
     out_amounts = [r["amount"] for r in outside if r["period"] in (p["period"], *p["months"])]
     for it in p["items"]:
         it["in_total"] = True
@@ -171,12 +174,16 @@ def check(p: dict, outside: list) -> None:
         gap = sum(i["amount"] for i in sec) - tot
         if abs(gap) > TOL:
             marked = [i for i in sec if i["amount"] and i["amount"] in out_amounts]
-            assert marked and abs(sum(i["amount"] for i in marked) - gap) <= TOL, \
-                f"{src}: {k} items exceed the printed total by {gap:,.2f}, not explained by rows_outside_totals"
+            if not marked or not abs(sum(i["amount"] for i in marked) - gap) <= TOL:
+                raise ValueError(
+                    f"{src}: {k} items exceed the printed total by {gap:,.2f}, "
+                    "not explained by rows_outside_totals"
+                )
             for i in marked:
                 i["in_total"] = False
     exp = sum(v for v in p["sections"].values() if v is not None)
-    assert abs(p["gross_profit"] - exp - p["net_profit"]) <= TOL, f"{src}: GP − expenses ≠ printed net profit"
+    if not abs(p["gross_profit"] - exp - p["net_profit"]) <= TOL:
+        raise ValueError(f"{src}: GP − expenses ≠ printed net profit")
 
 
 def dash_margin() -> tuple[dict, list]:
@@ -195,7 +202,8 @@ def cross_check(p: dict, dm: dict) -> None:
     exp = sum(v for v in p["sections"].values() if v is not None)
     for key, mine in (("net_sales", p["net_sales"]), ("cogs", p["cogs"]), ("total_expenses", exp)):
         theirs = sum(r[key] for r in rows)
-        assert abs(mine - theirs) <= TOL * len(rows) + 0.01, f"{p['source']}: {key} {mine:,.2f} ≠ DASH_MARGIN {theirs:,.2f}"
+        if not abs(mine - theirs) <= TOL * len(rows) + 0.01:
+            raise ValueError(f"{p['source']}: {key} {mine:,.2f} ≠ DASH_MARGIN {theirs:,.2f}")
 
 
 def sources() -> list[tuple[str, list[str], Path]]:
