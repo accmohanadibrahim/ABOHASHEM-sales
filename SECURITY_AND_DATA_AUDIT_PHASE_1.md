@@ -129,3 +129,42 @@ Phase 1 is complete only when:
 - Added this audit plan and initial inventory only.
 - No source data was changed or deleted.
 - No merge or deployment was performed.
+
+
+## 8. Follow-up inspection — 2026-11-18
+
+### Confirmed public data exposure scope
+A second inspection of the current branch confirmed that the public repository includes not only raw source material but also processed customer/accounting outputs. Examples of exposed file categories include:
+- Customer receivable balances in CSV format.
+- Customer receivable history in JSON format.
+- Customer-level sales and incentive summaries.
+- Financial statement workbooks and detailed income-statement workbooks.
+- Raw receivable, cost, income, operations, and recipe source folders.
+
+This confirms that business-sensitive datasets are present in the public repository tree. The inspection did not reproduce or copy customer names, balances, or workbook cell contents into this report. The exact personal-data classification and legal exposure still require a controlled content review.
+
+**Risk update:** S1 is confirmed as a public business-data exposure, not merely a filename-based possibility. Do not interpret this as confirmation that every file contains personal data.
+
+### Dependency and workflow inventory
+- Python dependency manifests were found at `analysis/requirements.txt` and `executive_dashboard/requirements.txt`.
+- Dependencies are not fully locked: several packages use open-ended or bounded ranges, and no lockfile was found in the inspected paths.
+- The current workflow `.github/workflows/python-app.yml` uses `ubuntu-latest`, `actions/checkout@v4`, and `actions/setup-python@v3`. The runner label is floating and the actions are version-tag references rather than immutable commit-SHA pins.
+- The workflow runs pytest and flake8, but no dedicated secret scanner, dependency vulnerability scanner, or SAST step was found in the inspected workflow.
+- The dashboard's dependency manifests and CI configuration require a separate reproducibility and supply-chain review before changing the workflow.
+
+### Limited credential-pattern search
+A repository code-search pass was run for common markers including private-key headers, AWS access-key prefix, and common variable names such as `api_key`, `access_token`, `SECRET_KEY`, and `Bearer `. No matching code-search results were returned.
+
+**Important limitation:** GitHub code search is not a substitute for a dedicated secret scanner. This check does not cover the complete Git history, all binary files, every encoding, or all secret formats. Therefore S2 remains **not cleared**.
+
+### Current phase status
+- [x] Confirmed the repository remains public, as temporarily authorized by the owner for this scan.
+- [x] Confirmed processed customer/accounting datasets are also present in the public tree.
+- [x] Inspected the primary workflow and two Python dependency manifests.
+- [x] Ran a limited repository code-search pass for common credential patterns (no hits returned).
+- [ ] Run a dedicated current-tree and full-history secret scanner with redacted output.
+- [ ] Inspect raw and processed data content under controlled handling and classify customer/company confidential information.
+- [ ] Run dependency vulnerability and Python/JavaScript SAST scans.
+- [ ] Decide containment and private source-data storage before any file movement or visibility change.
+
+No repository visibility setting, source file, production deployment, or main-branch commit was changed during this follow-up.
