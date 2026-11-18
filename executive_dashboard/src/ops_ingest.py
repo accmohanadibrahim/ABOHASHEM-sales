@@ -272,8 +272,8 @@ def parse_val_jun(items: list) -> dict:
             fg.append(rec)
     raw_v = sum(r["value"] for r in raw)
     fg_v = sum(r["value"] for r in fg)
-    assert total is not None and abs(raw_v + fg_v - total) < 1, (raw_v, fg_v, total)
-    assert abs(raw_v - sub["raw"]) < 1 and abs(fg_v - sub["fg"]) < 1, (raw_v, fg_v, sub)
+    _require_condition(total is not None and abs(raw_v + fg_v - total) < 1, f"inventory total mismatch: calculated {raw_v + fg_v}, printed {total}")
+    _require_condition(abs(raw_v - sub["raw"]) < 1 and abs(fg_v - sub["fg"]) < 1, f"inventory category mismatch: raw={raw_v}/{sub['raw']}, finished={fg_v}/{sub['fg']}")
     return {"date": "2026-06-30", "raw": raw, "fg": fg, "raw_value": raw_v, "fg_value": fg_v, "total_printed": total}
 
 
@@ -357,7 +357,7 @@ def parse_val_jul(items: list) -> dict:
         recipes.append(rec)
     rv, fv = check_valuation(raw, fg, raw_total, fg_total, all_total)
     pv = sum(r["total"] for r in pur)
-    assert abs(pv - pur_total) < 1, (pv, pur_total)
+    _require_condition(abs(pv - pur_total) < 1, f"July purchases mismatch: calculated {pv}, printed {pur_total}")
     return {"date": "2026-07-31", "raw": raw, "fg": fg, "raw_value": rv, "fg_value": fv, "total_printed": all_total,
             "purchases": pur, "purchases_total": pv, "recipes": recipes}
 
@@ -381,7 +381,7 @@ def recalculated(path: Path):
 
     import openpyxl
     soffice = shutil.which("soffice") or shutil.which("libreoffice")
-    assert soffice, f"LibreOffice is needed to recalculate {path.name}"
+    _require_condition(soffice, f"LibreOffice is needed to recalculate {path.name}")
     with tempfile.TemporaryDirectory() as tmp:
         src = Path(tmp) / "in" / path.name
         src.parent.mkdir()
@@ -412,7 +412,7 @@ def parse_wac_sep(items: list) -> dict:
     fg, fg_total, all_total = parse_fg_sheet(wb["المنتج التام آخر سبتمبر"], items, "price_prev",
                                              "إجمالى قيمة مخزون المنتج التام", "إجمالى قيمة المخزون الكلى")
     rv, fv = check_valuation(raw, fg, totals["value"], fg_total, all_total)
-    assert abs(sum(r["open_value"] for r in raw) - totals["open_value"]) < 1
+    _require_condition(abs(sum(r["open_value"] for r in raw) - totals["open_value"]) < 1, "September opening raw-material value mismatch")
 
     recipes = []
     for row in wb["سعر الكجم من الوصفات"].iter_rows(min_row=4, values_only=True):
@@ -435,8 +435,8 @@ def parse_wac_sep(items: list) -> dict:
                     "price": num(row[6]), "total": num(row[7]) or 0.0, "stock_item": clean_text(row[8]),
                     "confidence": clean_text(row[9]), "basis": clean_text(row[10]), "invoice": clean_text(row[11]),
                     "total_recorded": num(row[12]) or 0.0})
-    assert abs(sum(r["total"] for r in pur) - pur_tot["corrected"]) < 1, pur_tot
-    assert abs(sum(r["total_recorded"] for r in pur) - pur_tot["recorded"]) < 1, pur_tot
+    _require_condition(abs(sum(r["total"] for r in pur) - pur_tot["corrected"]) < 1, f"September corrected purchases mismatch: {pur_tot}")
+    _require_condition(abs(sum(r["total_recorded"] for r in pur) - pur_tot["recorded"]) < 1, f"September recorded purchases mismatch: {pur_tot}")
     return {"date": "2026-09-30", "raw": raw, "fg": fg, "raw_value": rv, "fg_value": fv, "total_printed": all_total,
             "open_value": totals["open_value"], "recipes": recipes, "purchases": pur, "purchases_totals": pur_tot}
 
@@ -489,8 +489,8 @@ def parse_purchases(month: str) -> dict:
                      "total": float(total.replace(",", "")), "sale_price": float(sale)})
     printed = printed_total(lines, r"الجمالي\s*$|^\s*[\d,]+\.\d+\s+الجمالي")
     s = sum(r["total"] for r in rows)
-    assert abs(s - printed) < 1, (s, printed, len(rows))
-    assert [r["idx"] for r in rows] == list(range(1, len(rows) + 1)), "missing purchase rows"
+    _require_condition(abs(s - printed) < 1, f"Purchase PDF total mismatch: calculated {s}, printed {printed}, rows={len(rows)}")
+    _require_condition([r["idx"] for r in rows] == list(range(1, len(rows) + 1)), "missing purchase rows")
     LOG.hit("pdf_text", "تحويل نص PDF (أشكال العرض العربية ← NFKC، إزالة علامات الاتجاه، الأرقام الهندية ← لاتينية)",
             "مشتريات " + MONTH_AR[month], n=len(rows))
     return {"month": month, "rows": rows, "total": s, "total_printed": printed}
@@ -512,8 +512,8 @@ def parse_suppliers() -> dict:
     tot_line = next(ln for ln in lines if "الجمالى" in ln and "دائن" in ln)
     printed = float(re.search(r"([\d,]+\.\d+)", tot_line).group(1).replace(",", ""))
     net = sum(r["credit"] - r["debit"] for r in rows)
-    assert abs(net - printed) < 1, (net, printed, len(rows))
-    assert [r["idx"] for r in rows] == list(range(1, len(rows) + 1)), "missing supplier rows"
+    _require_condition(abs(net - printed) < 1, f"Supplier balance mismatch: calculated {net}, printed {printed}, rows={len(rows)}")
+    _require_condition([r["idx"] for r in rows] == list(range(1, len(rows) + 1)), "missing supplier rows")
     LOG.hit("pdf_text", "تحويل نص PDF (أشكال العرض العربية ← NFKC، إزالة علامات الاتجاه، الأرقام الهندية ← لاتينية)",
             "حسابات الموردين", n=len(rows))
     tiny = [r for r in rows if max(r["credit"], r["debit"]) < 50]
@@ -554,7 +554,7 @@ def parse_returns(month: str, path: Path, items: list) -> dict:
             continue
         d, val, qty, mid, inv, idx = m.groups()
         parts = split_return_middle(mid)
-        assert parts, ("unparsed return row", ln)
+        _require_condition(parts, f"Unparsed returns row: {ln}")
         unit, item, gov, rep, cust = parts
         y, mo, da = d.split("/")
         last = {"idx": int(idx), "date": f"{y}-{int(mo):02d}-{int(da):02d}", "value": float(val.replace(",", "")),
@@ -573,8 +573,8 @@ def parse_returns(month: str, path: Path, items: list) -> dict:
         r.update(link(r["item"], items))
     printed = printed_total(lines, r"اجمالي المرتجع")
     s = sum(r["value"] for r in rows)
-    assert abs(s - printed) < 1, (month, s, printed, len(rows))
-    assert sorted(r["idx"] for r in rows) == list(range(1, len(rows) + 1)), f"missing returns rows {month}"
+    _require_condition(abs(s - printed) < 1, f"Returns total mismatch for {month}: calculated {s}, printed {printed}, rows={len(rows)}")
+    _require_condition(sorted(r["idx"] for r in rows) == list(range(1, len(rows) + 1)), f"missing returns rows {month}")
     LOG.hit("pdf_text", "تحويل نص PDF (أشكال العرض العربية ← NFKC، إزالة علامات الاتجاه، الأرقام الهندية ← لاتينية)",
             f"مرتجعات {month}", n=len(rows))
     return {"month": month, "rows": rows, "total": s, "total_printed": printed}
@@ -586,11 +586,11 @@ def merge_recipes(jul: list, sep: list) -> list:
     September model (one basis for both months, so the change between them is
     the change in raw-material prices alone)."""
     by = {(norm_name(r["product"]), norm_name(r["brand"])): r for r in sep}
-    assert len(by) == len(sep) == len(jul), (len(sep), len(jul))
+    _require_condition(len(by) == len(sep) == len(jul), f"Recipe row counts differ: September={len(sep)}, July={len(jul)}")
     for r in jul:
         s = by.pop((norm_name(r["product"]), norm_name(r["brand"])))
         r.update({"batch_aug": s["batch_aug"], "batch_sep": s["batch_sep"], "kg_aug": s["kg_aug"], "kg_sep": s["kg_sep"]})
-    assert not by, by
+    _require_condition(not by, f"September contains unmatched recipe keys: {list(by)}")
     return jul
 
 
@@ -598,14 +598,14 @@ def check_purchases_sep(model: dict, pdf: dict) -> dict:
     """The September model's purchase lines are the printed register line for
     line; the only change is the invoice management confirmed was mis-keyed."""
     rows, tot = model["purchases"], model["purchases_totals"]
-    assert len(rows) == len(pdf["rows"]), (len(rows), len(pdf["rows"]))
+    _require_condition(len(rows) == len(pdf["rows"]), f"September purchase row counts differ: model={len(rows)}, PDF={len(pdf['rows'])}")
     for r, p in zip(sorted(rows, key=lambda r: r["idx"]), pdf["rows"]):
-        assert (r["idx"], r["code"]) == (p["idx"], p["code"]), (r["idx"], r["code"], p["code"])
-        assert abs(r["total_recorded"] - p["total"]) < 0.01, (r["idx"], r["total_recorded"], p["total"])
+        _require_condition((r["idx"], r["code"]) == (p["idx"], p["code"]), f"Purchase row identity mismatch at model row {r['idx']}")
+        _require_condition(abs(r["total_recorded"] - p["total"]) < 0.01, f"Purchase recorded amount mismatch at row {r['idx']}")
         r["sale_price"] = p["sale_price"]
-    assert abs(tot["recorded"] - pdf["total_printed"]) < 1, (tot, pdf["total_printed"])
+    _require_condition(abs(tot["recorded"] - pdf["total_printed"]) < 1, f"September recorded purchase grand total mismatch: {tot['recorded']} vs {pdf['total_printed']}")
     fixed = [r for r in rows if abs(r["total"] - r["total_recorded"]) >= 0.01]
-    assert {r["invoice"] for r in fixed} == {"1111115217"}, fixed
+    _require_condition({r["invoice"] for r in fixed} == {"1111115217"}, "Unexpected invoice correction set in September purchases")
     LOG.hit("invoice_fix", "تصحيح سطرَي الفاتورة 1111115217 بمشتريات سبتمبر: سعرا مفروم فراخ C و A معكوسان "
             "(تأكيد الإدارة) — الإجمالى المطبوع محفوظ في total_recorded",
             [f'{r["name"]}: {r["total_recorded"]:,.2f} ← {r["total"]:,.2f}' for r in fixed], n=len(fixed))
@@ -618,8 +618,8 @@ def check_count_sep(cnt: dict, sep: dict):
     """The priced 30/9 count and the September model value the same stock."""
     rv = sum(r["qty_total"] * (r["price"] or 0) for r in cnt["raw"])
     fv = sum(r["qty"] * (r["price"] or 0) for r in cnt["fg"])
-    assert abs(rv - sep["raw_value"]) < 1, (rv, sep["raw_value"])
-    assert abs(fv - sep["fg_value"]) < 1, (fv, sep["fg_value"])
+    _require_condition(abs(rv - sep["raw_value"]) < 1, f"September raw stock value mismatch: count={rv}, model={sep['raw_value']}")
+    _require_condition(abs(fv - sep["fg_value"]) < 1, f"September finished-goods value mismatch: count={fv}, model={sep['fg_value']}")
 
 
 def build() -> dict:
@@ -628,7 +628,7 @@ def build() -> dict:
     jul = parse_val_jul(items)
     for r in jul["recipes"]:
         r["sales_codes"] = recipe_family(r["product"], r["brand"], items)
-        assert r["sales_codes"], ("recipe without a sales family", r["product"])
+        _require_condition(r["sales_codes"], f"Recipe without a sales family: {r['product']}")
     aug = parse_val_aug(items)
     sep = parse_wac_sep(items)
     recipes = merge_recipes(jul["recipes"], sep.pop("recipes"))
