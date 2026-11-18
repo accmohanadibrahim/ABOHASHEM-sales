@@ -436,7 +436,7 @@ The completed Bandit scan on source-remediation head `623ec619895c3481abb12e82f1
 - B603: 7
 - B607: 4
 
-The previous run failed only because the workflow treated any Bandit finding as blocking. The workflow was subsequently changed on the audit branch to block HIGH and MEDIUM findings while reporting LOW findings. This is a CI policy change, not a finding suppression. The new workflow run was still in progress at the time of this report update.
+The previous run failed only because the workflow treated any Bandit finding as blocking. The workflow was subsequently changed on the audit branch to block HIGH and MEDIUM findings while reporting LOW findings. This is a CI policy change, not a finding suppression. The follow-up workflow run `44220493445` subsequently completed successfully on 2026-11-18. Its job completed with Gitleaks finding count 0; both pip-audit manifests reported no known vulnerabilities; Bandit reported 79 LOW findings and zero HIGH/MEDIUM findings. This confirms the configured scanner gate passed, not that all LOW findings or application regression risks are resolved.
 
 ### B101 — assert used as runtime validation
 Read-only source review confirmed that some B101 findings are in production modules, not merely tests. Examples include:
