@@ -319,9 +319,12 @@ def parse_fg_sheet(ws, items: list, prev_key: str, fg_label: str, all_label: str
 
 def check_valuation(raw, fg, raw_total, fg_total, all_total):
     rv, fv = sum(r["value"] for r in raw), sum(r["value"] for r in fg)
-    assert abs(rv - raw_total) < 1, (rv, raw_total)
-    assert abs(fv - fg_total) < 1, (fv, fg_total)
-    assert abs(rv + fv - all_total) < 1, (rv + fv, all_total)
+    if abs(rv - raw_total) >= 1:
+        raise ValueError(f"Raw-material valuation mismatch: calculated {rv}, printed {raw_total}")
+    if abs(fv - fg_total) >= 1:
+        raise ValueError(f"Finished-goods valuation mismatch: calculated {fv}, printed {fg_total}")
+    if abs(rv + fv - all_total) >= 1:
+        raise ValueError(f"Total valuation mismatch: calculated {rv + fv}, printed {all_total}")
     return rv, fv
 
 
