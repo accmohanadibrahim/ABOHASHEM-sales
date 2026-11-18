@@ -6,6 +6,7 @@ company source data or modify dashboard outputs.
 import ast
 import hashlib
 import sys
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -219,6 +220,37 @@ except ValueError:
     pass
 else:
     raise SystemExit("standard-cost validation was disabled")
+"""
+    result = subprocess.run(
+        [sys.executable, "-O", "-c", code],
+        cwd=APP_DIR,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+
+
+def test_ops_ingest_has_no_runtime_assert_statements():
+    source_path = APP_DIR / "src" / "ops_ingest.py"
+    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    assert not [node for node in ast.walk(tree) if isinstance(node, ast.Assert)]
+
+
+def test_operations_validation_raises_explicit_exception():
+    with pytest.raises(ValueError, match="synthetic operations failure"):
+        ops_ingest._require_condition(False, "synthetic operations failure")
+
+
+def test_operations_validation_remains_active_under_python_optimized_mode():
+    code = """
+from src import ops_ingest
+try:
+    ops_ingest._require_condition(False, "optimized operations validation failed")
+except ValueError:
+    pass
+else:
+    raise SystemExit("operations validation was disabled")
 """
     result = subprocess.run(
         [sys.executable, "-O", "-c", code],
