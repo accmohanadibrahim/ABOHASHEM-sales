@@ -67,7 +67,7 @@ STAGES = [
 
 
 def digest(path: Path) -> str:
-    return hashlib.md5(path.read_bytes()).hexdigest() if path.exists() else "-"
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else "-"
 
 
 def main(argv=None) -> int:
