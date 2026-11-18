@@ -300,3 +300,43 @@ The updated workflow completed all scanner steps and emitted sanitized locations
 The latest workflow run is findings-driven failure, not a clean security pass. The zero Gitleaks result and clean pip-audit results do not mitigate or disprove the confirmed public exposure of business-sensitive files in the repository.
 
 No application source files, business datasets, repository visibility settings, `main`, or production deployment were changed. The report update is confined to the audit branch.
+
+
+## 10.9 Metadata-only classification of exposed data paths — 2026-11-18
+
+A metadata-only review was performed against the recursive Git tree at the unchanged main baseline `61ba60a7f5745c789958b313ca012c7d88802d41`. No file contents, customer names, account balances, invoice values, or workbook cells were copied or opened for this inventory.
+
+### Confirmed path-level inventory
+- `data/raw/`: **80 files** — 49 receivables/balance documents, 4 cost-related files, 12 operations-related files, 3 recipe-related files, 5 income-related files, 5 prior-year income-related files, and 2 additional financial-statement workbooks.
+- Raw-file formats: **61 PDF**, **11 XLSX**, **3 JSON**, and **5 TXT**.
+- `data/processed/`: **32 files**, including customer/accounting extracts, sales transaction exports, financial statement outputs, forecasts, cost/recipe and operations data.
+- `analysis/data/`: **9 files**; `analysis/data_2026_06/`: **6 files**. These include invoice-header/line extracts and customer receivable/debt/bonus summary datasets.
+- Two invoice CSV path entries are present in the repository tree.
+- The path-name scan identified **97 file paths** containing customer/receivable/invoice/debt/balance/sales-transaction/bonus-related terms across the repository. This is a path count, not a count of unique customers or records.
+
+### Classification and exposure assessment
+1. **Customer/receivable documents and extracts — Critical confidentiality classification pending data-owner confirmation.** Filenames and directory structure establish that customer receivable/balance material is present in the public tree; some filenames themselves contain customer identifiers. The report intentionally omits those identifiers.
+2. **Invoice headers and line-level exports — Critical confidentiality classification pending content review.** These datasets can contain counterparty identifiers, transaction dates, quantities, prices, and other commercially sensitive fields.
+3. **Sales transaction and customer incentive summaries — High to Critical.** These may disclose customer-level sales, pricing, volumes, and incentive arrangements.
+4. **Financial statements, cost sheets, BOM/recipes, and standard costs — High commercial confidentiality.** These can disclose internal financial performance, margins, formulas, product composition, and procurement/cost structures.
+5. **Operations and supplier documents — High commercial confidentiality pending content review.** Review for supplier identity, purchasing terms, and operational details.
+
+These are conservative classifications based on path names, file types, and business context. They are not a legal determination and do not assert that every file contains personal data.
+
+### Containment recommendations — not executed
+- Restrict public access to the repository and associated artifacts through a separately approved owner decision; public exposure remains active until containment is approved and completed.
+- Before any history rewrite or data removal, preserve an access-controlled forensic copy and a checksum manifest. Do not overwrite the only copy of source data.
+- Create a private source-data repository/storage area with least-privilege access, audit logging, retention policy, and backup/restore controls.
+- Replace real business data in CI, examples, and demos with synthetic or irreversibly anonymized fixtures.
+- Treat Git history, forks, cached clones, releases, workflow artifacts, and published dashboard assets as separate exposure surfaces. A future visibility change or deletion from the current tree alone does not recall already cloned or cached copies.
+- If controlled content review confirms personal data or regulated information, escalate to the company's data owner/legal/privacy lead for incident assessment and any required notifications.
+- Rotate credentials only if a credential is validated as exposed; Gitleaks currently reports zero matches but does not assess business-data confidentiality.
+
+### Status
+- [x] Metadata-only path classification completed at baseline.
+- [x] Aggregate counts and risk categories recorded without reproducing customer identifiers or financial values.
+- [ ] Controlled content-level review by an authorized data owner.
+- [ ] Containment decision and private-storage plan approved.
+- [ ] Git-history, forks, artifacts, and deployed/static assets exposure review completed.
+
+No file content was modified, deleted, or moved. No visibility change, history rewrite, merge, or deployment was performed. The review and this report update are confined to the audit branch.
