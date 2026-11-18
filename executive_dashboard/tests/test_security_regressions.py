@@ -144,8 +144,8 @@ def test_income_statement_reconciliation_accepts_matching_totals():
 
 
 @pytest.mark.parametrize("field, value", [
-    ("gross_profit", 41.0),
-    ("net_profit", 19.0),
+    ("gross_profit", 42.0),
+    ("net_profit", 18.0),
     ("gross_profit", float("nan")),
 ])
 def test_income_statement_reconciliation_rejects_mismatches(field, value):
@@ -171,7 +171,7 @@ p = {
     "months": ["2026-01"],
     "net_sales": 100,
     "cogs": 60,
-    "gross_profit": 41,
+    "gross_profit": 42,
     "sections": {"operating": 10, "admin": 5, "selling": 5, "financing": 0},
     "items": [
         {"section": "operating", "amount": 10},
