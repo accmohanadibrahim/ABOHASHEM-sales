@@ -425,3 +425,43 @@ No workflow change was made as part of this review.
 - No completed scanner result for the source-remediation head is available yet.
 
 The report update does not change application code, source data, repository settings, or deployment configuration.
+
+
+## 10.12 LOW-severity Bandit triage — runtime assertions and process execution — 2026-11-18
+
+The completed Bandit scan on source-remediation head `623ec619895c3481abb12e82f18b2c7a20bf5d93` reported 79 LOW findings after the three HIGH and one MEDIUM source findings were no longer present:
+- B101: 61
+- B110: 1
+- B404: 6
+- B603: 7
+- B607: 4
+
+The previous run failed only because the workflow treated any Bandit finding as blocking. The workflow was subsequently changed on the audit branch to block HIGH and MEDIUM findings while reporting LOW findings. This is a CI policy change, not a finding suppression. The new workflow run was still in progress at the time of this report update.
+
+### B101 — assert used as runtime validation
+Read-only source review confirmed that some B101 findings are in production modules, not merely tests. Examples include:
+- `executive_dashboard/src/income_2026.py`: required financial-statement fields and arithmetic reconciliation checks.
+- `executive_dashboard/src/standard_cost.py`: source-sheet uniqueness, recipe identity, and cost reconciliation checks.
+- `executive_dashboard/src/ops_ingest.py`: inventory, purchase, supplier, return, and source-total reconciliation checks.
+
+Python removes `assert` statements when executed with optimization (`python -O` / `PYTHONOPTIMIZE`). These checks therefore must not be relied on as production integrity controls. This is a genuine reliability/data-integrity concern even though Bandit rates it LOW.
+
+**Recommended remediation:** replace production assertions with explicit conditional checks that raise a domain-appropriate exception (for example `ValueError`, `RuntimeError`, or a project-specific validation exception). Preserve assertions only in tests and for internal developer invariants where optimization cannot weaken a required control. Add tests proving a deliberately mismatched source fails under both normal Python and optimized Python.
+
+### B404 / B603 / B607 — subprocess and executable lookup
+The searched execution paths use argument arrays with `subprocess.run`; no `shell=True`, `os.system`, `subprocess.Popen`, or `subprocess.call` use was identified in the reviewed search results. This reduces shell-injection exposure but does not eliminate process-execution risk.
+
+Observed external tools include `pdftotext` and LibreOffice (`soffice` / `libreoffice`), resolved in some paths through `PATH` or `shutil.which`. Risk depends on who controls the runner environment and file paths. CI uses a controlled GitHub-hosted runner, but local or service execution should use a trusted fixed PATH or validated absolute executable paths, avoid writable directories earlier in PATH, and validate file inputs. Preserve timeouts and checked return codes.
+
+### B110 — broad exception silently ignored
+The remaining B110 finding is in `analysis/07_forecasting.py`, where an ARIMA model-fit exception is swallowed with `except Exception: pass`. This can hide unexpected defects and make a failed candidate look like an ordinary model-selection outcome.
+
+**Recommended remediation:** catch only expected numerical/model-fit exceptions, record the failed candidate and reason in a controlled diagnostic log, and continue the grid only for expected fit failures. Unexpected exceptions should propagate and fail the analysis.
+
+### Triage disposition
+- B101: remediation recommended; production data-integrity control weakness.
+- B404/B603/B607: conditional/low risk based on current argv-list use; harden executable resolution and input provenance.
+- B110: narrow exception handling and add diagnostic logging.
+- No blanket suppressions were added. No LOW finding was removed from the scanner inventory.
+
+This section is based on code-path inspection and GitHub code-search excerpts; it is not a full execution test or a complete manual review of every one of the 79 LOW locations.
