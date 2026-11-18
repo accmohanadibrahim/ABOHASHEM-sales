@@ -340,3 +340,60 @@ These are conservative classifications based on path names, file types, and busi
 - [ ] Git-history, forks, artifacts, and deployed/static assets exposure review completed.
 
 No file content was modified, deleted, or moved. No visibility change, history rewrite, merge, or deployment was performed. The review and this report update are confined to the audit branch.
+
+
+## 10.10 Expanded public exposure review — dashboard, branches, and template repository — 2026-11-18
+
+### A. Published production dashboard
+The public production URL `https://mobile-bi.edgeone.dev/` was inspected with a live Firecrawl scrape using PII-redaction guidance and targeted metadata questions. The normal browser fetch path was unavailable, but the Firecrawl scrape successfully rendered the page.
+
+Observed facts:
+- The root page is a live executive financial/operational dashboard, not a static product landing page.
+- It visibly exposes company-level sales, collection, receivables/overdue, customer concentration, invoice, stock, supplier, and financial-statement sections/metrics.
+- A targeted metadata-only check of the rendered HTML reported the presence of customer names/identifiers or customer-level transaction/receivable details, as well as aggregate company financial/sales metrics. No customer names, identifiers, row values, or financial amounts are reproduced in this report.
+- The HTML contains inline data/text; no external script or stylesheet URLs were identified in the limited source extraction.
+- A follow-up request to `https://mobile-bi.edgeone.dev/data.js` returned HTTP 404. This does not prove that all data is inline or that no other data endpoint exists; it only means this specific path was not found.
+- Firecrawl's URL map returned only the root page. This is not proof that no hidden routes or API endpoints exist.
+
+**Assessment:** the deployed dashboard itself is a separate public exposure surface. The presence of customer-level details in the rendered HTML is a high-priority confidentiality issue even if the GitHub repository is later restricted. A public dashboard must not rely on client-side hiding or UI filters as access control.
+
+### B. Other public branches in the same repository
+A metadata-only tree comparison was performed on six other public branches, in addition to the main and audit branches. Each of the six inspected branches contains:
+- 80 files under `data/raw/`
+- 32 files under `data/processed/`
+- 97 customer/receivable/invoice/debt/balance/sales-transaction/bonus-related path names
+
+The inventories match the main baseline at the path-count level. Thus, the exposure is not isolated to the default branch; multiple public refs in the same repository expose substantially the same business-data tree. No record contents were opened for this comparison.
+
+### C. Public template repository
+The repository metadata identifies `accmohanadibrahim/ABOHASHEM-sales-` as a separate public template repository. Its default branch tree was inspected by path metadata only:
+- 196 file blobs in the inspected tree.
+- 23 files under `data/processed/`.
+- 31 paths containing customer/receivable/invoice/balance/sales/debt/bonus-related terms.
+- No `data/raw/` paths were found in that tree.
+
+This is a separate public repository and must be included in the data-owner's exposure review. The presence of customer-related processed paths is confirmed; content-level classification remains pending.
+
+### D. GitHub releases and workflow artifacts
+- The repository releases endpoint returned an empty list at the time of review.
+- The inspected security workflow run `44218887824` had no associated Actions artifacts.
+- GitHub Pages is disabled according to repository metadata.
+- The external EdgeOne deployment is not represented by GitHub Pages metadata. Its deployment linkage, build source, and static asset inventory remain to be confirmed through the hosting provider/account.
+
+### E. Security remediation changes observed on the audit branch
+At the time of this review, the audit branch head had advanced to `623ec619895c3481abb12e82f18b2c7a20bf5d93`. Compared with the prior documented audit commit `b69c16878bf9d5dbde0f190268e628f746a5a59a`, five source files changed:
+- `analysis/07_forecasting.py`: replaced `eval()` with `ast.literal_eval()`.
+- `executive_dashboard/build_all.py`: replaced MD5 digest with SHA-256.
+- `executive_dashboard/src/ar_history.py`, `ops_ingest.py`, and `recipes.py`: replaced embedded bidi controls with explicit Unicode escapes.
+
+These changes are present on the audit branch only; this report does not claim they were authored or applied by this audit operation. The associated CI run `44219701215` was still `in_progress` at the time of observation, so the remediations are **not yet validated by a completed scanner/test run**. The earlier "not yet applied" statements in Sections 10.7 and 10.8 describe the state at their respective timestamps and are superseded by this section.
+
+### F. Updated risk and next actions
+1. Treat the public production dashboard as an active exposure surface; perform a controlled review of its rendered DOM, data-loading path, API routes, downloadable exports, caching/CDN behavior, and authorization model without collecting or reproducing customer data.
+2. Include every public branch and the separate public template repository in the exposure inventory.
+3. Have the data owner approve a containment decision for the repository, template repository, and dashboard separately. Do not assume one setting controls all three.
+4. Preserve a restricted forensic copy and checksums before any history rewrite or data migration. Review forks, clones, caches, and hosting artifacts.
+5. Complete the pending CI run and then run regression tests to ensure the three source remediations preserve behavior.
+6. Verify the EdgeOne project source, deployment branch/commit, environment variables, build output, and public asset access through the hosting account; this was not confirmed by GitHub metadata.
+
+No repository visibility setting, source file, business dataset, branch ref, production configuration, or deployment was changed as part of this review. This section records read-only observations and recommendations only.
