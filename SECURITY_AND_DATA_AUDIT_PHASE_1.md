@@ -168,3 +168,28 @@ A repository code-search pass was run for common markers including private-key h
 - [ ] Decide containment and private source-data storage before any file movement or visibility change.
 
 No repository visibility setting, source file, production deployment, or main-branch commit was changed during this follow-up.
+
+
+## 9. Security workflow added — execution pending
+
+Added `.github/workflows/security-audit.yml` on the isolated audit branch only.
+
+The workflow is configured to:
+- Check out full Git history.
+- Run Gitleaks against the current tree and Git history, with redaction enabled and finding details suppressed from normal workflow output.
+- Run `pip-audit` against both discovered Python requirements files.
+- Run Bandit against the `analysis` and `executive_dashboard` Python trees.
+- Use read-only repository permissions and an Ubuntu 24.04 runner.
+
+The checkout action is pinned to a full commit SHA. The Gitleaks container currently uses a version tag rather than a digest; supply-chain hardening of the scanner image remains a follow-up.
+
+**Execution status:** The workflow file was committed, but the Actions runs endpoint returned zero runs for this branch after the commit. The available GitHub connection exposes read access to workflow runs but no workflow-dispatch action. Therefore none of these scans is claimed to have executed. A repository owner must manually run **Isolated security audit** from the Actions tab (or enable the branch push trigger if Actions are restricted), then provide the run result for review.
+
+### Additional processed-data inventory
+The `data/processed/` directory includes customer balance/history extracts, customer dimension and sales/bonus summaries, detailed sales transaction exports, financial statement outputs, forecasts, cost/recipe data, and operations datasets. This strengthens the conclusion that the public tree contains operationally and commercially sensitive company data. No record-level values were copied into this report.
+
+### Revised checklist
+- [x] Add an isolated security-scanning workflow with read-only permissions.
+- [ ] Obtain and review an actual successful or failed execution of the new security workflow.
+- [ ] Triage findings without disclosing secret values or customer-level records.
+- [ ] Confirm whether any credentials require rotation; do not rotate unless a credential is actually validated as exposed.
