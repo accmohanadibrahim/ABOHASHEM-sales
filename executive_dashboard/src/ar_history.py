@@ -53,7 +53,7 @@ TOP = 15
 # x-bands of the report columns (points), as in abohashem_main/analysis/parse_salespeople.py.
 COLS = {"debit": (152, 208), "credit": (220, 262), "rep": (282, 348), "ctype": (360, 398),
         "name": (400, 492), "code": (502, 548), "row": (553, 572)}
-BIDI = re.compile("[‎‏‪-‮⁦-⁩]")
+BIDI = re.compile(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069]")
 # One spelling per representative across the reports and the file names.
 # The reports print «م» for «محمد».
 REPS = {"هاني": "هانى", "م امام": "محمد امام", "م امام الصعيد": "محمد امام الصعيد", "م بشرى": "محمد بشرى",
