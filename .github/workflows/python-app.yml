@@ -5,7 +5,7 @@ name: Python application
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "verify/kpi-coverage-2026-11" ]
   pull_request:
     branches: [ "main" ]
 
