@@ -241,3 +241,26 @@ The `data/processed/` directory includes customer balance/history extracts, cust
 - [ ] Assess JavaScript dependencies and JavaScript static analysis separately.
 - [ ] Complete content-level classification of customer/company data and agree containment with the data owner.
 - [ ] Keep the audit isolated; no merge or production deployment without explicit approval.
+
+
+### 10.7 Initial triage of HIGH findings — source review on 2026-11-18
+
+The Bandit rule IDs were mapped to their documented checks and the corresponding Python source locations were reviewed at the scanned source baseline.
+
+**B324 — one HIGH finding**
+- Location: `executive_dashboard/build_all.py:70`.
+- The flagged call is an MD5 digest of a file's bytes, returned by a helper named `digest`.
+- The surrounding code uses this digest as a build/output comparison fingerprint; the reviewed context does not indicate password storage, authentication, signatures, or integrity verification across a trust boundary.
+- Initial assessment: **likely non-security fingerprint use / likely false positive for security impact**, but MD5 remains collision-weak. Recommended cleanup: replace with SHA-256 to avoid ambiguity and collision concerns. Do not use `usedforsecurity=False` as a blanket suppression unless the project deliberately retains MD5 for a documented non-security compatibility reason.
+
+**B613 — three HIGH findings**
+- `executive_dashboard/src/ar_history.py:56`
+- `executive_dashboard/src/ops_ingest.py:71`
+- `executive_dashboard/src/recipes.py:60`
+- All three locations define the same `BIDI` regular expression. The pattern intentionally contains Unicode bidirectional formatting/control characters as members/ranges of a character class so the parsers can identify or strip such controls from ingested text.
+- Initial assessment: **intentional sanitizer pattern, not evidence by itself of a Trojan Source control-flow payload**. However, embedding invisible bidi controls directly in Python source creates a source-review hazard and is exactly the class of source ambiguity that B613 is designed to surface.
+- Recommended no-behavior-change cleanup: express the same character class using explicit ASCII escape notation (for example, `r"[\\u200e\\u200f\\u202a-\\u202e\\u2066-\\u2069]"`) and add a unit test proving the sanitizer still detects/removes every intended code point. This recommendation is not yet applied.
+
+**Triage status:** the four HIGH findings now have a source-level preliminary explanation. None is currently confirmed as an exploitable vulnerability from the reviewed context. The three B613 findings should still be remediated as source-hygiene issues and re-scanned. The B324 call should be changed to SHA-256 in a separate reviewed change. No application source file has been modified during this audit.
+
+**Important scope note:** this review was limited to the exact flagged lines and their immediate context. It is not a full manual audit of the parser, data-ingestion, or build pipeline.
