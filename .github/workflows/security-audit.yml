@@ -11,7 +11,7 @@ permissions:
 
 concurrency:
   group: security-audit-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   security:
@@ -31,14 +31,15 @@ jobs:
             -v "${GITHUB_WORKSPACE}:/repo" -w /repo \
             zricethezav/gitleaks:v8.24.2 \
             detect --source=. --redact --no-banner \
-            --report-format json --report-path /tmp/gitleaks-report.json \
+            --report-format json --report-path /repo/.gitleaks-report.json \
             --exit-code 1 --log-opts=--all >/tmp/gitleaks-console.log 2>&1
           scan_status=$?
           python - <<'PY'
           import json, os
-          p = "/tmp/gitleaks-report.json"
+          p = os.path.join(os.environ["GITHUB_WORKSPACE"], ".gitleaks-report.json")
           findings = json.load(open(p)) if os.path.exists(p) else []
           print("Gitleaks finding count:", len(findings))
+          os.remove(p) if os.path.exists(p) else None
           print("Finding details intentionally suppressed; inspect only through an authorized, secure process.")
           PY
           if [ "$scan_status" -gt 1 ]; then
@@ -68,6 +69,21 @@ jobs:
         shell: bash
         run: |
           python -m pip install --disable-pip-version-check bandit
+          set +e
           bandit -r analysis executive_dashboard \
             -x 'executive_dashboard/tests,executive_dashboard/.venv' \
-            -f screen -q
+            -f json -o /tmp/bandit-report.json -q
+          scan_status=$?
+          python - <<'PY'
+          import json
+          report = json.load(open("/tmp/bandit-report.json"))
+          results = report.get("results", [])
+          counts = {}
+          for item in results:
+              key = item.get("issue_severity", "UNKNOWN")
+              counts[key] = counts.get(key, 0) + 1
+          print("Bandit finding counts by severity:", counts)
+          print("Source snippets and finding details are intentionally suppressed.")
+          PY
+          if [ "$scan_status" -gt 1 ]; then exit "$scan_status"; fi
+          if [ "$scan_status" -eq 1 ]; then exit 1; fi
