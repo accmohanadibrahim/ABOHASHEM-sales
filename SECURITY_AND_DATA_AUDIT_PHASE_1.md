@@ -397,3 +397,31 @@ These changes are present on the audit branch only; this report does not claim t
 6. Verify the EdgeOne project source, deployment branch/commit, environment variables, build output, and public asset access through the hosting account; this was not confirmed by GitHub metadata.
 
 No repository visibility setting, source file, business dataset, branch ref, production configuration, or deployment was changed as part of this review. This section records read-only observations and recommendations only.
+
+
+## 10.11 Remediation test coverage and CI gate review — 2026-11-18
+
+### Source-change test coverage
+The current audit-branch source contains the five remediation edits listed in Section 10.10. A read-only review of the existing tests found no dedicated regression tests for:
+- The BIDI sanitizer's exact Unicode code-point coverage in `test_ar_history.py`, `test_ops_ingest.py`, or `test_recipes.py`.
+- The `ARIMA...` model-name parser's accepted tuple forms and rejection of unexpected input.
+- The build fingerprint helper's SHA-256 behavior and output comparison compatibility.
+
+Existing test suites cover adjacent ingestion, history, and recipe behavior, but adjacency is not equivalent to a targeted security regression test. Add focused tests before treating these remediations as behavior-preserving.
+
+### Static-analysis gate behavior
+The current `.github/workflows/security-audit.yml` runs Bandit over `analysis/` and `executive_dashboard/` and exits non-zero whenever Bandit returns status 1. Bandit returns status 1 when findings are reported, including LOW-severity findings. Therefore, even if all HIGH and MEDIUM findings are eliminated, the workflow can remain red while accepted LOW findings remain.
+
+Recommended policy decision:
+- Keep the full Bandit JSON inventory and severity/rule counts.
+- Make the blocking gate explicit (recommended: fail on HIGH and MEDIUM; report LOW as non-blocking findings pending triage), or retain the all-severity blocking policy and plan to resolve/waive all LOW findings.
+- Do not suppress findings without a documented rationale, owner, and expiry/review date.
+
+No workflow change was made as part of this review.
+
+### Latest workflow observations
+- Run `44219701215`, on source-remediation head `623ec619895c3481abb12e82f18b2c7a20bf5d93`, remained `in_progress` at the latest status check.
+- The report-only commit `6e8979199f8669e5796581e8e0fc8c90e6de5e87` queued run `44219919862`; it had not started at the latest check.
+- No completed scanner result for the source-remediation head is available yet.
+
+The report update does not change application code, source data, repository settings, or deployment configuration.
