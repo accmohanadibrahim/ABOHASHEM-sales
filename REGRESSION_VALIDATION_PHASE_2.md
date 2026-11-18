@@ -7,6 +7,12 @@
 
 ## Changes made
 
+4. Converted all runtime `assert` statements in `executive_dashboard/src/standard_cost.py` to explicit `_require(...)` checks raising `ValueError`. This covers standard-cost row arithmetic, confirmed product identity, casing source cells and costs, recipe consistency, monthly recipe availability, sales-code links, duplicate standard-cost links, and missing confirmed rows.
+
+5. Converted all runtime `assert` statements in `executive_dashboard/src/ops_ingest.py` to explicit `_require_condition(...)` checks raising `ValueError`. This covers inventory valuation, purchase totals, supplier totals, returns parsing and totals, recipe merges, September purchase-to-PDF matching, stock-count reconciliation, and required sales-family links. No source workbook/PDF contents or generated outputs were changed.
+
+6. Added AST-based tests confirming that `standard_cost.py` and `ops_ingest.py` contain no runtime `assert` statements, plus direct and `python -O` tests for their explicit validation helpers.
+
 1. Added `executive_dashboard/tests/test_security_regressions.py` with synthetic-only tests for:
    - targeted Unicode bidi controls in both text-cleaning functions;
    - preservation/normalization of representative Arabic and compatibility text;
@@ -26,6 +32,9 @@
    These checks now raise `ValueError` explicitly and remain active under optimized Python. The tolerance predicates were written to preserve the previous strict comparisons, including rejecting non-finite values such as NaN.
 
 ## Validation status and limitations
+
+- The prior focused security workflow run 44221792749 completed successfully, including pytest, Gitleaks, pip-audit, and Bandit. It predates the latest Standard Cost and Operations Ingestion assertion conversions.
+- Latest branch commit after these conversions: `94c748c2e2233a5407f4331e140f04f3116dd242`; its workflow run 44222247145 was queued/pending when this report was updated. Do not claim the new conversions passed CI until this exact commit's run completes successfully.
 
 - Latest focused test run: GitHub Actions run [44221792749](https://github.com/accmohanadibrahim/ABOHASHEM-sales/actions/runs/44221792749), commit `706b5818ee47e8c772bac2651d230128a2355de0`. The `Run focused security remediation regression tests` step completed successfully. Gitleaks, pip-audit, and Bandit steps had not yet completed at the time of this report update.
 - Earlier run 44221716574 exposed three test-design issues: synthetic income values did not exceed the configured one-unit tolerance, and a compact test harness needed correction. Those were corrected on the isolated branch; latest pytest step now passes.
