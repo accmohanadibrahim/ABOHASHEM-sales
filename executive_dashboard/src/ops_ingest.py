@@ -68,7 +68,7 @@ F_RET = {"2026-07": RAW / "returns_items_2026-07.pdf", "2026-08": RAW / "returns
 
 LOCATIONS = ["المصنع", "النفق", "النهضة", "المنوفية", "التغليف"]
 DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "01234567890123456789")
-BIDI = re.compile("[‎‏‪-‮⁦-⁩]")
+BIDI = re.compile(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069]")
 
 
 class Log:
