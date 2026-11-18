@@ -6,7 +6,6 @@ not claim that the referenced tests prove the KPI formulas.
 import re
 from pathlib import Path
 
-import pytest
 
 APP_DIR = Path(__file__).resolve().parents[1]
 MATRIX = APP_DIR / "docs" / "KPI_COVERAGE_MATRIX.md"
