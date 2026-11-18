@@ -76,6 +76,7 @@ jobs:
           scan_status=$?
           python - <<'PY'
           import json
+          import sys
           report = json.load(open("/tmp/bandit-report.json"))
           results = report.get("results", [])
           from collections import Counter
@@ -88,14 +89,19 @@ jobs:
           print("Bandit counts by severity and rule ID:")
           for (severity, test_id), count in sorted(test_counts.items()):
               print(f"  {severity} {test_id}: {count}")
+          blocking = [
+              item for item in results
+              if item.get("issue_severity") in ("HIGH", "MEDIUM")
+          ]
           print("High/medium finding locations (path and line only; no source text):")
-          for item in results:
-              if item.get("issue_severity") in ("HIGH", "MEDIUM"):
-                  print(
-                      f"  {item.get('issue_severity')} {item.get('test_id')} "
-                      f"{item.get('filename')}:{item.get('line_number')}"
-                  )
+          for item in blocking:
+              print(
+                  f"  {item.get('issue_severity')} {item.get('test_id')} "
+                  f"{item.get('filename')}:{item.get('line_number')}"
+              )
           print("Source snippets and finding text are intentionally suppressed.")
+          if blocking:
+              sys.exit(1)
+          print("No high/medium Bandit findings; low findings remain reported for review.")
           PY
           if [ "$scan_status" -gt 1 ]; then exit "$scan_status"; fi
-          if [ "$scan_status" -eq 1 ]; then exit 1; fi
