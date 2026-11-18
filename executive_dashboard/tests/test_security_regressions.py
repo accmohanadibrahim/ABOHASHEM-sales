@@ -112,7 +112,12 @@ def _valid_income_statement():
             "selling": 5.0,
             "financing": 0.0,
         },
-        "items": [],
+        "items": [
+            {"section": "operating", "amount": 10.0},
+            {"section": "admin", "amount": 5.0},
+            {"section": "selling", "amount": 5.0},
+            {"section": "financing", "amount": 0.0},
+        ],
         "net_profit": 20.0,
     }
 
@@ -151,21 +156,38 @@ def test_income_statement_reconciliation_rejects_mismatches(field, value):
 
 
 def test_financial_reconciliation_checks_remain_active_under_python_optimized_mode():
-    code = (
-        "from src import ops_ingest, income_2026; "
-        "failed = False; "
-        "try: ops_ingest.check_valuation([{'value': 10}], [], 9, 0, 9); "
-        "except ValueError: failed = True; "
-        "if not failed: raise SystemExit('valuation mismatch was not rejected'); "
-        "p = {'source':'optimized-test','period':'2026-01','months':['2026-01'],"
-        "'net_sales':100,'cogs':60,'gross_profit':41,"
-        "'sections':{'operating':10,'admin':5,'selling':5,'financing':0},"
-        "'items':[],'net_profit':21}; "
-        "failed = False; "
-        "try: income_2026.check(p, []); "
-        "except ValueError: failed = True; "
-        "if not failed: raise SystemExit('income mismatch was not rejected')"
-    )
+    code = """
+from src import ops_ingest, income_2026
+try:
+    ops_ingest.check_valuation([{"value": 10}], [], 9, 0, 9)
+except ValueError:
+    pass
+else:
+    raise SystemExit("valuation mismatch was not rejected")
+
+p = {
+    "source": "optimized-test",
+    "period": "2026-01",
+    "months": ["2026-01"],
+    "net_sales": 100,
+    "cogs": 60,
+    "gross_profit": 41,
+    "sections": {"operating": 10, "admin": 5, "selling": 5, "financing": 0},
+    "items": [
+        {"section": "operating", "amount": 10},
+        {"section": "admin", "amount": 5},
+        {"section": "selling", "amount": 5},
+        {"section": "financing", "amount": 0},
+    ],
+    "net_profit": 21,
+}
+try:
+    income_2026.check(p, [])
+except ValueError:
+    pass
+else:
+    raise SystemExit("income mismatch was not rejected")
+"""
     import subprocess
     result = subprocess.run(
         [sys.executable, "-O", "-c", code],
