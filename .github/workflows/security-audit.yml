@@ -1,0 +1,73 @@
+name: Isolated security audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - audit/phase-1-security-ci-2026-11
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout full history for secret scanning
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Scan current tree and full Git history for secrets
+        shell: bash
+        run: |
+          set +e
+          docker run --rm --pull=always \
+            -v "${GITHUB_WORKSPACE}:/repo" -w /repo \
+            zricethezav/gitleaks:v8.24.2 \
+            detect --source=. --redact --no-banner \
+            --report-format json --report-path /tmp/gitleaks-report.json \
+            --exit-code 1 --log-opts=--all >/tmp/gitleaks-console.log 2>&1
+          scan_status=$?
+          python - <<'PY'
+          import json, os
+          p = "/tmp/gitleaks-report.json"
+          findings = json.load(open(p)) if os.path.exists(p) else []
+          print("Gitleaks finding count:", len(findings))
+          print("Finding details intentionally suppressed; inspect only through an authorized, secure process.")
+          PY
+          if [ "$scan_status" -gt 1 ]; then
+            echo "Gitleaks scanner execution error; inspect the redacted scanner log."
+            tail -n 30 /tmp/gitleaks-console.log
+            exit "$scan_status"
+          fi
+          if [ "$scan_status" -eq 1 ]; then
+            echo "Potential secret findings detected. Details are withheld from workflow output."
+            exit 1
+          fi
+
+      - name: Audit Python dependencies
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check pip-audit
+          status=0
+          for req in analysis/requirements.txt executive_dashboard/requirements.txt; do
+            if [ -f "$req" ]; then
+              echo "Auditing dependency manifest: $req"
+              if ! pip-audit -r "$req" --progress-spinner off; then status=1; fi
+            fi
+          done
+          exit "$status"
+
+      - name: Static analysis for Python security issues
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check bandit
+          bandit -r analysis executive_dashboard \
+            -x 'executive_dashboard/tests,executive_dashboard/.venv' \
+            -f screen -q
