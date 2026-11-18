@@ -78,12 +78,17 @@ jobs:
           import json
           report = json.load(open("/tmp/bandit-report.json"))
           results = report.get("results", [])
-          counts = {}
-          for item in results:
-              key = item.get("issue_severity", "UNKNOWN")
-              counts[key] = counts.get(key, 0) + 1
-          print("Bandit finding counts by severity:", counts)
-          print("Source snippets and finding details are intentionally suppressed.")
+          from collections import Counter
+          severity_counts = Counter(item.get("issue_severity", "UNKNOWN") for item in results)
+          test_counts = Counter(
+              (item.get("issue_severity", "UNKNOWN"), item.get("test_id", "UNKNOWN"))
+              for item in results
+          )
+          print("Bandit finding counts by severity:", dict(severity_counts))
+          print("Bandit counts by severity and rule ID (no paths or source snippets):")
+          for (severity, test_id), count in sorted(test_counts.items()):
+              print(f"  {severity} {test_id}: {count}")
+          print("File paths, line numbers, source snippets, and finding text are intentionally suppressed.")
           PY
           if [ "$scan_status" -gt 1 ]; then exit "$scan_status"; fi
           if [ "$scan_status" -eq 1 ]; then exit 1; fi
